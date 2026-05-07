@@ -1,0 +1,65 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: campus-hub-mongodb
+    restart: unless-stopped
+    ports:
+      - "27016:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - campus-hub
+
+  redis:
+    image: redis:7-alpine
+    container_name: campus-hub-redis
+    restart: unless-stopped
+    ports:
+      - "6378:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - campus-hub
+
+  backend:
+    build:
+      context: ./backend
+    container_name: campus-hub-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: 8000
+      DATABASE_URI: mongodb://mongodb:27017/campus-hub
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - campus-hub
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: campus-hub-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+    networks:
+      - campus-hub
+
+volumes:
+  mongodb_data:
+  redis_data:
+
+networks:
+  campus-hub:
+    driver: bridge
