@@ -1,3 +1,4 @@
+// Event model: anything a club hosts (workshop, hackathon, etc.). Belongs to a Club.
 const mongoose = require("mongoose");
 
 const EVENT_TYPES = ["contest", "workshop", "hackathon", "seminar", "fun"];
@@ -47,7 +48,7 @@ const eventSchema = new mongoose.Schema(
          meetingUrl: String,
       },
 
-      capacity: { type: Number, default: 0, min: 0 },
+      capacity: { type: Number, default: 0, min: 0 }, // 0 = unlimited.
       waitlistEnabled: { type: Boolean, default: false },
 
       status: {
@@ -68,6 +69,7 @@ const eventSchema = new mongoose.Schema(
    { timestamps: true, versionKey: false },
 );
 
+// Indexes power: "events for a club", "upcoming by type/status", and tag filtering.
 eventSchema.index({ clubId: 1, startAt: -1 });
 eventSchema.index({ eventType: 1, status: 1, startAt: 1 });
 eventSchema.index({ status: 1, startAt: 1 });

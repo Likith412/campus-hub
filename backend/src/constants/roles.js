@@ -1,11 +1,14 @@
+// Built-in role names + their permission sets. Seeded into the Role collection on db:init.
 const { PERMISSIONS: P } = require("./permissions");
 
+// Role identifiers stored on the User document.
 const ROLES = {
    STUDENT: "student",
    CLUB_ADMIN: "clubAdmin",
    SUPER_ADMIN: "superAdmin",
 };
 
+// System-managed roles upserted by scripts/dbInit.js. isSystem:true protects them from edits.
 const DEFAULT_ROLES = [
    {
       name: ROLES.STUDENT,

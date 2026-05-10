@@ -1,3 +1,5 @@
+// Canonical permission strings used by roles. Format: "resource:action".
+// Stored on Role documents and checked by authorization middleware.
 const PERMISSIONS = {
    PROFILE_MANAGE: "profile:manage",
 
@@ -18,7 +20,7 @@ const PERMISSIONS = {
    USER_MANAGE: "user:manage",
    ROLE_MANAGE: "role:manage",
 
-   ALL: "*",
+   ALL: "*", // Wildcard granted to super admins.
 };
 
 module.exports = { PERMISSIONS };

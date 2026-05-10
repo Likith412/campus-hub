@@ -1,3 +1,5 @@
+// Refresh-token sessions. One row per active login (per device). The raw token never hits the DB —
+// only its sha256 hash. expiresAt has a TTL index so Mongo auto-purges expired rows.
 const mongoose = require("mongoose");
 
 const authSessionSchema = new mongoose.Schema(

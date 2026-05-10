@@ -1,3 +1,4 @@
+// Barrel export for all mongoose models — import from "../models" anywhere instead of individual files.
 const User = require("./User");
 const Role = require("./Role");
 const Club = require("./Club");

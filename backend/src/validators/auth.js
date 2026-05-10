@@ -1,5 +1,7 @@
+// Zod schemas for the auth endpoints. Used via the `validate` middleware on each route.
 const { z } = require("zod");
 
+// Strong-password policy. Used for both registration and reset (not login — login takes any non-empty string).
 const passwordRule = z
    .string()
    .min(8, "Password must be at least 8 characters")
@@ -8,6 +10,7 @@ const passwordRule = z
    .regex(/[a-z]/, "Password must contain a lowercase letter")
    .regex(/[0-9]/, "Password must contain a number");
 
+// Normalize emails to lowercase + trim so lookups always match.
 const emailRule = z.string().email().toLowerCase().trim();
 
 const registerSchema = z.object({

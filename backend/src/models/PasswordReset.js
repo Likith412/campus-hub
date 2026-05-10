@@ -1,3 +1,4 @@
+// Single-use password reset tokens. Same pattern as EmailVerification (hashed + TTL-indexed).
 const mongoose = require("mongoose");
 
 const passwordResetSchema = new mongoose.Schema(

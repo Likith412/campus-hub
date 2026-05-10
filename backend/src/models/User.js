@@ -1,3 +1,5 @@
+// User model: account credentials, profile data, role, and preferences.
+// passwordHash stores a bcrypt hash — raw passwords are never persisted.
 const mongoose = require("mongoose");
 const { ROLES } = require("../constants/roles");
 
@@ -31,8 +33,8 @@ const userSchema = new mongoose.Schema(
       skills: { type: [String], default: [] },
       interests: { type: [String], default: [] },
 
-      emailVerified: { type: Boolean, default: false },
-      isActive: { type: Boolean, default: true },
+      emailVerified: { type: Boolean, default: false }, // Flipped true once verification link is used.
+      isActive: { type: Boolean, default: true }, // Soft-disable flag; checked by `authenticate`.
       lastLoginAt: Date,
 
       preferences: {

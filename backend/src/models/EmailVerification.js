@@ -1,3 +1,5 @@
+// Single-use email verification tokens. Stores sha256(token); raw token only sent in email.
+// expiresAt has a TTL index so expired records are auto-deleted.
 const mongoose = require("mongoose");
 
 const emailVerificationSchema = new mongoose.Schema(

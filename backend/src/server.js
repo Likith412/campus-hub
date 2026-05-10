@@ -1,16 +1,19 @@
+// Entry point: boots the HTTP server, connects external services, and handles graceful shutdown.
 const http = require("http");
 const dotenv = require("dotenv");
 
+// Load env vars from .env before anything else reads process.env.
 dotenv.config();
 
 const { connectDatabase, disconnectDatabase } = require("./config/database");
 const { connectRedis, disconnectRedis } = require("./config/redis");
 
 const PORT = process.env.PORT || 8000;
-const SHUTDOWN_TIMEOUT_MS = 30000;
+const SHUTDOWN_TIMEOUT_MS = 30000; // Hard kill the process if cleanup hangs past 30s.
 
 let server;
 
+// Connect to dependencies first, then start accepting HTTP traffic.
 async function startServer() {
    try {
       await connectDatabase();
@@ -19,6 +22,7 @@ async function startServer() {
       await connectRedis();
       console.log("Redis connected");
 
+      // Require app AFTER env + DB are ready (modules may read env at import).
       const app = require("./app");
       server = http.createServer(app);
 
@@ -31,9 +35,11 @@ async function startServer() {
    }
 }
 
+// Graceful shutdown: stop new requests, close DB/Redis, then exit.
 async function shutdown(signal) {
    console.log(`\n${signal} received, shutting down`);
 
+   // Safety net so we never hang forever during shutdown.
    const forceExit = setTimeout(() => {
       console.error("Forced shutdown after timeout");
       process.exit(1);
@@ -42,6 +48,7 @@ async function shutdown(signal) {
 
    try {
       if (server) {
+         // Wait for in-flight requests to finish before closing the listener.
          await new Promise((resolve, reject) => {
             server.close((err) => (err ? reject(err) : resolve()));
          });
@@ -55,6 +62,7 @@ async function shutdown(signal) {
    }
 }
 
+// Listen for Ctrl+C (SIGINT) and container/orchestrator stop (SIGTERM).
 process.on("SIGINT", () => shutdown("SIGINT"));
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 

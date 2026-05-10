@@ -1,3 +1,6 @@
+// Auth controller — handles register, login, refresh, logout, me, email verification, password reset.
+// Token model: short-lived JWT access token + opaque refresh token stored as an httpOnly cookie
+// and tracked server-side via AuthSession (so we can revoke per-device).
 const { successResponse } = require("../utils/response");
 const { hashPassword, verifyPassword } = require("../utils/password");
 const { signAccessToken } = require("../utils/jwt");
@@ -26,10 +29,11 @@ const {
 
 const REFRESH_TTL_MS =
    Number(process.env.JWT_REFRESH_TTL_DAYS || 30) * 24 * 60 * 60 * 1000;
-const VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
-const RESET_TTL_MS = 30 * 60 * 1000;
+const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // Email verification link valid for 24h.
+const RESET_TTL_MS = 30 * 60 * 1000; // Password reset link valid for 30min (tighter — sensitive op).
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
+// Strip private fields (passwordHash, etc.) before sending a user back to the client.
 function publicUser(u) {
    return {
       id: u._id,
@@ -41,11 +45,12 @@ function publicUser(u) {
    };
 }
 
+// Create a refresh-token row tied to this device. Returns the raw token (caller sets the cookie).
 async function issueRefreshSession(userId, req) {
    const refreshToken = randomToken();
    await AuthSession.create({
       userId,
-      refreshTokenHash: sha256(refreshToken),
+      refreshTokenHash: sha256(refreshToken), // Only the hash is stored.
       deviceInfo: {
          userAgent: req.headers["user-agent"]?.slice(0, 200),
          ip: req.ip,
@@ -55,6 +60,7 @@ async function issueRefreshSession(userId, req) {
    return refreshToken;
 }
 
+// Revoke any prior pending verification tokens for this user, then issue a fresh one.
 async function issueVerificationToken(userId) {
    await EmailVerification.updateMany(
       { userId, usedAt: null, revokedAt: null },
@@ -69,6 +75,7 @@ async function issueVerificationToken(userId) {
    return token;
 }
 
+// Same pattern as verification: revoke stale tokens then issue a new one. Prevents multiple-link confusion.
 async function issuePasswordResetToken(userId) {
    await PasswordReset.updateMany(
       { userId, usedAt: null, revokedAt: null },
@@ -83,6 +90,8 @@ async function issuePasswordResetToken(userId) {
    return token;
 }
 
+// POST /auth/register — create the user, hash their password, send verification email.
+// User cannot log in until they verify their email (enforced in `login`).
 async function register(req, res) {
    const { email, password, name } = req.body;
 
@@ -105,10 +114,12 @@ async function register(req, res) {
    );
 }
 
+// POST /auth/login — verify credentials, issue access JWT (response body) + refresh cookie.
 async function login(req, res) {
    const { email, password } = req.body;
 
    const user = await User.findOne({ email });
+   // Same generic message for "user not found" and "wrong password" (no account enumeration).
    if (!user || !user.isActive) {
       throw new UnauthorizedError("Invalid credentials");
    }
@@ -133,10 +144,13 @@ async function login(req, res) {
    });
 }
 
+// POST /auth/refresh — exchange a valid refresh cookie for a new access token.
+// Refresh-token rotation: the old refresh token is replaced on every use.
 async function refresh(req, res) {
    const token = req.cookies?.[REFRESH_COOKIE_NAME];
    if (!token) throw new UnauthorizedError("No refresh token");
 
+   // Look up the session by hash (raw token never persisted).
    const session = await AuthSession.findOne({
       refreshTokenHash: sha256(token),
       revokedAt: null,
@@ -149,6 +163,7 @@ async function refresh(req, res) {
       throw new UnauthorizedError("Account not found or inactive");
    }
 
+   // Rotate the refresh token — sliding expiration + invalidates the old token if reused.
    const newRefresh = randomToken();
    session.refreshTokenHash = sha256(newRefresh);
    session.expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
@@ -159,15 +174,18 @@ async function refresh(req, res) {
    return successResponse(res, 200, "Token refreshed", { accessToken });
 }
 
+// POST /auth/logout — revoke the current refresh session and blacklist the access token until it expires.
 async function logout(req, res) {
    const token = req.cookies?.[REFRESH_COOKIE_NAME];
    if (token) {
+      // Revoke the server-side refresh session so it can't be used again.
       await AuthSession.findOneAndUpdate(
          { refreshTokenHash: sha256(token) },
          { revokedAt: new Date() },
       );
    }
 
+   // Blacklist the access JWT in Redis until its natural expiry — `authenticate` checks this.
    if (req.tokenJti && req.tokenExp) {
       const ttl = req.tokenExp - Math.floor(Date.now() / 1000);
       if (ttl > 0) {
@@ -179,16 +197,19 @@ async function logout(req, res) {
    return successResponse(res, 200, "Logged out");
 }
 
+// GET /auth/me — return the authenticated user (req.user is populated by `authenticate`).
 async function me(req, res) {
    return successResponse(res, 200, "Current user", {
       user: publicUser(req.user),
    });
 }
 
+// GET /auth/verify-email?token=... — flips the user's emailVerified flag and consumes the token.
 async function verifyEmail(req, res) {
    const { token } = req.query;
    if (!token) throw new UnauthorizedError("Missing token");
 
+   // Match by hash + ensure not used/revoked/expired.
    const record = await EmailVerification.findOne({
       tokenHash: sha256(token),
       usedAt: null,
@@ -198,12 +219,14 @@ async function verifyEmail(req, res) {
    if (!record) throw new UnauthorizedError("Invalid or expired token");
 
    await User.updateOne({ _id: record.userId }, { emailVerified: true });
-   record.usedAt = new Date();
+   record.usedAt = new Date(); // Mark consumed — single-use.
    await record.save();
 
    return successResponse(res, 200, "Email verified");
 }
 
+// POST /auth/resend-verification — re-sends the verification link.
+// Always returns the same message regardless of whether the email exists (anti-enumeration).
 async function resendVerification(req, res) {
    const { email } = req.body;
    const user = await User.findOne({ email });
@@ -221,6 +244,8 @@ async function resendVerification(req, res) {
    );
 }
 
+// POST /auth/forgot-password — emails a reset link if the account exists.
+// Generic response (no leak of which emails are registered).
 async function forgotPassword(req, res) {
    const { email } = req.body;
    const user = await User.findOne({ email });
@@ -238,6 +263,8 @@ async function forgotPassword(req, res) {
    );
 }
 
+// POST /auth/reset-password — set a new password using a one-time reset token.
+// Also revokes all existing sessions so a leaked refresh token can't outlive the reset.
 async function resetPassword(req, res) {
    const { token, password } = req.body;
 
@@ -252,9 +279,10 @@ async function resetPassword(req, res) {
    const passwordHash = await hashPassword(password);
    await User.updateOne({ _id: record.userId }, { passwordHash });
 
-   record.usedAt = new Date();
+   record.usedAt = new Date(); // Single-use.
    await record.save();
 
+   // Force re-login on every device — any previously-issued refresh tokens are invalid.
    await AuthSession.updateMany(
       { userId: record.userId, revokedAt: null },
       { revokedAt: new Date() },

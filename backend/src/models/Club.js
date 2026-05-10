@@ -1,3 +1,4 @@
+// Club model: a student-run organization. Members live in ClubMembership; events live in Event.
 const mongoose = require("mongoose");
 
 const CLUB_CATEGORIES = [
@@ -52,6 +53,7 @@ const clubSchema = new mongoose.Schema(
          allowGuests: { type: Boolean, default: false },
       },
 
+      // Denormalized counters for fast listing pages — kept in sync by service-layer writes.
       stats: {
          memberCount: { type: Number, default: 0 },
          eventCount: { type: Number, default: 0 },
@@ -68,6 +70,7 @@ const clubSchema = new mongoose.Schema(
    { timestamps: true, versionKey: false },
 );
 
+// Indexes tuned for the common list/filter queries on the clubs page.
 clubSchema.index({ category: 1, status: 1 });
 clubSchema.index({ status: 1, createdAt: -1 });
 clubSchema.index({ tags: 1 });

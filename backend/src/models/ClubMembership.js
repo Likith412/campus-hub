@@ -1,6 +1,9 @@
+// Join table linking a User to a Club, with their per-club role and engagement score.
 const mongoose = require("mongoose");
 
+// Role within a single club (separate from the global app role on User).
 const MEMBERSHIP_ROLES = ["admin", "volunteer", "member"];
+// Lifecycle of a join request.
 const MEMBERSHIP_STATUSES = ["pending", "approved", "rejected", "left"];
 
 const clubMembershipSchema = new mongoose.Schema(
@@ -35,6 +38,7 @@ const clubMembershipSchema = new mongoose.Schema(
    { timestamps: true, versionKey: false },
 );
 
+// One membership per (user, club). Other indexes power "my clubs" and per-club leaderboards.
 clubMembershipSchema.index({ userId: 1, clubId: 1 }, { unique: true });
 clubMembershipSchema.index({ userId: 1, status: 1 });
 clubMembershipSchema.index({ clubId: 1, role: 1 });
