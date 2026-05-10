@@ -8,18 +8,36 @@ const passwordRule = z
    .regex(/[a-z]/, "Password must contain a lowercase letter")
    .regex(/[0-9]/, "Password must contain a number");
 
+const emailRule = z.string().email().toLowerCase().trim();
+
 const registerSchema = z.object({
-   email: z.string().email().toLowerCase().trim(),
+   email: emailRule,
    password: passwordRule,
    name: z.string().min(2).max(80).trim(),
 });
 
 const loginSchema = z.object({
-   email: z.string().email().toLowerCase().trim(),
+   email: emailRule,
    password: z.string().min(1),
+});
+
+const forgotPasswordSchema = z.object({
+   email: emailRule,
+});
+
+const resetPasswordSchema = z.object({
+   token: z.string().min(32),
+   password: passwordRule,
+});
+
+const resendVerificationSchema = z.object({
+   email: emailRule,
 });
 
 module.exports = {
    registerSchema,
    loginSchema,
+   forgotPasswordSchema,
+   resetPasswordSchema,
+   resendVerificationSchema,
 };

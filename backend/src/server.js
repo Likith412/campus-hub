@@ -3,14 +3,13 @@ const dotenv = require("dotenv");
 
 dotenv.config();
 
-const app = require("./app");
 const { connectDatabase, disconnectDatabase } = require("./config/database");
 const { connectRedis, disconnectRedis } = require("./config/redis");
 
 const PORT = process.env.PORT || 8000;
 const SHUTDOWN_TIMEOUT_MS = 30000;
 
-const server = http.createServer(app);
+let server;
 
 async function startServer() {
    try {
@@ -19,6 +18,9 @@ async function startServer() {
 
       await connectRedis();
       console.log("Redis connected");
+
+      const app = require("./app");
+      server = http.createServer(app);
 
       server.listen(PORT, () => {
          console.log(`Server running on http://localhost:${PORT}`);
@@ -39,9 +41,11 @@ async function shutdown(signal) {
    forceExit.unref();
 
    try {
-      await new Promise((resolve, reject) => {
-         server.close((err) => (err ? reject(err) : resolve()));
-      });
+      if (server) {
+         await new Promise((resolve, reject) => {
+            server.close((err) => (err ? reject(err) : resolve()));
+         });
+      }
       await disconnectDatabase();
       await disconnectRedis();
       process.exit(0);
