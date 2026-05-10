@@ -23,14 +23,14 @@ const router = express.Router();
 // Public — creates a new account; verification email sent.
 router.post(
    "/register",
-   registerLimiter,
+   // registerLimiter,
    validate(registerSchema),
    authController.register,
 );
 // Public — issues access JWT + refresh cookie.
 router.post(
    "/login",
-   loginLimiter,
+   // loginLimiter,
    validate(loginSchema),
    authController.login,
 );
@@ -46,21 +46,21 @@ router.get("/verify-email", authController.verifyEmail);
 // Public — resend verification email if the original expired or got lost.
 router.post(
    "/resend-verification",
-   verificationLimiter,
+   // verificationLimiter,
    validate(resendVerificationSchema),
    authController.resendVerification,
 );
 // Public — triggers the "forgot password" flow by sending a reset link to the email.
 router.post(
    "/forgot-password",
-   passwordLimiter,
+   // passwordLimiter,
    validate(forgotPasswordSchema),
    authController.forgotPassword,
 );
 // Public — consumes the password reset token from the link, sets new password.
 router.post(
    "/reset-password",
-   passwordLimiter,
+   // passwordLimiter,
    validate(resetPasswordSchema),
    authController.resetPassword,
 );
