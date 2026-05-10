@@ -35,16 +35,6 @@ const userSchema = new mongoose.Schema(
       isActive: { type: Boolean, default: true },
       lastLoginAt: Date,
 
-      oauthProviders: [
-         {
-            provider: {
-               type: String,
-               enum: ["google", "github", "microsoft"],
-            },
-            providerId: String,
-            linkedAt: Date,
-         },
-      ],
       preferences: {
          notifications: {
             email: { type: Boolean, default: true },
