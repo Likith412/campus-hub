@@ -46,7 +46,7 @@ async function sendVerificationEmail(to, link) {
    const subject = "Verify your CampusHub email";
    const text = `Welcome to CampusHub! Verify your email: ${link}\n\nThis link expires in 24 hours.`;
    const html = `<p>Welcome to CampusHub.</p><p><a href="${link}">Verify your email</a></p><p>This link expires in 24 hours.</p>`;
-   await addToQueue("sendEmail", [to, subject, html, text]);
+   await addToQueue("sendEmail", { to, subject, html, text });
 }
 
 // Sends the password-reset link triggered by /auth/forgot-password.
@@ -54,7 +54,7 @@ async function sendPasswordResetEmail(to, link) {
    const subject = "Reset your CampusHub password";
    const text = `Reset your password: ${link}\n\nThis link expires in 30 minutes. If you didn't request this, ignore this email.`;
    const html = `<p>Reset your password using the link below.</p><p><a href="${link}">Reset password</a></p><p>This link expires in 30 minutes. If you didn't request this, ignore this email.</p>`;
-   await addToQueue("sendEmail", [to, subject, html, text]);
+   await addToQueue("sendEmail", { to, subject, html, text });
 }
 
 module.exports = { sendVerificationEmail, sendPasswordResetEmail, sendEmail };
