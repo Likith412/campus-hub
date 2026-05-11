@@ -37,7 +37,7 @@ async function send(to, subject, html, text) {
       return;
    }
 
-   await t.sendMail({ from: FROM, to, subject, html, text });
+   await t.sendMail({ from, to, subject, html, text });
 }
 
 // Sends the "verify your email" message used after registration / resend-verification.
