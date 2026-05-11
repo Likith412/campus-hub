@@ -7,6 +7,7 @@ dotenv.config();
 
 const { connectDatabase, disconnectDatabase } = require("./config/database");
 const { connectRedis, disconnectRedis } = require("./config/redis");
+const { startQueueProcessor, stopQueueProcessor } = require("./config/queue");
 
 const PORT = process.env.PORT || 8000;
 const SHUTDOWN_TIMEOUT_MS = 30000; // Hard kill the process if cleanup hangs past 30s.
@@ -21,6 +22,9 @@ async function startServer() {
 
       await connectRedis();
       console.log("Redis connected");
+
+      startQueueProcessor();
+      console.log("Queue processor started");
 
       // Require app AFTER env + DB are ready (modules may read env at import).
       const app = require("./app");
@@ -55,6 +59,9 @@ async function shutdown(signal) {
       }
       await disconnectDatabase();
       await disconnectRedis();
+      await stopQueueProcessor();
+
+      console.log("Cleanup complete, exiting");
       process.exit(0);
    } catch (error) {
       console.error("Error during shutdown:", error);
