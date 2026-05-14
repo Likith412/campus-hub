@@ -9,6 +9,10 @@ const {
    REFRESH_COOKIE_NAME,
    setRefreshCookie,
    clearRefreshCookie,
+   setAccessCookie,
+   clearAccessCookie,
+   setSessionHintCookie,
+   clearSessionHintCookie,
 } = require("../utils/cookies");
 const {
    UnauthorizedError,
@@ -138,8 +142,9 @@ async function login(req, res) {
    await user.save();
 
    setRefreshCookie(res, refreshToken);
+   setAccessCookie(res, accessToken);
+   setSessionHintCookie(res);
    return successResponse(res, 200, "Logged in", {
-      accessToken,
       user: publicUser(user),
    });
 }
@@ -171,7 +176,9 @@ async function refresh(req, res) {
 
    const { token: accessToken } = signAccessToken(user);
    setRefreshCookie(res, newRefresh);
-   return successResponse(res, 200, "Token refreshed", { accessToken });
+   setAccessCookie(res, accessToken);
+   setSessionHintCookie(res);
+   return successResponse(res, 200, "Token refreshed");
 }
 
 // POST /auth/logout — revoke the current refresh session and blacklist the access token until it expires.
@@ -194,6 +201,8 @@ async function logout(req, res) {
    }
 
    clearRefreshCookie(res);
+   clearAccessCookie(res);
+   clearSessionHintCookie(res);
    return successResponse(res, 200, "Logged out");
 }
 

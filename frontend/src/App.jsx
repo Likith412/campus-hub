@@ -1,31 +1,31 @@
-import { useEffect, useState } from "react";
+import { Routes, Route } from "react-router";
+
+import Register from "./pages/Register";
+import Login from "./pages/Login";
+import Home from "./pages/Home";
+
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute, PublicOnlyRoute } from "./components/ProtectedRoute";
+
 import "./App.css";
 
 function App() {
-   const [count, setCount] = useState(0);
-   const [message, setMessage] = useState("");
-
-   const fetchMessage = async () => {
-      const response = await fetch("http://localhost:8000/");
-      const data = await response.json();
-      setMessage(data.message);
-   };
-
-   useEffect(() => {
-      (async () => {
-         await fetchMessage();
-      })();
-   }, []);
-
    return (
-      <div>
-         <h1>
-            {message} * {count}
-         </h1>
-         <button onClick={() => setCount((count) => count + 1)}>
-            increase
-         </button>
-      </div>
+      // AuthProvider wraps everything so route guards can read auth state.
+      <AuthProvider>
+         <Routes>
+            {/* Auth pages: redirect to "/" if already logged in. */}
+            <Route element={<PublicOnlyRoute />}>
+               <Route path="/login" element={<Login />} />
+               <Route path="/register" element={<Register />} />
+            </Route>
+
+            {/* Everything below requires a logged-in user. */}
+            <Route element={<ProtectedRoute />}>
+               <Route path="/" element={<Home />} />
+            </Route>
+         </Routes>
+      </AuthProvider>
    );
 }
 

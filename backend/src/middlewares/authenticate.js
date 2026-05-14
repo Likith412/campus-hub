@@ -1,17 +1,17 @@
 // Auth middleware: verifies the access JWT and attaches req.user. Use on any protected route.
 const { verifyAccessToken } = require("../utils/jwt");
 const { UnauthorizedError } = require("../utils/errors");
+const { ACCESS_COOKIE_NAME } = require("../utils/cookies");
 const { User } = require("../models");
 const { redisClient } = require("../config/redis");
 
 async function authenticate(req, res, next) {
-   // Expect "Authorization: Bearer <token>".
-   const header = req.headers.authorization;
-   if (!header || !header.startsWith("Bearer ")) {
-      throw new UnauthorizedError("Missing or invalid Authorization header");
+   // Access token lives in an httpOnly cookie (sent automatically by the browser).
+   const token = req.cookies?.[ACCESS_COOKIE_NAME];
+   if (!token) {
+      throw new UnauthorizedError("Not authenticated");
    }
 
-   const token = header.slice("Bearer ".length);
    let payload;
    try {
       payload = verifyAccessToken(token);
