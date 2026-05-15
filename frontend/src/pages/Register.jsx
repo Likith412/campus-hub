@@ -2,19 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { authApi, ApiError } from "../services";
 
-const roles = {
-   STUDENT: "Student",
-   CLUB_ADMIN: "Club Admin",
-   SUPER_ADMIN: "Super Admin",
-};
-
-const years = {
-   FIRST_YEAR: "1st year",
-   SECOND_YEAR: "2nd year",
-   THIRD_YEAR: "3rd year",
-   FINAL_YEAR: "Final year",
-};
-
 // Tiny inline SVG wrapper for the small icons scattered through this page.
 function Icon({ size = 14, strokeWidth = 2.2, children }) {
    return (
@@ -32,35 +19,6 @@ function Icon({ size = 14, strokeWidth = 2.2, children }) {
       </svg>
    );
 }
-
-const roleOptions = [
-   {
-      value: roles.STUDENT,
-      desc: "Attend & join",
-      icon: (
-         <>
-            <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-            <path d="M6 12v5c3 3 9 3 12 0v-5" />
-         </>
-      ),
-   },
-   {
-      value: roles.CLUB_ADMIN,
-      desc: "Run a club",
-      icon: (
-         <>
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-         </>
-      ),
-   },
-   {
-      value: roles.SUPER_ADMIN,
-      desc: "Coordinate",
-      icon: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
-   },
-];
 
 const strengthLabels = ["—", "Weak", "Fair", "Good", "Strong"];
 
@@ -105,11 +63,8 @@ const brandFeats = [
 function Register() {
    const [formData, setFormData] = useState({
       fullName: "",
-      role: roles.STUDENT,
-      year: years.FIRST_YEAR,
       email: "",
       password: "",
-      agreeTerms: false,
    });
 
    const [submitting, setSubmitting] = useState(false);
@@ -117,28 +72,16 @@ function Register() {
    const navigate = useNavigate();
 
    const handleChange = (e) => {
-      const { name, value, type, checked } = e.target;
-      setFormData((prev) => ({
-         ...prev,
-         [name]: type === "checkbox" ? checked : value,
-      }));
-   };
-
-   const handleRoleChange = (role) => {
-      setFormData((prev) => ({ ...prev, role }));
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
    };
 
    const handleSubmit = async (e) => {
       e.preventDefault();
       if (submitting) return; // guard against double-submit while a request is in-flight
-      if (!formData.agreeTerms) {
-         setError("Please accept the Terms & Privacy to continue.");
-         return;
-      }
       setError(null);
       setSubmitting(true);
       try {
-         // Backend only accepts { email, password, name } today — role/year stay local.
          await authApi.register({
             email: formData.email,
             password: formData.password,
@@ -223,51 +166,17 @@ function Register() {
                   Takes ~12 seconds. You can change everything later.
                </p>
 
-               <div className="role-grid">
-                  {roleOptions.map(({ value, desc, icon }) => (
-                     <button
-                        type="button"
-                        key={value}
-                        className={`role-card${formData.role === value ? " active" : ""}`}
-                        onClick={() => handleRoleChange(value)}
-                     >
-                        <div className="ic">
-                           <Icon>{icon}</Icon>
-                        </div>
-                        <div className="name">{value}</div>
-                        <div className="desc">{desc}</div>
-                     </button>
-                  ))}
-               </div>
-
-               <div className="field-row">
-                  <div className="field">
-                     <label className="field-label">Full name</label>
-                     <div className="input-wrap">
-                        <input
-                           className="field-input"
-                           type="text"
-                           name="fullName"
-                           placeholder="Arjun Sharma"
-                           value={formData.fullName}
-                           onChange={handleChange}
-                        />
-                     </div>
-                  </div>
-                  <div className="field">
-                     <label className="field-label">Year</label>
-                     <select
+               <div className="field">
+                  <label className="field-label">Full name</label>
+                  <div className="input-wrap">
+                     <input
                         className="field-input"
-                        name="year"
-                        value={formData.year}
+                        type="text"
+                        name="fullName"
+                        placeholder="Arjun Sharma"
+                        value={formData.fullName}
                         onChange={handleChange}
-                     >
-                        {Object.values(years).map((y) => (
-                           <option key={y} value={y}>
-                              {y}
-                           </option>
-                        ))}
-                     </select>
+                     />
                   </div>
                </div>
 
@@ -332,25 +241,6 @@ function Register() {
                      <b>{strengthLabels[scorePassword(formData.password)]}</b> ·
                      use letters, numbers, &amp; symbols
                   </div>
-               </div>
-
-               <div className="row-between" style={{ marginTop: 4 }}>
-                  <label className="check">
-                     <input
-                        type="checkbox"
-                        name="agreeTerms"
-                        checked={formData.agreeTerms}
-                        onChange={handleChange}
-                     />
-                     <span className="box"></span>I agree to the{" "}
-                     <Link
-                        to="/terms"
-                        style={{ marginLeft: 4 }}
-                        className="link"
-                     >
-                        Terms &amp; Privacy
-                     </Link>
-                  </label>
                </div>
 
                {error && <div className="auth-error">{error}</div>}

@@ -25,6 +25,7 @@ const {
    EmailVerification,
    PasswordReset,
 } = require("../models");
+const { ROLES } = require("../constants/roles");
 const { redisClient } = require("../config/redis");
 const {
    sendVerificationEmail,
@@ -94,7 +95,7 @@ async function issuePasswordResetToken(userId) {
    return token;
 }
 
-// POST /auth/register — create the user, hash their password, send verification email.
+// POST /auth/register — student self-signup only.
 // User cannot log in until they verify their email (enforced in `login`).
 async function register(req, res) {
    const { email, password, name } = req.body;
@@ -104,7 +105,12 @@ async function register(req, res) {
    }
 
    const passwordHash = await hashPassword(password);
-   const user = await User.create({ email, passwordHash, name });
+   const user = await User.create({
+      email,
+      passwordHash,
+      name,
+      role: ROLES.STUDENT,
+   });
 
    const verifyToken = await issueVerificationToken(user._id);
    const link = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;

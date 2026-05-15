@@ -24,6 +24,4 @@ dist-ssr
 *.sw?
 
 .env
-dev/
-api_testing
-design/
+.*/
