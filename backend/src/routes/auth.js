@@ -53,10 +53,12 @@ router.post(
 // Public — triggers the "forgot password" flow by sending a reset link to the email.
 router.post(
    "/forgot-password",
-   // passwordLimiter,
+   passwordLimiter,
    validate(forgotPasswordSchema),
    authController.forgotPassword,
 );
+// Public — checks token validity without consuming it (used by the reset page on mount).
+router.get("/reset-password/validate", authController.validateResetToken);
 // Public — consumes the password reset token from the link, sets new password.
 router.post(
    "/reset-password",

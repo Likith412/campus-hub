@@ -3,6 +3,8 @@ import { Routes, Route } from "react-router";
 import Register from "./pages/Register";
 import Login from "./pages/Login";
 import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Home from "./pages/Home";
 
 import { AuthProvider } from "./contexts/AuthContext";
@@ -19,10 +21,12 @@ function App() {
             <Route element={<PublicOnlyRoute />}>
                <Route path="/login" element={<Login />} />
                <Route path="/register" element={<Register />} />
+               <Route path="/forgot-password" element={<ForgotPassword />} />
             </Route>
 
-            {/* Email verification is reachable from email links regardless of session state. */}
+            {/* Email-link landing pages: reachable regardless of session state. */}
             <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Everything below requires a logged-in user. */}
             <Route element={<ProtectedRoute />}>

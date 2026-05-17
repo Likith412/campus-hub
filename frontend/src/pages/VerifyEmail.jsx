@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { authApi, ApiError } from "../services";
 
@@ -59,21 +59,14 @@ const stats = [
    { num: "Secure", label: "Single-use token" },
 ];
 
-// View state machine: VERIFYING on mount, then SUCCESS or ERROR.
-// IDLE is used when no token was supplied (user landed here directly to resend).
-const STATUS = {
-   VERIFYING: "verifying",
-   SUCCESS: "success",
-   ERROR: "error",
-   IDLE: "idle",
-};
-
+// View state machine: 'verifying' on mount, then 'success' or 'error'.
+// 'idle' is used when no token was supplied (user landed here directly to resend).
 function VerifyEmail() {
    const [params] = useSearchParams();
    const token = params.get("token");
    const navigate = useNavigate();
 
-   const [status, setStatus] = useState(token ? STATUS.VERIFYING : STATUS.IDLE);
+   const [status, setStatus] = useState(token ? "verifying" : "idle");
    const [errorMessage, setErrorMessage] = useState(null);
 
    // Resend form (shown on error or when no token was provided at all).
@@ -81,18 +74,14 @@ function VerifyEmail() {
    const [resendSubmitting, setResendSubmitting] = useState(false);
    const [resendSent, setResendSent] = useState(false);
 
-   // Guard against StrictMode double-invocation in dev (would consume the single-use token twice).
-   const hasVerified = useRef(false);
-
    useEffect(() => {
-      if (!token || hasVerified.current) return;
-      hasVerified.current = true;
+      if (!token) return;
       (async () => {
          try {
             await authApi.verifyEmail(token);
-            setStatus(STATUS.SUCCESS);
+            setStatus("success");
          } catch (err) {
-            setStatus(STATUS.ERROR);
+            setStatus("error");
             setErrorMessage(
                err instanceof ApiError
                   ? err.message
@@ -173,7 +162,7 @@ function VerifyEmail() {
             </div>
 
             <div className="auth-form">
-               {status === STATUS.VERIFYING && (
+               {status === "verifying" && (
                   <>
                      <h2 className="auth-title">Verifying your email…</h2>
                      <p className="auth-subtitle">
@@ -185,15 +174,25 @@ function VerifyEmail() {
                   </>
                )}
 
-               {status === STATUS.SUCCESS && (
+               {status === "success" && (
                   <>
                      <h2 className="auth-title">Email verified.</h2>
                      <p className="auth-subtitle">
                         Your account is ready. You can sign in now.
                      </p>
-                     <div className="auth-banner">
-                        All set — your email has been confirmed and your account
-                        is active.
+                     <div className="success-card">
+                        <div className="success-ic">
+                           <Icon size={18} strokeWidth={3}>
+                              <polyline points="20 6 9 17 4 12" />
+                           </Icon>
+                        </div>
+                        <div>
+                           <div className="title">You're all set</div>
+                           <div className="msg">
+                              Your email has been confirmed and your account is
+                              active. Sign in to start exploring CampusHub.
+                           </div>
+                        </div>
                      </div>
                      <button
                         type="button"
@@ -209,27 +208,37 @@ function VerifyEmail() {
                   </>
                )}
 
-               {(status === STATUS.ERROR || status === STATUS.IDLE) && (
+               {(status === "error" || status === "idle") && (
                   <>
                      <h2 className="auth-title">
-                        {status === STATUS.ERROR
+                        {status === "error"
                            ? "We couldn't verify that link."
                            : "Resend verification email."}
                      </h2>
                      <p className="auth-subtitle">
-                        {status === STATUS.ERROR
+                        {status === "error"
                            ? "The link may be expired or already used. Request a fresh one below."
                            : "Enter the email you signed up with and we'll send a new link."}
                      </p>
 
-                     {status === STATUS.ERROR && errorMessage && (
+                     {status === "error" && errorMessage && (
                         <div className="auth-error">{errorMessage}</div>
                      )}
 
                      {resendSent ? (
-                        <div className="auth-banner">
-                           If that email exists, a fresh verification link is on
-                           its way. Check your inbox (and spam).
+                        <div className="success-card">
+                           <div className="success-ic">
+                              <Icon size={18} strokeWidth={3}>
+                                 <polyline points="20 6 9 17 4 12" />
+                              </Icon>
+                           </div>
+                           <div>
+                              <div className="title">Check your inbox</div>
+                              <div className="msg">
+                                 If that email exists, a fresh verification link
+                                 is on its way. Check your spam folder too.
+                              </div>
+                           </div>
                         </div>
                      ) : (
                         <form onSubmit={handleResend}>

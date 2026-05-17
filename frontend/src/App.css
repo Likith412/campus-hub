@@ -1333,6 +1333,32 @@ body {
    line-height: 18px;
 }
 
+/* Troubleshooting list shown after a reset email is sent */
+.resend-help {
+   background: var(--bg-elevated);
+   border-radius: 10px;
+   padding: 14px 16px;
+   margin-bottom: 18px;
+}
+.resend-help-title {
+   font-size: 12px;
+   font-weight: 600;
+   color: var(--text-tertiary);
+   text-transform: uppercase;
+   letter-spacing: 0.4px;
+   margin-bottom: 6px;
+}
+.resend-help ul {
+   font-size: 12.5px;
+   line-height: 20px;
+   color: var(--text-secondary);
+   padding-left: 18px;
+   margin: 0;
+}
+.resend-help b {
+   color: var(--text-primary);
+}
+
 /* Inline form-level messages (login/register submit errors and post-signup hint) */
 .auth-error {
    background: var(--accent-red-light);

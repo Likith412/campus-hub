@@ -45,6 +45,13 @@ export async function forgotPassword(email) {
    return data;
 }
 
+export async function validateResetToken(token) {
+   const { data } = await apiClient.get("/auth/reset-password/validate", {
+      params: { token },
+   });
+   return data;
+}
+
 export async function resetPassword({ token, password }) {
    const { data } = await apiClient.post("/auth/reset-password", {
       token,

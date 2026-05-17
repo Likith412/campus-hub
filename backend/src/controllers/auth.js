@@ -114,6 +114,9 @@ async function register(req, res) {
 
    const verifyToken = await issueVerificationToken(user._id);
    const link = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
+   if (process.env.NODE_ENV !== "production") {
+      console.log(`[dev] verification link for ${email}: ${link}`);
+   }
    await sendVerificationEmail(email, link);
 
    return successResponse(
@@ -249,6 +252,9 @@ async function resendVerification(req, res) {
    if (user && !user.emailVerified) {
       const token = await issueVerificationToken(user._id);
       const link = `${FRONTEND_URL}/verify-email?token=${token}`;
+      if (process.env.NODE_ENV !== "production") {
+         console.log(`[dev] verification link for ${email}: ${link}`);
+      }
       await sendVerificationEmail(email, link);
    }
 
@@ -268,6 +274,9 @@ async function forgotPassword(req, res) {
    if (user) {
       const token = await issuePasswordResetToken(user._id);
       const link = `${FRONTEND_URL}/reset-password?token=${token}`;
+      if (process.env.NODE_ENV !== "production") {
+         console.log(`[dev] password reset link for ${email}: ${link}`);
+      }
       await sendPasswordResetEmail(email, link);
    }
 
@@ -276,6 +285,24 @@ async function forgotPassword(req, res) {
       200,
       "If that email exists, a reset link was sent.",
    );
+}
+
+// GET /auth/reset-password/validate?token=... — checks if a reset token is still usable.
+// Used by the reset page to decide whether to show the form or the "request a new link" CTA.
+// Does NOT consume the token.
+async function validateResetToken(req, res) {
+   const { token } = req.query;
+   if (!token || typeof token !== "string") {
+      throw new UnauthorizedError("Invalid or expired token");
+   }
+   const record = await PasswordReset.findOne({
+      tokenHash: sha256(token),
+      usedAt: null,
+      revokedAt: null,
+      expiresAt: { $gt: new Date() },
+   });
+   if (!record) throw new UnauthorizedError("Invalid or expired token");
+   return successResponse(res, 200, "Token is valid");
 }
 
 // POST /auth/reset-password — set a new password using a one-time reset token.
@@ -315,5 +342,6 @@ module.exports = {
    verifyEmail,
    resendVerification,
    forgotPassword,
+   validateResetToken,
    resetPassword,
 };
