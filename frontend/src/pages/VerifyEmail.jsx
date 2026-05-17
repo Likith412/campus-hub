@@ -59,14 +59,21 @@ const stats = [
    { num: "Secure", label: "Single-use token" },
 ];
 
-// View state machine: 'verifying' on mount, then 'success' or 'error'.
-// 'idle' is used when no token was supplied (user landed here directly to resend).
+// View state machine: VERIFYING on mount, then SUCCESS or ERROR.
+// IDLE is used when no token was supplied (user landed here directly to resend).
+const STATUS = {
+   VERIFYING: "verifying",
+   SUCCESS: "success",
+   ERROR: "error",
+   IDLE: "idle",
+};
+
 function VerifyEmail() {
    const [params] = useSearchParams();
    const token = params.get("token");
    const navigate = useNavigate();
 
-   const [status, setStatus] = useState(token ? "verifying" : "idle");
+   const [status, setStatus] = useState(token ? STATUS.VERIFYING : STATUS.IDLE);
    const [errorMessage, setErrorMessage] = useState(null);
 
    // Resend form (shown on error or when no token was provided at all).
@@ -83,9 +90,9 @@ function VerifyEmail() {
       (async () => {
          try {
             await authApi.verifyEmail(token);
-            setStatus("success");
+            setStatus(STATUS.SUCCESS);
          } catch (err) {
-            setStatus("error");
+            setStatus(STATUS.ERROR);
             setErrorMessage(
                err instanceof ApiError
                   ? err.message
@@ -166,7 +173,7 @@ function VerifyEmail() {
             </div>
 
             <div className="auth-form">
-               {status === "verifying" && (
+               {status === STATUS.VERIFYING && (
                   <>
                      <h2 className="auth-title">Verifying your email…</h2>
                      <p className="auth-subtitle">
@@ -178,7 +185,7 @@ function VerifyEmail() {
                   </>
                )}
 
-               {status === "success" && (
+               {status === STATUS.SUCCESS && (
                   <>
                      <h2 className="auth-title">Email verified.</h2>
                      <p className="auth-subtitle">
@@ -202,20 +209,20 @@ function VerifyEmail() {
                   </>
                )}
 
-               {(status === "error" || status === "idle") && (
+               {(status === STATUS.ERROR || status === STATUS.IDLE) && (
                   <>
                      <h2 className="auth-title">
-                        {status === "error"
+                        {status === STATUS.ERROR
                            ? "We couldn't verify that link."
                            : "Resend verification email."}
                      </h2>
                      <p className="auth-subtitle">
-                        {status === "error"
+                        {status === STATUS.ERROR
                            ? "The link may be expired or already used. Request a fresh one below."
                            : "Enter the email you signed up with and we'll send a new link."}
                      </p>
 
-                     {status === "error" && errorMessage && (
+                     {status === STATUS.ERROR && errorMessage && (
                         <div className="auth-error">{errorMessage}</div>
                      )}
 
