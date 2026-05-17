@@ -1176,6 +1176,11 @@ body {
 .btn-submit.accent:hover {
    filter: brightness(1.08);
 }
+.btn-submit.accent:disabled {
+   background: var(--gradient-accent);
+   color: #fff;
+   opacity: 0.7;
+}
 
 .auth-foot {
    text-align: center;

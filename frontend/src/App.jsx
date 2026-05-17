@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router";
 
 import Register from "./pages/Register";
 import Login from "./pages/Login";
+import VerifyEmail from "./pages/VerifyEmail";
 import Home from "./pages/Home";
 
 import { AuthProvider } from "./contexts/AuthContext";
@@ -19,6 +20,9 @@ function App() {
                <Route path="/login" element={<Login />} />
                <Route path="/register" element={<Register />} />
             </Route>
+
+            {/* Email verification is reachable from email links regardless of session state. */}
+            <Route path="/verify-email" element={<VerifyEmail />} />
 
             {/* Everything below requires a logged-in user. */}
             <Route element={<ProtectedRoute />}>

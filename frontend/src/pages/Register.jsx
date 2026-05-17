@@ -67,6 +67,7 @@ function Register() {
       password: "",
    });
 
+   const [showPassword, setShowPassword] = useState(false);
    const [submitting, setSubmitting] = useState(false);
    const [error, setError] = useState(null);
    const navigate = useNavigate();
@@ -176,6 +177,7 @@ function Register() {
                         placeholder="Arjun Sharma"
                         value={formData.fullName}
                         onChange={handleChange}
+                        required
                      />
                   </div>
                </div>
@@ -196,6 +198,7 @@ function Register() {
                         placeholder="you@nitk.edu.in"
                         value={formData.email}
                         onChange={handleChange}
+                        required
                      />
                   </div>
                   <div className="field-help">
@@ -212,7 +215,10 @@ function Register() {
                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                         </Icon>
                      </span>
-                     <span className="trail-ic">
+                     <span
+                        className="trail-ic"
+                        onClick={() => setShowPassword((s) => !s)}
+                     >
                         <Icon size={16} strokeWidth={2}>
                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                            <circle cx="12" cy="12" r="3" />
@@ -220,11 +226,12 @@ function Register() {
                      </span>
                      <input
                         className="field-input has-lead has-trail"
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                         name="password"
                         placeholder="At least 8 characters"
                         value={formData.password}
                         onChange={handleChange}
+                        required
                      />
                   </div>
                   <div

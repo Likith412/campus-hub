@@ -188,6 +188,7 @@ function Login() {
                         placeholder="you@nitk.edu.in"
                         value={formData.email}
                         onChange={handleChange}
+                        required
                      />
                   </div>
                </div>
@@ -222,21 +223,9 @@ function Login() {
                         placeholder="••••••••"
                         value={formData.password}
                         onChange={handleChange}
+                        required
                      />
                   </div>
-               </div>
-
-               <div className="row-between">
-                  <label className="check">
-                     <input
-                        type="checkbox"
-                        name="rememberMe"
-                        checked={formData.rememberMe}
-                        onChange={handleChange}
-                     />
-                     <span className="box"></span>
-                     Remember me for 30 days
-                  </label>
                </div>
 
                {error && <div className="auth-error">{error}</div>}
