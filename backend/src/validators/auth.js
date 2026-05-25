@@ -43,4 +43,5 @@ module.exports = {
    forgotPasswordSchema,
    resetPasswordSchema,
    resendVerificationSchema,
+   passwordRule,
 };

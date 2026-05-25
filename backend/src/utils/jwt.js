@@ -6,9 +6,11 @@ const ACCESS_SECRET = process.env.JWT_ACCESS_SECRET;
 const ACCESS_TTL = process.env.JWT_ACCESS_TTL || "15m";
 
 // Sign an access token with a unique jti so it can be revoked via Redis blacklist on logout.
+// Only `sub` is carried — role and other authorization data are read from the User record in
+// `authenticate` so role changes take effect on the very next request.
 function signAccessToken(user) {
    const jti = crypto.randomUUID();
-   const payload = { sub: user._id.toString(), role: user.role, jti };
+   const payload = { sub: user._id.toString(), jti };
 
    const token = jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_TTL });
    return { token, jti };
