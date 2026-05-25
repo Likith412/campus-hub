@@ -11,6 +11,7 @@ const {
    ConflictError,
 } = require("../utils/errors");
 const { REFRESH_COOKIE_NAME } = require("../utils/cookies");
+const { blacklistSessionAccess } = require("../utils/sessionRevocation");
 const { User, AuthSession, ClubMembership, Club } = require("../models");
 
 // Resolve which AuthSession matches the caller's refresh cookie.
@@ -229,16 +230,16 @@ async function changePassword(req, res) {
    user.passwordHash = await hashPassword(newPassword);
    await user.save();
 
-   // Keep the current session alive; revoke everything else.
+   // Keep the current session alive; revoke everything else + kill their access JWTs now.
    const current = await findCurrentSession(req);
-   await AuthSession.updateMany(
-      {
-         userId: user._id,
-         revokedAt: null,
-         ...(current ? { _id: { $ne: current._id } } : {}),
-      },
-      { revokedAt: new Date() },
-   );
+   const filter = {
+      userId: user._id,
+      revokedAt: null,
+      ...(current ? { _id: { $ne: current._id } } : {}),
+   };
+   const others = await AuthSession.find(filter, "_id").lean();
+   await blacklistSessionAccess(others.map((s) => s._id));
+   await AuthSession.updateMany(filter, { revokedAt: new Date() });
 
    return successResponse(res, 200, "Password changed");
 }
@@ -282,6 +283,7 @@ async function revokeSession(req, res) {
       throw new ConflictError("Use logout to end the current session");
    }
 
+   await blacklistSessionAccess([session._id]);
    session.revokedAt = new Date();
    await session.save();
    return successResponse(res, 200, "Session revoked");
@@ -290,15 +292,16 @@ async function revokeSession(req, res) {
 // POST /profile/me/sessions/revoke-others — "Sign out everywhere else" button.
 async function revokeOtherSessions(req, res) {
    const current = await findCurrentSession(req);
-
-   const result = await AuthSession.updateMany(
-      {
-         userId: req.user._id,
-         revokedAt: null,
-         ...(current ? { _id: { $ne: current._id } } : {}),
-      },
-      { revokedAt: new Date() },
-   );
+   const filter = {
+      userId: req.user._id,
+      revokedAt: null,
+      ...(current ? { _id: { $ne: current._id } } : {}),
+   };
+   const others = await AuthSession.find(filter, "_id").lean();
+   await blacklistSessionAccess(others.map((s) => s._id));
+   const result = await AuthSession.updateMany(filter, {
+      revokedAt: new Date(),
+   });
    return successResponse(res, 200, "Other sessions revoked", {
       revokedCount: result.modifiedCount,
    });
@@ -342,6 +345,11 @@ async function deleteAccount(req, res) {
          },
       },
    );
+   const active = await AuthSession.find(
+      { userId: req.user._id, revokedAt: null },
+      "_id",
+   ).lean();
+   await blacklistSessionAccess(active.map((s) => s._id));
    await AuthSession.updateMany(
       { userId: req.user._id, revokedAt: null },
       { revokedAt: new Date() },

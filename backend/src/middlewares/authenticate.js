@@ -3,7 +3,7 @@ const { verifyAccessToken } = require("../utils/jwt");
 const { UnauthorizedError } = require("../utils/errors");
 const { ACCESS_COOKIE_NAME } = require("../utils/cookies");
 const { User } = require("../models");
-const { redisClient } = require("../config/redis");
+const { isSessionBlacklisted } = require("../utils/sessionRevocation");
 
 async function authenticate(req, res, next) {
    // Access token lives in an httpOnly cookie (sent automatically by the browser).
@@ -20,9 +20,10 @@ async function authenticate(req, res, next) {
       throw new UnauthorizedError("Invalid or expired token");
    }
 
-   // Honor server-side revocation (logout adds the token's jti to this Redis blacklist).
-   const blacklisted = await redisClient.get(`bl:${payload.jti}`);
-   if (blacklisted) throw new UnauthorizedError("Token has been revoked");
+   // Session-level revocation kills every access JWT issued for that AuthSession.
+   if (await isSessionBlacklisted(payload.sid)) {
+      throw new UnauthorizedError("Session has been revoked");
+   }
 
    // Pull a fresh user record so role/isActive checks always reflect current DB state.
    const user = await User.findById(payload.sub).lean();
@@ -30,10 +31,8 @@ async function authenticate(req, res, next) {
       throw new UnauthorizedError("Account not found or inactive");
    }
 
-   // Stash on req for downstream handlers; jti/exp let logout blacklist this exact token.
    req.user = user;
-   req.tokenJti = payload.jti;
-   req.tokenExp = payload.exp;
+   req.tokenSid = payload.sid;
    next();
 }
 

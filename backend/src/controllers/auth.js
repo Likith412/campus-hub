@@ -27,6 +27,7 @@ const {
 } = require("../models");
 const { ROLES } = require("../constants/roles");
 const { redisClient } = require("../config/redis");
+const { blacklistSessionAccess } = require("../utils/sessionRevocation");
 const {
    sendVerificationEmail,
    sendPasswordResetEmail,
@@ -78,10 +79,10 @@ function publicUser(u) {
    };
 }
 
-// Create a refresh-token row tied to this device. Returns the raw token (caller sets the cookie).
+// Create a refresh-token row tied to this device. Returns raw token + session id for the JWT sid.
 async function issueRefreshSession(userId, req) {
    const refreshToken = randomToken();
-   await AuthSession.create({
+   const session = await AuthSession.create({
       userId,
       refreshTokenHash: sha256(refreshToken), // Only the hash is stored.
       deviceInfo: {
@@ -90,7 +91,7 @@ async function issueRefreshSession(userId, req) {
       },
       expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
    });
-   return refreshToken;
+   return { refreshToken, sessionId: session._id };
 }
 
 // Revoke any prior pending verification tokens for this user, then issue a fresh one.
@@ -172,8 +173,8 @@ async function login(req, res) {
       throw new ForbiddenError("Email not verified. Check your inbox.");
    }
 
-   const { token: accessToken } = signAccessToken(user);
-   const refreshToken = await issueRefreshSession(user._id, req);
+   const { refreshToken, sessionId } = await issueRefreshSession(user._id, req);
+   const { token: accessToken } = signAccessToken(user, sessionId);
 
    user.lastLoginAt = new Date();
    await user.save();
@@ -254,7 +255,7 @@ async function refresh(req, res) {
       throw new UnauthorizedError("Account not found or inactive");
    }
 
-   const { token: accessToken } = signAccessToken(user);
+   const { token: accessToken } = signAccessToken(user, session._id);
    setRefreshCookie(res, refreshToken);
    setAccessCookie(res, accessToken);
    setSessionHintCookie(res);
@@ -272,13 +273,8 @@ async function logout(req, res) {
       );
    }
 
-   // Blacklist the access JWT in Redis until its natural expiry — `authenticate` checks this.
-   if (req.tokenJti && req.tokenExp) {
-      const ttl = req.tokenExp - Math.floor(Date.now() / 1000);
-      if (ttl > 0) {
-         await redisClient.set(`bl:${req.tokenJti}`, "1", { EX: ttl });
-      }
-   }
+   // Blacklist this session so its access JWT (and any other still in-flight) dies immediately.
+   if (req.tokenSid) await blacklistSessionAccess([req.tokenSid]);
 
    clearRefreshCookie(res);
    clearAccessCookie(res);
@@ -395,7 +391,12 @@ async function resetPassword(req, res) {
    record.usedAt = new Date(); // Single-use.
    await record.save();
 
-   // Force re-login on every device — any previously-issued refresh tokens are invalid.
+   // Kill every device immediately: revoke refresh sessions AND blacklist their access JWTs.
+   const active = await AuthSession.find(
+      { userId: record.userId, revokedAt: null },
+      "_id",
+   ).lean();
+   await blacklistSessionAccess(active.map((s) => s._id));
    await AuthSession.updateMany(
       { userId: record.userId, revokedAt: null },
       { revokedAt: new Date() },
