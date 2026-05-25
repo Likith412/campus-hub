@@ -13,7 +13,7 @@ function refreshCookieOptions() {
       secure: process.env.NODE_ENV === "production", // HTTPS-only in prod.
       sameSite: "strict", // CSRF protection.
       domain: process.env.COOKIE_DOMAIN || undefined,
-      path: "/api/auth",
+      path: "/api/auth/refresh", // Only send to refresh endpoint.
       maxAge: days * 24 * 60 * 60 * 1000,
    };
 }

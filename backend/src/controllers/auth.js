@@ -34,6 +34,8 @@ const {
 
 const REFRESH_TTL_MS =
    Number(process.env.JWT_REFRESH_TTL_DAYS || 30) * 24 * 60 * 60 * 1000;
+// Previous refresh token stays valid this long after rotation — covers concurrent tab refreshes.
+const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS || 10_000);
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // Email verification link valid for 24h.
 const RESET_TTL_MS = 30 * 60 * 1000; // Password reset link valid for 30min (tighter — sensitive op).
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -158,30 +160,48 @@ async function login(req, res) {
    });
 }
 
-// POST /auth/refresh — exchange a valid refresh cookie for a new access token.
-// Refresh-token rotation: the old refresh token is replaced on every use.
+// POST /auth/refresh — rotate the refresh token and issue a new access token.
 async function refresh(req, res) {
    const token = req.cookies?.[REFRESH_COOKIE_NAME];
    if (!token) throw new UnauthorizedError("No refresh token");
 
-   // Look up the session by hash (raw token never persisted).
-   const session = await AuthSession.findOne({
-      refreshTokenHash: sha256(token),
-      revokedAt: null,
-      expiresAt: { $gt: new Date() },
-   });
+   const incomingHash = sha256(token);
+   const now = new Date();
+   const newRefresh = randomToken();
+   const newHash = sha256(newRefresh);
+
+   // Atomic rotate: match current hash OR previous hash within grace; promote current → previous.
+   const session = await AuthSession.findOneAndUpdate(
+      {
+         $or: [
+            { refreshTokenHash: incomingHash },
+            {
+               previousRefreshTokenHash: incomingHash,
+               previousValidUntil: { $gt: now },
+            },
+         ],
+         revokedAt: null,
+         expiresAt: { $gt: now },
+      },
+      [
+         {
+            $set: {
+               previousRefreshTokenHash: "$refreshTokenHash",
+               previousValidUntil: new Date(now.getTime() + REFRESH_GRACE_MS),
+               refreshTokenHash: newHash,
+               expiresAt: new Date(now.getTime() + REFRESH_TTL_MS),
+            },
+         },
+      ],
+      { new: true },
+   );
+   // TODO: if previous hash matched but grace expired → suspected replay, revoke whole family.
    if (!session) throw new UnauthorizedError("Invalid refresh token");
 
    const user = await User.findById(session.userId);
    if (!user || !user.isActive) {
       throw new UnauthorizedError("Account not found or inactive");
    }
-
-   // Rotate the refresh token — sliding expiration + invalidates the old token if reused.
-   const newRefresh = randomToken();
-   session.refreshTokenHash = sha256(newRefresh);
-   session.expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
-   await session.save();
 
    const { token: accessToken } = signAccessToken(user);
    setRefreshCookie(res, newRefresh);
