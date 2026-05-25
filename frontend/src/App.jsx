@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import VerifyEmail from "./pages/VerifyEmail";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
 
 import { AuthProvider } from "./contexts/AuthContext";
@@ -32,6 +33,9 @@ function App() {
             <Route element={<ProtectedRoute />}>
                <Route path="/" element={<Home />} />
             </Route>
+
+            {/* Catch-all: any unmatched URL renders the 404 page. */}
+            <Route path="*" element={<NotFound />} />
          </Routes>
       </AuthProvider>
    );

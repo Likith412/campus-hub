@@ -1400,3 +1400,82 @@ body {
       margin-bottom: 24px;
    }
 }
+
+
+/* 404 page — intentionally simple, not the auth split-shell layout. */
+.nf-shell {
+   min-height: 100vh;
+   display: grid;
+   place-items: center;
+   background: var(--bg-surface);
+   padding: 24px;
+}
+.nf-card {
+   max-width: 440px;
+   width: 100%;
+   text-align: center;
+   padding: 40px 28px;
+}
+.nf-code {
+   font-family: "JetBrains Mono", ui-monospace, monospace;
+   font-size: 84px;
+   font-weight: 700;
+   line-height: 1;
+   letter-spacing: -2px;
+   color: var(--accent-purple);
+   margin-bottom: 12px;
+}
+.nf-title {
+   font-size: 24px;
+   font-weight: 700;
+   color: var(--text-primary);
+   margin: 0 0 10px;
+}
+.nf-sub {
+   font-size: 14px;
+   line-height: 22px;
+   color: var(--text-secondary);
+   margin: 0 0 28px;
+}
+.nf-actions {
+   display: flex;
+   gap: 10px;
+   justify-content: center;
+   margin-bottom: 22px;
+}
+.nf-btn {
+   padding: 10px 18px;
+   font-size: 14px;
+   font-weight: 600;
+   border-radius: 8px;
+   border: 1px solid transparent;
+   cursor: pointer;
+   transition: background 0.15s, border-color 0.15s;
+}
+.nf-btn.primary {
+   background: var(--accent-purple);
+   color: var(--text-inverse);
+}
+.nf-btn.primary:hover {
+   background: #5a52e0;
+}
+.nf-btn.ghost {
+   background: transparent;
+   color: var(--text-primary);
+   border-color: var(--border-light);
+}
+.nf-btn.ghost:hover {
+   background: var(--bg-hover);
+}
+.nf-foot {
+   font-size: 13px;
+   color: var(--text-tertiary);
+}
+.nf-foot a {
+   color: var(--accent-purple);
+   text-decoration: none;
+   font-weight: 500;
+}
+.nf-foot a:hover {
+   text-decoration: underline;
+}
