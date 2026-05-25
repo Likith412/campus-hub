@@ -13,6 +13,18 @@ const {
 const { REFRESH_COOKIE_NAME } = require("../utils/cookies");
 const { User, AuthSession, ClubMembership, Club } = require("../models");
 
+// Resolve which AuthSession matches the caller's refresh cookie.
+async function findCurrentSession(req) {
+   const token = req.cookies?.[REFRESH_COOKIE_NAME];
+   if (!token) return null;
+   return AuthSession.findOne({
+      userId: req.user._id,
+      refreshTokenHash: sha256(token),
+      revokedAt: null,
+      expiresAt: { $gt: new Date() },
+   }).lean();
+}
+
 // Shape the user record for public consumption. Strips sensitive fields and flattens some nested ones.
 function publicProfile(u) {
    return {
@@ -218,13 +230,12 @@ async function changePassword(req, res) {
    await user.save();
 
    // Keep the current session alive; revoke everything else.
-   const currentToken = req.cookies?.[REFRESH_COOKIE_NAME];
-   const currentHash = currentToken ? sha256(currentToken) : null;
+   const current = await findCurrentSession(req);
    await AuthSession.updateMany(
       {
          userId: user._id,
          revokedAt: null,
-         ...(currentHash ? { refreshTokenHash: { $ne: currentHash } } : {}),
+         ...(current ? { _id: { $ne: current._id } } : {}),
       },
       { revokedAt: new Date() },
    );
@@ -234,8 +245,7 @@ async function changePassword(req, res) {
 
 // GET /profile/me/sessions — list active sessions for the Sessions & devices panel.
 async function getSessions(req, res) {
-   const currentToken = req.cookies?.[REFRESH_COOKIE_NAME];
-   const currentHash = currentToken ? sha256(currentToken) : null;
+   const current = await findCurrentSession(req);
 
    const sessions = await AuthSession.find({
       userId: req.user._id,
@@ -249,7 +259,7 @@ async function getSessions(req, res) {
       id: s._id,
       userAgent: s.deviceInfo?.userAgent,
       ip: s.deviceInfo?.ip,
-      isCurrent: currentHash && s.refreshTokenHash === currentHash,
+      isCurrent: !!current && String(s._id) === String(current._id),
       createdAt: s.createdAt,
       lastActiveAt: s.updatedAt,
       expiresAt: s.expiresAt,
@@ -266,9 +276,9 @@ async function revokeSession(req, res) {
    });
    if (!session) throw new NotFoundError("Session not found");
 
-   const currentToken = req.cookies?.[REFRESH_COOKIE_NAME];
-   if (currentToken && session.refreshTokenHash === sha256(currentToken)) {
-      // Defensive: this endpoint is for revoking *other* devices. Use /auth/logout for self.
+   // Use /auth/logout to end the current session — this endpoint is for other devices only.
+   const current = await findCurrentSession(req);
+   if (current && String(session._id) === String(current._id)) {
       throw new ConflictError("Use logout to end the current session");
    }
 
@@ -279,14 +289,13 @@ async function revokeSession(req, res) {
 
 // POST /profile/me/sessions/revoke-others — "Sign out everywhere else" button.
 async function revokeOtherSessions(req, res) {
-   const currentToken = req.cookies?.[REFRESH_COOKIE_NAME];
-   const currentHash = currentToken ? sha256(currentToken) : null;
+   const current = await findCurrentSession(req);
 
    const result = await AuthSession.updateMany(
       {
          userId: req.user._id,
          revokedAt: null,
-         ...(currentHash ? { refreshTokenHash: { $ne: currentHash } } : {}),
+         ...(current ? { _id: { $ne: current._id } } : {}),
       },
       { revokedAt: new Date() },
    );

@@ -32,10 +32,36 @@ const {
    sendPasswordResetEmail,
 } = require("../services/emailService");
 
+// === Refresh token rotation settings ===
 const REFRESH_TTL_MS =
    Number(process.env.JWT_REFRESH_TTL_DAYS || 30) * 24 * 60 * 60 * 1000;
-// Previous refresh token stays valid this long after rotation — covers concurrent tab refreshes.
-const REFRESH_GRACE_MS = Number(process.env.REFRESH_GRACE_MS || 10_000);
+// How long the rotated token stays cached in Redis for concurrent/late refreshers to reuse.
+const REFRESH_RESULT_TTL_SEC = Number(process.env.REFRESH_RESULT_TTL_SEC || 10);
+
+// Per-token lock so concurrent refreshes serialize: one rotates, the rest wait and reuse.
+const REFRESH_LOCK_TTL_SEC = 5; // 5s for the rotate-and-DB-update to complete.
+const REFRESH_WAIT_TIMEOUT_MS = 4_000; // 4s max wait for the lock holder to finish rotating and publish the new token before giving up.
+const REFRESH_WAIT_POLL_MS = 50; // poll every 50ms for the result or lock release.
+
+function sleep(ms) {
+   return new Promise((r) => setTimeout(r, ms));
+}
+
+// Block until the lock holder publishes a result token, the lock disappears, or we time out.
+async function waitForRotationResult(resultKey, lockKey) {
+   const deadline = Date.now() + REFRESH_WAIT_TIMEOUT_MS;
+   while (Date.now() < deadline) {
+      const result = await redisClient.get(resultKey);
+      if (result) return result;
+      const lockStillHeld = await redisClient.get(lockKey);
+      if (!lockStillHeld) {
+         // Holder finished without publishing — likely an error path; one more read then give up.
+         return redisClient.get(resultKey);
+      }
+      await sleep(REFRESH_WAIT_POLL_MS);
+   }
+   return null;
+}
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // Email verification link valid for 24h.
 const RESET_TTL_MS = 30 * 60 * 1000; // Password reset link valid for 30min (tighter — sensitive op).
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -161,41 +187,66 @@ async function login(req, res) {
 }
 
 // POST /auth/refresh — rotate the refresh token and issue a new access token.
+// Concurrency: first caller per old token wins a Redis lock and rotates; the rest wait
+// (or hit the post-rotation fast-path) and reuse the same new token.
 async function refresh(req, res) {
    const token = req.cookies?.[REFRESH_COOKIE_NAME];
    if (!token) throw new UnauthorizedError("No refresh token");
 
    const incomingHash = sha256(token);
-   const now = new Date();
-   const newRefresh = randomToken();
-   const newHash = sha256(newRefresh);
+   const lockKey = `lock:refresh:${incomingHash}`; // rotation lock key for this token
+   const resultKey = `rot:${incomingHash}`; // rotation result kwy
 
-   // Atomic rotate: match current hash OR previous hash within grace; promote current → previous.
-   const session = await AuthSession.findOneAndUpdate(
-      {
-         $or: [
-            { refreshTokenHash: incomingHash },
-            {
-               previousRefreshTokenHash: incomingHash,
-               previousValidUntil: { $gt: now },
-            },
-         ],
-         revokedAt: null,
-         expiresAt: { $gt: now },
-      },
-      [
-         {
-            $set: {
-               previousRefreshTokenHash: "$refreshTokenHash",
-               previousValidUntil: new Date(now.getTime() + REFRESH_GRACE_MS),
-               refreshTokenHash: newHash,
-               expiresAt: new Date(now.getTime() + REFRESH_TTL_MS),
-            },
-         },
-      ],
-      { new: true },
-   );
-   // TODO: if previous hash matched but grace expired → suspected replay, revoke whole family.
+   // Fast-path: rotation already completed — reuse the published new token.
+   let refreshToken = await redisClient.get(resultKey);
+
+   if (!refreshToken) {
+      const acquired = await redisClient.set(lockKey, "1", {
+         NX: true,
+         EX: REFRESH_LOCK_TTL_SEC,
+      });
+
+      if (acquired) {
+         try {
+            const now = new Date();
+            const candidate = randomToken();
+
+            // Atomic rotate on the current hash.
+            const session = await AuthSession.findOneAndUpdate(
+               {
+                  refreshTokenHash: incomingHash,
+                  revokedAt: null,
+                  expiresAt: { $gt: now },
+               },
+               {
+                  refreshTokenHash: sha256(candidate),
+                  expiresAt: new Date(now.getTime() + REFRESH_TTL_MS),
+               },
+               { new: true },
+            );
+            if (!session) throw new UnauthorizedError("Invalid refresh token");
+
+            // Publish so concurrent/late waiters reuse this exact token.
+            await redisClient.set(resultKey, candidate, {
+               EX: REFRESH_RESULT_TTL_SEC,
+            });
+            refreshToken = candidate;
+         } finally {
+            await redisClient.del(lockKey);
+         }
+      } else {
+         refreshToken = await waitForRotationResult(resultKey, lockKey);
+         if (!refreshToken)
+            throw new UnauthorizedError("Invalid refresh token");
+      }
+   }
+
+   // Look up the session by the (possibly reused) new hash to load the user.
+   const session = await AuthSession.findOne({
+      refreshTokenHash: sha256(refreshToken),
+      revokedAt: null,
+      expiresAt: { $gt: new Date() },
+   }).lean();
    if (!session) throw new UnauthorizedError("Invalid refresh token");
 
    const user = await User.findById(session.userId);
@@ -204,7 +255,7 @@ async function refresh(req, res) {
    }
 
    const { token: accessToken } = signAccessToken(user);
-   setRefreshCookie(res, newRefresh);
+   setRefreshCookie(res, refreshToken);
    setAccessCookie(res, accessToken);
    setSessionHintCookie(res);
    return successResponse(res, 200, "Token refreshed");

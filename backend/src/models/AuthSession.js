@@ -11,9 +11,6 @@ const authSessionSchema = new mongoose.Schema(
          index: true,
       },
       refreshTokenHash: { type: String, required: true, unique: true },
-      // Prior hash, accepted until previousValidUntil — grace window for concurrent tab refreshes.
-      previousRefreshTokenHash: { type: String, index: true, sparse: true },
-      previousValidUntil: Date,
       deviceInfo: {
          userAgent: String,
          ip: String,
