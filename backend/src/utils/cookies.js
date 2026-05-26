@@ -5,15 +5,17 @@ const ACCESS_COOKIE_NAME = "access_token";
 // just lets the SPA skip the /auth/me bootstrap call for anonymous visitors.
 const SESSION_HINT_COOKIE_NAME = "has_session";
 
-// Hardened cookie options. Path is scoped to /api/auth so it's only sent to auth endpoints.
+// Scoped to /api so endpoints that need to identify the current session
+// (auth/refresh, auth/logout, profile/sessions, profile/change-password) all receive it.
+// sameSite:strict + httpOnly are the real CSRF defenses; a narrower path would lock those out.
 function refreshCookieOptions() {
    const days = Number(process.env.JWT_REFRESH_TTL_DAYS || 30);
    return {
-      httpOnly: true, // Block JS access (mitigates XSS token theft).
-      secure: process.env.NODE_ENV === "production", // HTTPS-only in prod.
-      sameSite: "strict", // CSRF protection.
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
       domain: process.env.COOKIE_DOMAIN || undefined,
-      path: "/api/auth/refresh", // Only send to refresh endpoint.
+      path: "/api",
       maxAge: days * 24 * 60 * 60 * 1000,
    };
 }
