@@ -53,7 +53,6 @@ router.delete("/me/sessions/:id", profile.revokeSession);
 router.post("/me/sessions/revoke-others", profile.revokeOtherSessions);
 
 // Danger zone
-router.get("/me/export", profile.exportData);
 router.delete("/me", profile.deleteAccount); // Pending. Need to develop background job for this.
 
 module.exports = router;

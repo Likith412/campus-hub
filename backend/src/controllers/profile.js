@@ -307,31 +307,6 @@ async function revokeOtherSessions(req, res) {
    });
 }
 
-// GET /profile/me/export — danger-zone "Export all data". Returns the JSON dump inline.
-// For large exports we'd switch to a job + email link; current shape is fine for a student record.
-async function exportData(req, res) {
-   const [user, memberships] = await Promise.all([
-      User.findById(req.user._id).lean(),
-      ClubMembership.find({ userId: req.user._id })
-         .populate("clubId", "name slug")
-         .lean(),
-   ]);
-   const payload = {
-      exportedAt: new Date().toISOString(),
-      user: publicProfile(user),
-      skills: user.skills,
-      preferences: user.preferences,
-      stats: user.stats,
-      memberships: memberships.map((m) => ({
-         club: m.clubId?.name,
-         role: m.role,
-         status: m.status,
-         joinedAt: m.joinedAt,
-      })),
-   };
-   return successResponse(res, 200, "Export ready", payload);
-}
-
 // DELETE /profile/me — soft delete. Sessions revoked, passwordHash scrubbed, deletedAt set.
 // A background job can hard-delete after the retention window.
 async function deleteAccount(req, res) {
@@ -373,6 +348,5 @@ module.exports = {
    getSessions,
    revokeSession,
    revokeOtherSessions,
-   exportData,
    deleteAccount,
 };

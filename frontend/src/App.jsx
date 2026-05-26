@@ -7,6 +7,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
+import Profile from "./pages/Profile";
 
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute, PublicOnlyRoute } from "./components/ProtectedRoute";
@@ -32,6 +33,7 @@ function App() {
             {/* Everything below requires a logged-in user. */}
             <Route element={<ProtectedRoute />}>
                <Route path="/" element={<Home />} />
+               <Route path="/profile" element={<Profile />} />
             </Route>
 
             {/* Catch-all: any unmatched URL renders the 404 page. */}
