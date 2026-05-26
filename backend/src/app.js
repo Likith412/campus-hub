@@ -11,6 +11,15 @@ const errorHandler = require("./middlewares/errorHandler");
 
 const app = express();
 
+// Trust reverse proxy to get the real client IP from X-Forwarded-For header.
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy) {
+   const n = Number(trustProxy);
+   app.set("trust proxy", Number.isFinite(n) ? n : trustProxy);
+} else if (process.env.NODE_ENV === "production") {
+   app.set("trust proxy", 1); // sensible default: one hop (the immediate reverse proxy)
+}
+
 const writeStream = fs.createWriteStream(
    path.join(__dirname, "..", "access.log"),
    { flags: "a" },

@@ -256,15 +256,32 @@ async function getSessions(req, res) {
       .sort({ updatedAt: -1 })
       .lean();
 
-   const items = sessions.map((s) => ({
-      id: s._id,
-      userAgent: s.deviceInfo?.userAgent,
-      ip: s.deviceInfo?.ip,
-      isCurrent: !!current && String(s._id) === String(current._id),
-      createdAt: s.createdAt,
-      lastActiveAt: s.updatedAt,
-      expiresAt: s.expiresAt,
-   }));
+   const items = sessions.map((s) => {
+      const d = s.deviceInfo || {};
+      // Composed strings the UI renders verbatim.
+      const browserLabel = [d.browser, d.browserVersion?.split(".")[0]]
+         .filter(Boolean)
+         .join(" ");
+      const deviceLabel =
+         [d.deviceVendor, d.deviceModel].filter(Boolean).join(" ") ||
+         d.os ||
+         "Unknown device";
+      const locationLabel = [d.city, d.region, d.country]
+         .filter(Boolean)
+         .join(", ");
+      return {
+         id: s._id,
+         ip: d.ip,
+         deviceLabel,
+         browserLabel,
+         locationLabel,
+         deviceType: d.deviceType,
+         isCurrent: !!current && String(s._id) === String(current._id),
+         createdAt: s.createdAt,
+         lastActiveAt: s.updatedAt,
+         expiresAt: s.expiresAt,
+      };
+   });
 
    return successResponse(res, 200, "Sessions", { items });
 }

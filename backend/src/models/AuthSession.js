@@ -12,8 +12,18 @@ const authSessionSchema = new mongoose.Schema(
       },
       refreshTokenHash: { type: String, required: true, unique: true },
       deviceInfo: {
-         userAgent: String,
          ip: String,
+         browser: String,
+         browserVersion: String,
+         os: String,
+         osVersion: String,
+         deviceType: String, // "mobile" | "tablet" | "desktop"
+         deviceVendor: String,
+         deviceModel: String,
+         city: String,
+         region: String,
+         country: String, // ISO 2-letter
+         timezone: String,
       },
       expiresAt: {
          type: Date,

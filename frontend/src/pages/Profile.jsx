@@ -21,6 +21,35 @@ function levelLabel(level) {
    return "Beginner";
 }
 
+// Human-friendly relative time, e.g. "2 minutes ago", "yesterday".
+function timeAgo(date) {
+   const diff = (Date.now() - new Date(date).getTime()) / 1000;
+   if (diff < 60) return "just now";
+   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+   return new Date(date).toLocaleDateString();
+}
+
+// Icon matching deviceType — phone for mobile, laptop for desktop.
+function DeviceIcon({ type }) {
+   if (type === "mobile" || type === "tablet") {
+      return (
+         <Icon size={18}>
+            <rect x="5" y="2" width="14" height="20" rx="3" />
+            <line x1="12" y1="18" x2="12.01" y2="18" />
+         </Icon>
+      );
+   }
+   return (
+      <Icon size={18}>
+         <rect x="2" y="3" width="20" height="14" rx="2" />
+         <line x1="8" y1="21" x2="16" y2="21" />
+         <line x1="12" y1="17" x2="12" y2="21" />
+      </Icon>
+   );
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Hero — single source of truth for header data (user + completion).
 // ──────────────────────────────────────────────────────────────────────────────
@@ -631,31 +660,32 @@ function SessionsPanel() {
                   className={`sess-row${s.isCurrent ? " current" : ""}`}
                >
                   <div className="sess-ic">
-                     <Icon size={18}>
-                        <rect x="2" y="3" width="20" height="14" rx="2" />
-                        <line x1="8" y1="21" x2="16" y2="21" />
-                        <line x1="12" y1="17" x2="12" y2="21" />
-                     </Icon>
+                     <DeviceIcon type={s.deviceType} />
                   </div>
                   <div>
                      <div className="sess-title">
-                        {s.userAgent || "Unknown device"}
+                        {[s.deviceLabel, s.browserLabel]
+                           .filter(Boolean)
+                           .join(" · ") || "Unknown device"}
                         {s.isCurrent && (
                            <span className="sess-now">● This device</span>
                         )}
                      </div>
                      <div className="sess-meta">
-                        {s.ip || "—"} · last active{" "}
-                        {new Date(s.lastActiveAt).toLocaleString()}
+                        {[s.locationLabel, s.ip, timeAgo(s.lastActiveAt)]
+                           .filter(Boolean)
+                           .join(" · ")}
                      </div>
                   </div>
-                  <button
-                     className="sess-act danger"
-                     disabled={s.isCurrent || busy}
-                     onClick={() => revoke(s.id)}
-                  >
-                     {s.isCurrent ? "Current" : "Revoke"}
-                  </button>
+                  {!s.isCurrent && (
+                     <button
+                        className="sess-act danger"
+                        disabled={busy}
+                        onClick={() => revoke(s.id)}
+                     >
+                        Revoke
+                     </button>
+                  )}
                </div>
             ))
          )}

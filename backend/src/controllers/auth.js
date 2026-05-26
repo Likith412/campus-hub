@@ -28,6 +28,7 @@ const {
 const { ROLES } = require("../constants/roles");
 const { redisClient } = require("../config/redis");
 const { blacklistSessionAccess } = require("../utils/sessionRevocation");
+const { buildDeviceInfo } = require("../utils/deviceInfo");
 const {
    sendVerificationEmail,
    sendPasswordResetEmail,
@@ -85,10 +86,7 @@ async function issueRefreshSession(userId, req) {
    const session = await AuthSession.create({
       userId,
       refreshTokenHash: sha256(refreshToken), // Only the hash is stored.
-      deviceInfo: {
-         userAgent: req.headers["user-agent"]?.slice(0, 200),
-         ip: req.ip,
-      },
+      deviceInfo: buildDeviceInfo(req),
       expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
    });
    return { refreshToken, sessionId: session._id };
