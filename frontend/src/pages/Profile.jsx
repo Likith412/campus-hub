@@ -50,6 +50,30 @@ function DeviceIcon({ type }) {
    );
 }
 
+function ProfileLinks({ profile }) {
+   const links = [
+      profile?.linkedinUrl && { label: "LinkedIn", url: profile.linkedinUrl },
+      profile?.githubUrl && { label: "GitHub", url: profile.githubUrl },
+      profile?.portfolioUrl && { label: "Portfolio", url: profile.portfolioUrl },
+   ].filter(Boolean);
+   if (links.length === 0) return null;
+   return (
+      <div className="profile-links">
+         {links.map(({ label, url }) => (
+            <a
+               key={label}
+               className="profile-link"
+               href={url}
+               target="_blank"
+               rel="noopener noreferrer"
+            >
+               {label}
+            </a>
+         ))}
+      </div>
+   );
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Hero — single source of truth for header data (user + completion).
 // ──────────────────────────────────────────────────────────────────────────────
@@ -63,6 +87,19 @@ function Hero({ user, completion }) {
    ]
       .filter(Boolean)
       .join(" · ");
+
+   const [shareNote, setShareNote] = useState("");
+   const shareUrl = `${window.location.origin}/u/${user.username || user._id || ""}`;
+
+   const handleShare = async () => {
+      try {
+         await navigator.clipboard.writeText(shareUrl);
+         setShareNote("Link copied");
+      } catch {
+         setShareNote("Copy failed");
+      }
+      setTimeout(() => setShareNote(""), 2000);
+   };
 
    return (
       <div className="profile-hero">
@@ -84,6 +121,7 @@ function Hero({ user, completion }) {
                {user.profile?.bio && (
                   <div className="profile-bio">{user.profile.bio}</div>
                )}
+               <ProfileLinks profile={user.profile} />
                <div className="profile-tags">
                   <span className="profile-tag purple">
                      Profile {completion}% complete
@@ -96,7 +134,10 @@ function Hero({ user, completion }) {
                </div>
             </div>
             <div className="profile-actions">
-               <button className="btn btn-secondary">Share profile</button>
+               <button className="btn btn-secondary" onClick={handleShare}>
+                  Share profile
+               </button>
+               {shareNote && <div className="profile-share-note">{shareNote}</div>}
             </div>
          </div>
       </div>
@@ -337,6 +378,13 @@ function SettingsTab({ user, onUserUpdated }) {
    );
 }
 
+// Comma-separated string ⇄ array, used for tags/interests inputs.
+const fromCsv = (s) =>
+   s
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
+
 function AccountForm({ user, onUserUpdated }) {
    const [form, setForm] = useState({
       name: user.name || "",
@@ -346,7 +394,12 @@ function AccountForm({ user, onUserUpdated }) {
          department: user.profile?.department || "",
          year: user.profile?.year || "",
          bio: user.profile?.bio || "",
+         linkedinUrl: user.profile?.linkedinUrl || "",
+         githubUrl: user.profile?.githubUrl || "",
+         portfolioUrl: user.profile?.portfolioUrl || "",
       },
+      tags: (user.profile?.tags || []).join(", "),
+      interests: (user.interests || []).join(", "),
    });
    const [saving, setSaving] = useState(false);
    const [error, setError] = useState(null);
@@ -367,14 +420,24 @@ function AccountForm({ user, onUserUpdated }) {
       setError(null);
       setSaving(true);
       try {
-         // Strip empty optional fields so the backend's strict validator doesn't reject them.
-         const payload = { ...form, profile: { ...form.profile } };
-         for (const k of Object.keys(payload.profile)) {
-            if (payload.profile[k] === "") delete payload.profile[k];
+         // Shape the payload to match the backend's strict() schema. Strip empty optionals so
+         // Zod's url() validator doesn't reject "" — the backend already maps "" → undefined,
+         // but only on fields it sees, so we omit them here for clarity.
+         const profile = { ...form.profile, tags: fromCsv(form.tags) };
+         for (const k of Object.keys(profile)) {
+            if (profile[k] === "" || (Array.isArray(profile[k]) && profile[k].length === 0)) {
+               delete profile[k];
+            }
          }
-         for (const k of ["username", "phone"]) {
-            if (payload[k] === "") delete payload[k];
-         }
+         const payload = {
+            name: form.name,
+            ...(form.username ? { username: form.username } : {}),
+            ...(form.phone ? { phone: form.phone } : {}),
+            ...(Object.keys(profile).length ? { profile } : {}),
+            interests: fromCsv(form.interests),
+         };
+         if (payload.interests.length === 0) delete payload.interests;
+
          const data = await profileApi.updateMe(payload);
          onUserUpdated?.(data);
          setSavedAt(new Date());
@@ -481,6 +544,69 @@ function AccountForm({ user, onUserUpdated }) {
                   <option value="4">Final year</option>
                   <option value="postgrad">Postgrad</option>
                </select>
+            </div>
+         </div>
+
+         <div className="form-row">
+            <div className="form-group">
+               <label className="form-label">LinkedIn</label>
+               <input
+                  className="input"
+                  type="url"
+                  value={form.profile.linkedinUrl}
+                  onChange={(e) =>
+                     setField("profile.linkedinUrl", e.target.value)
+                  }
+                  placeholder="https://linkedin.com/in/…"
+               />
+            </div>
+            <div className="form-group">
+               <label className="form-label">GitHub</label>
+               <input
+                  className="input"
+                  type="url"
+                  value={form.profile.githubUrl}
+                  onChange={(e) =>
+                     setField("profile.githubUrl", e.target.value)
+                  }
+                  placeholder="https://github.com/…"
+               />
+            </div>
+         </div>
+
+         <div className="form-group">
+            <label className="form-label">Portfolio</label>
+            <input
+               className="input"
+               type="url"
+               value={form.profile.portfolioUrl}
+               onChange={(e) =>
+                  setField("profile.portfolioUrl", e.target.value)
+               }
+               placeholder="https://…"
+            />
+         </div>
+
+         <div className="form-row">
+            <div className="form-group">
+               <label className="form-label">Tags</label>
+               <input
+                  className="input"
+                  value={form.tags}
+                  onChange={(e) => setField("tags", e.target.value)}
+                  placeholder="comma-separated"
+               />
+               <div className="form-help">Up to 10 · max 40 chars each</div>
+            </div>
+            <div className="form-group">
+               <label className="form-label">Interests</label>
+               <input
+                  className="input"
+                  value={form.interests}
+                  onChange={(e) => setField("interests", e.target.value)}
+                  placeholder="comma-separated"
+               />
+               <div className="form-help">Up to 30 · max 40 chars each</div>
             </div>
          </div>
 

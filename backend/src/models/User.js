@@ -46,7 +46,6 @@ const userSchema = new mongoose.Schema(
       profile: {
          department: String,
          year: { type: String, enum: YEAR_OPTIONS },
-         college: String,
          bio: String,
          linkedinUrl: String,
          githubUrl: String,

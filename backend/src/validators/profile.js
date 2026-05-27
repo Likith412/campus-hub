@@ -25,7 +25,6 @@ const updateProfileSchema = z
          .object({
             department: z.string().max(120).optional(),
             year: z.enum(YEAR_OPTIONS).optional(),
-            college: z.string().max(160).optional(),
             bio: z.string().max(280).optional(),
             linkedinUrl: urlOrEmpty,
             githubUrl: urlOrEmpty,

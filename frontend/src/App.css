@@ -694,10 +694,17 @@
 .profile-info {
    padding: 0 32px 24px;
    display: grid;
-   grid-template-columns: auto 1fr auto;
-   gap: 24px;
-   align-items: flex-end;
+   grid-template-columns: 1fr auto;
+   grid-template-areas:
+      "avatar avatar"
+      "meta   actions";
+   column-gap: 24px;
+   row-gap: 16px;
+   align-items: flex-start;
 }
+.profile-info > .profile-avatar { grid-area: avatar; }
+.profile-info > .profile-meta-block { grid-area: meta; }
+.profile-info > .profile-actions { grid-area: actions; align-self: flex-start; }
 .profile-avatar {
    width: 112px;
    height: 112px;
@@ -713,7 +720,7 @@
    box-shadow: var(--shadow-lg);
    position: relative;
 }
-.profile-meta-block { padding-top: 14px; }
+.profile-meta-block { padding-top: 0; }
 .profile-name {
    font-family: var(--font-display);
    font-weight: 700;
@@ -746,6 +753,23 @@
    margin-top: 8px;
    max-width: 520px;
 }
+.profile-links {
+   display: flex;
+   gap: 14px;
+   flex-wrap: wrap;
+   margin-top: 10px;
+}
+.profile-link {
+   font-size: 12.5px;
+   font-weight: 600;
+   color: var(--text-secondary);
+   text-decoration: none;
+   border-bottom: 1px solid transparent;
+}
+.profile-link:hover {
+   color: var(--text-primary);
+   border-bottom-color: currentColor;
+}
 .profile-tags {
    display: flex;
    gap: 6px;
@@ -764,7 +788,8 @@
 .profile-tag.green { background: var(--accent-green-light); color: var(--accent-green); }
 .profile-tag.orange { background: var(--accent-orange-light); color: var(--accent-orange); }
 
-.profile-actions { padding-bottom: 4px; display: flex; gap: 8px; }
+.profile-actions { padding-top: 14px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.profile-share-note { font-size: 11px; color: var(--text-tertiary); }
 
 .profile-tabs {
    display: flex;
@@ -919,8 +944,10 @@
    grid-template-columns: 220px 1fr;
    gap: 32px;
    align-items: flex-start;
+   min-height: 720px;
 }
-.settings-nav { display: flex; flex-direction: column; gap: 2px; }
+.settings-layout > :nth-child(2) { min-height: 720px; }
+.settings-nav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 16px; }
 .settings-nav button {
    text-align: left;
    padding: 10px 12px;
