@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react";
 import { Link } from "react-router";
 import { authApi, ApiError } from "../services";
+import Spinner from "../components/Spinner";
 
 // Tiny inline SVG wrapper (same pattern as Login/Register/VerifyEmail).
 function Icon({ size = 14, strokeWidth = 2.2, children }) {
@@ -189,11 +190,20 @@ function ForgotPassword() {
                      className="btn-submit accent"
                      disabled={submitting}
                   >
-                     {submitting ? "Sending…" : "Send reset link"}
-                     <Icon strokeWidth={2.5}>
-                        <line x1="22" y1="2" x2="11" y2="13" />
-                        <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                     </Icon>
+                     {submitting ? (
+                        <>
+                           <Spinner size={16} />
+                           Sending
+                        </>
+                     ) : (
+                        <>
+                           Send reset link
+                           <Icon strokeWidth={2.5}>
+                              <line x1="22" y1="2" x2="11" y2="13" />
+                              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                           </Icon>
+                        </>
+                     )}
                   </button>
 
                   <div className="auth-foot">

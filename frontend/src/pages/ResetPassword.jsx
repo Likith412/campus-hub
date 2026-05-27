@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { authApi, ApiError } from "../services";
+import { useToast } from "../contexts/ToastContext";
+import Spinner, { LoadingBlock } from "../components/Spinner";
 
 // Tiny inline SVG wrapper (same pattern as the other auth pages).
 function Icon({ size = 14, strokeWidth = 2.2, children }) {
@@ -69,6 +71,7 @@ function ResetPassword() {
    const [params] = useSearchParams();
    const token = params.get("token");
    const navigate = useNavigate();
+   const toast = useToast();
 
    const [status, setStatus] = useState(token ? "validating" : "no_token");
    const [password, setPassword] = useState("");
@@ -101,6 +104,7 @@ function ResetPassword() {
       setSubmitting(true);
       try {
          await authApi.resetPassword({ token, password });
+         toast.success("Password reset — sign in with your new password");
          setStatus("success");
       } catch (err) {
          setError(
@@ -175,9 +179,8 @@ function ResetPassword() {
                         Hang tight — we're confirming this reset link is still
                         valid.
                      </p>
-                     <div className="auth-banner">
-                        Verifying your reset token with the server.
-                     </div>
+                     <LoadingBlock label="Verifying your reset token" />
+
                   </>
                )}
 
@@ -309,11 +312,20 @@ function ResetPassword() {
                         className="btn-submit accent"
                         disabled={submitting}
                      >
-                        {submitting ? "Saving…" : "Save new password"}
-                        <Icon strokeWidth={2.5}>
-                           <line x1="5" y1="12" x2="19" y2="12" />
-                           <polyline points="12 5 19 12 12 19" />
-                        </Icon>
+                        {submitting ? (
+                           <>
+                              <Spinner size={16} />
+                              Saving
+                           </>
+                        ) : (
+                           <>
+                              Save new password
+                              <Icon strokeWidth={2.5}>
+                                 <line x1="5" y1="12" x2="19" y2="12" />
+                                 <polyline points="12 5 19 12 12 19" />
+                              </Icon>
+                           </>
+                        )}
                      </button>
 
                      <div className="auth-foot">

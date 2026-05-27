@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { authApi, ApiError } from "../services";
+import { useToast } from "../contexts/ToastContext";
+import Spinner, { LoadingBlock } from "../components/Spinner";
 
 // Tiny inline SVG wrapper (same pattern as Login/Register).
 function Icon({ size = 14, strokeWidth = 2.2, children }) {
@@ -65,6 +67,7 @@ function VerifyEmail() {
    const [params] = useSearchParams();
    const token = params.get("token");
    const navigate = useNavigate();
+   const toast = useToast();
 
    const [status, setStatus] = useState(token ? "verifying" : "idle");
    const [errorMessage, setErrorMessage] = useState(null);
@@ -97,10 +100,12 @@ function VerifyEmail() {
       setResendSubmitting(true);
       try {
          await authApi.resendVerification(resendEmail);
+         toast.success("Verification email sent — check your inbox");
          setResendSent(true);
       } catch {
          // Backend deliberately returns a generic message either way (anti-enumeration).
          // We mirror that — always show success-style confirmation.
+         toast.success("Verification email sent — check your inbox");
          setResendSent(true);
       } finally {
          setResendSubmitting(false);
@@ -168,9 +173,8 @@ function VerifyEmail() {
                      <p className="auth-subtitle">
                         Hang tight — this usually takes a moment.
                      </p>
-                     <div className="auth-banner">
-                        Checking your verification link with the server.
-                     </div>
+                     <LoadingBlock label="Checking your verification link" />
+
                   </>
                )}
 
@@ -272,13 +276,20 @@ function VerifyEmail() {
                               className="btn-submit accent"
                               disabled={resendSubmitting}
                            >
-                              {resendSubmitting
-                                 ? "Sending…"
-                                 : "Resend verification link"}
-                              <Icon strokeWidth={2.5}>
-                                 <line x1="5" y1="12" x2="19" y2="12" />
-                                 <polyline points="12 5 19 12 12 19" />
-                              </Icon>
+                              {resendSubmitting ? (
+                                 <>
+                                    <Spinner size={16} />
+                                    Sending
+                                 </>
+                              ) : (
+                                 <>
+                                    Resend verification link
+                                    <Icon strokeWidth={2.5}>
+                                       <line x1="5" y1="12" x2="19" y2="12" />
+                                       <polyline points="12 5 19 12 12 19" />
+                                    </Icon>
+                                 </>
+                              )}
                            </button>
                         </form>
                      )}

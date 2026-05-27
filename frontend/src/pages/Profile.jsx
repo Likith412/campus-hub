@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { profileApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
+import Spinner, { LoadingBlock } from "../components/Spinner";
+import { useToast } from "../contexts/ToastContext";
 
 const TABS = [
    { id: "overview", label: "Overview" },
@@ -88,17 +90,16 @@ function Hero({ user, completion }) {
       .filter(Boolean)
       .join(" · ");
 
-   const [shareNote, setShareNote] = useState("");
+   const toast = useToast();
    const shareUrl = `${window.location.origin}/u/${user.username || user._id || ""}`;
 
    const handleShare = async () => {
       try {
          await navigator.clipboard.writeText(shareUrl);
-         setShareNote("Link copied");
+         toast.success("Link copied to clipboard");
       } catch {
-         setShareNote("Copy failed");
+         toast.error("Couldn't copy link");
       }
-      setTimeout(() => setShareNote(""), 2000);
    };
 
    return (
@@ -137,7 +138,6 @@ function Hero({ user, completion }) {
                <button className="btn btn-secondary" onClick={handleShare}>
                   Share profile
                </button>
-               {shareNote && <div className="profile-share-note">{shareNote}</div>}
             </div>
          </div>
       </div>
@@ -149,8 +149,8 @@ function Hero({ user, completion }) {
 // ──────────────────────────────────────────────────────────────────────────────
 function OverviewTab() {
    const [stats, setStats] = useState(null);
-   const [skills, setSkills] = useState([]);
-   const [activity, setActivity] = useState([]);
+   const [skills, setSkills] = useState(null);
+   const [activity, setActivity] = useState(null);
 
    useEffect(() => {
       let cancelled = false;
@@ -165,11 +165,19 @@ function OverviewTab() {
             setSkills(sk?.skills || []);
             setActivity(a?.items || []);
          })
-         .catch(() => {});
+         .catch(() => {
+            if (cancelled) return;
+            // Failed fetch: render as empty rather than perpetual loading.
+            setStats({});
+            setSkills([]);
+            setActivity([]);
+         });
       return () => {
          cancelled = true;
       };
    }, []);
+
+   const statsLoading = stats === null;
 
    return (
       <div className="tab-pane">
@@ -177,19 +185,23 @@ function OverviewTab() {
             <StatCard
                label="Events attended"
                value={stats?.eventsAttended ?? 0}
+               loading={statsLoading}
             />
             <StatCard
                label="Certificates"
                value={stats?.certificatesCount ?? 0}
+               loading={statsLoading}
             />
             <StatCard
                label="Contest rating"
                value={stats?.contestRating ?? 0}
+               loading={statsLoading}
             />
             <StatCard
                label="Streak"
                value={stats?.currentStreak ?? 0}
                unit="d"
+               loading={statsLoading}
             />
          </div>
 
@@ -205,7 +217,9 @@ function OverviewTab() {
                         </div>
                      </div>
                   </div>
-                  {skills.length === 0 ? (
+                  {skills === null ? (
+                     <LoadingBlock label="Loading skills" />
+                  ) : skills.length === 0 ? (
                      <div className="profile-empty">
                         No skills tracked yet — add some in Settings.
                      </div>
@@ -229,7 +243,9 @@ function OverviewTab() {
                   <div className="panel-head">
                      <div className="panel-title">Recent activity</div>
                   </div>
-                  {activity.length === 0 ? (
+                  {activity === null ? (
+                     <LoadingBlock label="Loading activity" />
+                  ) : activity.length === 0 ? (
                      <div className="profile-empty">No recent activity.</div>
                   ) : (
                      activity.map((a, i) => (
@@ -253,13 +269,19 @@ function OverviewTab() {
    );
 }
 
-function StatCard({ label, value, unit }) {
+function StatCard({ label, value, unit, loading }) {
    return (
       <div className="pstat">
          <div className="pstat-label">{label}</div>
          <div className="pstat-value">
-            {value}
-            {unit && <span className="pstat-unit">{unit}</span>}
+            {loading ? (
+               <span className="skeleton" style={{ width: 56, height: 24 }} />
+            ) : (
+               <>
+                  {value}
+                  {unit && <span className="pstat-unit">{unit}</span>}
+               </>
+            )}
          </div>
       </div>
    );
@@ -277,7 +299,7 @@ function ClubsTab() {
          .catch(() => setClubs([]));
    }, []);
 
-   if (clubs === null) return <div className="profile-empty">Loading…</div>;
+   if (clubs === null) return <LoadingBlock label="Loading clubs" />;
    if (clubs.length === 0)
       return (
          <div className="profile-empty">You haven't joined any clubs yet.</div>
@@ -321,6 +343,8 @@ function AchievementsTab() {
          .catch(() => setCount(0));
    }, []);
 
+   if (count === null) return <LoadingBlock label="Loading achievements" size={28} />;
+
    return (
       <div className="achievements-empty">
          <div className="ic">
@@ -329,7 +353,7 @@ function AchievementsTab() {
                <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
             </Icon>
          </div>
-         <div className="count">{count ?? 0} verified achievements</div>
+         <div className="count">{count} verified achievements</div>
          <div className="sub">
             All your certificates are downloadable from the Certificates page.
          </div>
@@ -402,8 +426,7 @@ function AccountForm({ user, onUserUpdated }) {
       interests: (user.interests || []).join(", "),
    });
    const [saving, setSaving] = useState(false);
-   const [error, setError] = useState(null);
-   const [savedAt, setSavedAt] = useState(null);
+   const toast = useToast();
 
    const setField = (path, value) => {
       setForm((f) => {
@@ -417,7 +440,6 @@ function AccountForm({ user, onUserUpdated }) {
 
    const handleSave = async (e) => {
       e.preventDefault();
-      setError(null);
       setSaving(true);
       try {
          // Shape the payload to match the backend's strict() schema. Strip empty optionals so
@@ -440,9 +462,9 @@ function AccountForm({ user, onUserUpdated }) {
 
          const data = await profileApi.updateMe(payload);
          onUserUpdated?.(data);
-         setSavedAt(new Date());
+         toast.success("Profile saved");
       } catch (err) {
-         setError(err instanceof ApiError ? err.message : "Save failed");
+         toast.error(err instanceof ApiError ? err.message : "Save failed");
       } finally {
          setSaving(false);
       }
@@ -457,11 +479,6 @@ function AccountForm({ user, onUserUpdated }) {
                   Update your basic profile information
                </div>
             </div>
-            {savedAt && (
-               <div className="profile-saved">
-                  Saved {savedAt.toLocaleTimeString()}
-               </div>
-            )}
          </div>
 
          <div className="form-row">
@@ -610,11 +627,10 @@ function AccountForm({ user, onUserUpdated }) {
             </div>
          </div>
 
-         {error && <div className="profile-error">{error}</div>}
-
          <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>
-               {saving ? "Saving…" : "Save changes"}
+               {saving && <Spinner size={14} />}
+               {saving ? "Saving" : "Save changes"}
             </button>
          </div>
       </form>
@@ -697,7 +713,7 @@ function PreferencesPanel({ kind }) {
             </div>
          </div>
          {values === null ? (
-            <div className="profile-empty">Loading…</div>
+            <LoadingBlock label="Loading preferences" />
          ) : (
             meta.toggles.map((t) => (
                <div className="toggle-row" key={t.key}>
@@ -720,6 +736,7 @@ function SessionsPanel() {
    const [sessions, setSessions] = useState(null);
    const [busy, setBusy] = useState(false);
    const [reloadTick, setReloadTick] = useState(0);
+   const toast = useToast();
 
    useEffect(() => {
       let cancelled = false;
@@ -741,6 +758,9 @@ function SessionsPanel() {
       try {
          await profileApi.revokeSession(id);
          setSessions((s) => s.filter((x) => x.id !== id));
+         toast.success("Session revoked");
+      } catch (err) {
+         toast.error(err instanceof ApiError ? err.message : "Couldn't revoke session");
       } finally {
          setBusy(false);
       }
@@ -752,6 +772,9 @@ function SessionsPanel() {
       try {
          await profileApi.revokeOtherSessions();
          setReloadTick((t) => t + 1);
+         toast.success("Signed out of other sessions");
+      } catch (err) {
+         toast.error(err instanceof ApiError ? err.message : "Couldn't sign out other sessions");
       } finally {
          setBusy(false);
       }
@@ -776,7 +799,7 @@ function SessionsPanel() {
          </div>
 
          {sessions === null ? (
-            <div className="profile-empty">Loading…</div>
+            <LoadingBlock label="Loading sessions" />
          ) : sessions.length === 0 ? (
             <div className="profile-empty">No active sessions.</div>
          ) : (
@@ -826,6 +849,7 @@ function SessionsPanel() {
 
 function DangerZone() {
    const [busy, setBusy] = useState(false);
+   const toast = useToast();
 
    const handleDelete = async () => {
       if (
@@ -837,7 +861,10 @@ function DangerZone() {
       setBusy(true);
       try {
          await profileApi.deleteAccount();
+         toast.success("Account deleted");
          window.location.href = "/login";
+      } catch (err) {
+         toast.error(err instanceof ApiError ? err.message : "Couldn't delete account");
       } finally {
          setBusy(false);
       }
@@ -893,7 +920,7 @@ export default function Profile() {
          <div className="main">
             {error && <div className="auth-error">{error}</div>}
             {!user ? (
-               <div className="profile-empty">Loading profile…</div>
+               <LoadingBlock label="Loading profile" size={28} />
             ) : (
                <>
                   <Hero user={user} completion={completion} />

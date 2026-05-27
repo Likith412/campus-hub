@@ -2,6 +2,8 @@ import { Fragment, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
 import { ApiError } from "../services";
 import { useAuth } from "../contexts/AuthContext";
+import { useToast } from "../contexts/ToastContext";
+import Spinner from "../components/Spinner";
 
 // Tiny inline SVG wrapper for the small icons scattered through this page.
 function Icon({ size = 14, strokeWidth = 2.2, children }) {
@@ -62,6 +64,7 @@ function Login() {
    const navigate = useNavigate();
    const location = useLocation();
    const { login } = useAuth();
+   const toast = useToast();
    // Hints passed in router state: from Register (just signed up) or from ProtectedRoute (deep link).
    const justRegistered = location.state?.justRegistered === true;
    const redirectTo = location.state?.from?.pathname ?? "/";
@@ -93,6 +96,7 @@ function Login() {
             email: formData.email,
             password: formData.password,
          });
+         toast.success("Welcome back");
          // replace: don't add /login to history — back button should bypass it.
          navigate(redirectTo, { replace: true });
       } catch (err) {
@@ -235,11 +239,20 @@ function Login() {
                   className="btn-submit accent"
                   disabled={submitting}
                >
-                  {submitting ? "Signing in…" : "Sign in"}
-                  <Icon strokeWidth={2.5}>
-                     <line x1="5" y1="12" x2="19" y2="12" />
-                     <polyline points="12 5 19 12 12 19" />
-                  </Icon>
+                  {submitting ? (
+                     <>
+                        <Spinner size={16} />
+                        Signing in
+                     </>
+                  ) : (
+                     <>
+                        Sign in
+                        <Icon strokeWidth={2.5}>
+                           <line x1="5" y1="12" x2="19" y2="12" />
+                           <polyline points="12 5 19 12 12 19" />
+                        </Icon>
+                     </>
+                  )}
                </button>
 
                <div className="auth-foot">
