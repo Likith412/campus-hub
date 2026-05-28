@@ -4,6 +4,7 @@ import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 const TABS = [
    { id: "overview", label: "Overview" },
@@ -737,6 +738,7 @@ function SessionsPanel() {
    const [busy, setBusy] = useState(false);
    const [reloadTick, setReloadTick] = useState(0);
    const toast = useToast();
+   const confirm = useConfirm();
 
    useEffect(() => {
       let cancelled = false;
@@ -767,7 +769,12 @@ function SessionsPanel() {
    };
 
    const revokeOthers = async () => {
-      if (!window.confirm("Sign out of all other sessions?")) return;
+      const ok = await confirm({
+         title: "Sign out of all other sessions?",
+         message: "Other devices will need to log in again.",
+         confirmLabel: "Sign out others",
+      });
+      if (!ok) return;
       setBusy(true);
       try {
          await profileApi.revokeOtherSessions();
@@ -850,14 +857,16 @@ function SessionsPanel() {
 function DangerZone() {
    const [busy, setBusy] = useState(false);
    const toast = useToast();
+   const confirm = useConfirm();
 
    const handleDelete = async () => {
-      if (
-         !window.confirm(
-            "Permanently delete your account? This cannot be undone.",
-         )
-      )
-         return;
+      const ok = await confirm({
+         title: "Delete your account?",
+         message: "This permanently erases your account and cannot be undone.",
+         confirmLabel: "Delete account",
+         danger: true,
+      });
+      if (!ok) return;
       setBusy(true);
       try {
          await profileApi.deleteAccount();

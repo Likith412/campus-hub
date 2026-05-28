@@ -95,6 +95,7 @@ export const NAV_BY_ROLE = {
       { section: "Discover" },
       { id: "dashboard", label: "Dashboard", to: "/", icon: I.dashboard },
       { id: "discovery", label: "Explore", to: "/explore", icon: I.discover },
+      { id: "clubs", label: "Clubs", to: "/clubs", icon: I.admin },
       { id: "contests", label: "Contests", to: "/contests", icon: I.contests },
       { section: "Your Hub" },
       {

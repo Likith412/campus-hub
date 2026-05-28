@@ -8,9 +8,11 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import Clubs from "./pages/Clubs";
 
 import { AuthProvider } from "./contexts/AuthContext";
 import { ToastProvider } from "./contexts/ToastContext";
+import { ConfirmProvider } from "./contexts/ConfirmContext";
 import { ProtectedRoute, PublicOnlyRoute } from "./components/ProtectedRoute";
 
 import "./App.css";
@@ -20,6 +22,7 @@ function App() {
       // AuthProvider wraps everything so route guards can read auth state.
       <AuthProvider>
          <ToastProvider>
+         <ConfirmProvider>
          <Routes>
             {/* Auth pages: redirect to "/" if already logged in. */}
             <Route element={<PublicOnlyRoute />}>
@@ -36,11 +39,13 @@ function App() {
             <Route element={<ProtectedRoute />}>
                <Route path="/" element={<Home />} />
                <Route path="/profile" element={<Profile />} />
+               <Route path="/clubs" element={<Clubs />} />
             </Route>
 
             {/* Catch-all: any unmatched URL renders the 404 page. */}
             <Route path="*" element={<NotFound />} />
          </Routes>
+         </ConfirmProvider>
          </ToastProvider>
       </AuthProvider>
    );
