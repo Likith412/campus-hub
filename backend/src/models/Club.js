@@ -3,9 +3,11 @@ const mongoose = require("mongoose");
 
 const CLUB_CATEGORIES = [
    "tech",
-   "cultural",
+   "design",
+   "culture",
    "sports",
-   "literary",
+   "business",
+   "media",
    "social",
    "other",
 ];
@@ -30,6 +32,12 @@ const clubSchema = new mongoose.Schema(
       description: String,
       logoUrl: String,
       bannerUrl: String,
+
+      // Optional brand colors for the card cover gradient — falls back to category palette.
+      coverFrom: String,
+      coverTo: String,
+
+      foundedYear: Number,
 
       createdBy: {
          type: mongoose.Schema.Types.ObjectId,

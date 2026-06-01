@@ -100,7 +100,7 @@ async function updateMe(req, res) {
    const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
    ).lean();
 
    return successResponse(res, 200, "Profile updated", {
@@ -126,7 +126,7 @@ async function updateSkills(req, res) {
    const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set: { skills: req.body.skills } },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
    ).lean();
    return successResponse(res, 200, "Skills updated", { skills: user.skills });
 }
@@ -210,7 +210,7 @@ async function updatePreferences(req, res) {
    const user = await User.findByIdAndUpdate(
       req.user._id,
       { $set },
-      { new: true, runValidators: true },
+      { returnDocument: "after", runValidators: true },
    ).lean();
    return successResponse(res, 200, "Preferences updated", {
       preferences: user.preferences,

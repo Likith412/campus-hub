@@ -221,7 +221,7 @@ async function refresh(req, res) {
                   refreshTokenHash: sha256(candidate),
                   expiresAt: new Date(now.getTime() + REFRESH_TTL_MS),
                },
-               { new: true },
+               { returnDocument: "after" },
             );
             if (!session) throw new UnauthorizedError("Invalid refresh token");
 

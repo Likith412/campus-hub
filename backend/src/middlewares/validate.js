@@ -15,4 +15,20 @@ function validate(schema) {
    };
 }
 
+// Same idea but for req.query — used by list endpoints with filter/page params.
+function validateQuery(schema) {
+   return (req, res, next) => {
+      const result = schema.safeParse(req.query);
+      if (!result.success) {
+         return next(
+            new ValidationError("Invalid query params", result.error.flatten()),
+         );
+      }
+      // req.query is a getter in Express 5 — attach parsed data to a new field instead.
+      req.validatedQuery = result.data;
+      next();
+   };
+}
+
 module.exports = validate;
+module.exports.validateQuery = validateQuery;
