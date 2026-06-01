@@ -1,13 +1,15 @@
 // Join table linking a User to a Club, with their per-club role and engagement score.
 const mongoose = require("mongoose");
 
-// Role within a single club (separate from the global app role on User).
-const MEMBERSHIP_ROLES = ["admin", "volunteer", "member"];
+// Role within a single club. Two system roles today; custom roles (1c.5) will widen this.
+// When 1c.5 lands, the enum constraint is dropped — role becomes any slug from the per-club ClubRole collection.
+const MEMBERSHIP_ROLES = ["clubAdmin", "member"];
 // Lifecycle of a join request.
 const MEMBERSHIP_STATUSES = ["pending", "approved", "rejected", "left"];
 
-// Stored sort weight so list queries can sort admins → volunteers → members in a plain index scan.
-const ROLE_WEIGHT = { admin: 2, volunteer: 1, member: 0 };
+// Mirrors the role's rank (1–100). Doubles as the sort weight for the members listing.
+// Custom roles from 1c.5 will land in 1..99; clubAdmin stays at 100, member at 0.
+const ROLE_WEIGHT = { clubAdmin: 100, member: 0 };
 
 const clubMembershipSchema = new mongoose.Schema(
    {

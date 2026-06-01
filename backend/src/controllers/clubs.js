@@ -34,6 +34,7 @@ function publicClubCard(c, membershipByClubId) {
       bannerUrl: c.bannerUrl,
       coverFrom: c.coverFrom,
       coverTo: c.coverTo,
+      verified: !!c.verified,
       foundedYear: c.foundedYear,
       tags: c.tags || [],
       memberCount: c.stats?.memberCount ?? 0,
@@ -249,7 +250,7 @@ async function assertClubAdmin(user, clubId) {
       userId: user._id,
       clubId,
       status: "approved",
-      role: "admin",
+      role: "clubAdmin",
    }).lean();
    if (!m) throw new ForbiddenError("Club admin access required");
    return m;
@@ -283,7 +284,7 @@ async function listMembers(req, res) {
          userId: req.user._id,
          clubId: club._id,
          status: "approved",
-         role: "admin",
+         role: "clubAdmin",
       }).lean());
    if (status !== "approved" && !viewerIsAdmin) {
       throw new ForbiddenError("Club admin access required");
@@ -365,6 +366,13 @@ async function updateMember(req, res) {
       const targetStatus = status === "approved" ? "approved" : m.status;
       if (targetStatus !== "approved") {
          throw new ConflictError("Can only set role on approved members");
+      }
+      // The `clubAdmin` system role is assignable only by superAdmin (faculty assignment lives in 1c).
+      // A per-club clubAdmin can demote to `member` but can't mint new clubAdmins.
+      if (role === "clubAdmin" && req.user.role !== ROLES.SUPER_ADMIN) {
+         throw new ForbiddenError(
+            "Only a super admin can assign the clubAdmin role",
+         );
       }
       m.role = role;
    }

@@ -37,6 +37,8 @@ const clubSchema = new mongoose.Schema(
       coverFrom: String,
       coverTo: String,
 
+      // SuperAdmin-verified badge shown on the listing card.
+      verified: { type: Boolean, default: false },
       foundedYear: Number,
 
       createdBy: {
