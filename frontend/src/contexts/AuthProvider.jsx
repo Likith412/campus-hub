@@ -1,19 +1,11 @@
-import {
-   createContext,
-   useCallback,
-   useContext,
-   useEffect,
-   useMemo,
-   useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Cookies from "js-cookie";
 import { authApi, ApiError } from "../services";
+import { AuthContext } from "./AuthContext";
 
 // Non-httpOnly cookie set by the backend on login/refresh. Lets the SPA skip
 // the bootstrap /me call for anonymous visitors (zero auth requests on cold load).
 const hasSessionHint = () => Cookies.get("has_session") === "1";
-
-const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
    const [user, setUser] = useState(null);
@@ -66,13 +58,4 @@ export function AuthProvider({ children }) {
    );
 
    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function useAuth() {
-   const ctx = useContext(AuthContext);
-   if (!ctx) {
-      throw new Error("useAuth must be used inside <AuthProvider>");
-   }
-   return ctx;
 }

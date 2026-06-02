@@ -1,13 +1,6 @@
-import {
-   createContext,
-   useCallback,
-   useContext,
-   useRef,
-   useState,
-} from "react";
+import { useCallback, useRef, useState } from "react";
 import ConfirmModal from "../components/ConfirmModal";
-
-const ConfirmContext = createContext(null);
+import { ConfirmContext } from "./ConfirmContext";
 
 export function ConfirmProvider({ children }) {
    const [options, setOptions] = useState(null);
@@ -38,10 +31,4 @@ export function ConfirmProvider({ children }) {
          />
       </ConfirmContext.Provider>
    );
-}
-
-export function useConfirm() {
-   const ctx = useContext(ConfirmContext);
-   if (!ctx) throw new Error("useConfirm must be used inside <ConfirmProvider>");
-   return ctx;
 }

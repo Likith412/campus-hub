@@ -1,7 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../components/Icon";
-
-const ToastContext = createContext(null);
+import { ToastContext } from "./ToastContext";
 
 let idSeq = 0;
 const nextId = () => {
@@ -109,13 +108,18 @@ export function ToastProvider({ children }) {
       return id;
    }, []);
 
-   const api = {
-      success: (msg, opts) => show("success", msg, opts),
-      error: (msg, opts) => show("error", msg, opts),
-      warning: (msg, opts) => show("warning", msg, opts),
-      info: (msg, opts) => show("info", msg, opts),
-      dismiss,
-   };
+   // Stable identity — consumers depend on `toast` in effect deps, so a fresh
+   // object each render would re-fire their effects (and loop on error paths).
+   const api = useMemo(
+      () => ({
+         success: (msg, opts) => show("success", msg, opts),
+         error: (msg, opts) => show("error", msg, opts),
+         warning: (msg, opts) => show("warning", msg, opts),
+         info: (msg, opts) => show("info", msg, opts),
+         dismiss,
+      }),
+      [show, dismiss],
+   );
 
    return (
       <ToastContext.Provider value={api}>
@@ -127,10 +131,4 @@ export function ToastProvider({ children }) {
          </div>
       </ToastContext.Provider>
    );
-}
-
-export function useToast() {
-   const ctx = useContext(ToastContext);
-   if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
-   return ctx;
 }
