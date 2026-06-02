@@ -5,7 +5,13 @@ const mongoose = require("mongoose");
 // When 1c.5 lands, the enum constraint is dropped — role becomes any slug from the per-club ClubRole collection.
 const MEMBERSHIP_ROLES = ["clubAdmin", "member"];
 // Lifecycle of a join request.
-const MEMBERSHIP_STATUSES = ["pending", "approved", "rejected", "left"];
+const MEMBERSHIP_STATUSES = [
+   "pending",
+   "approved",
+   "rejected",
+   "left",
+   "removed",
+];
 
 // Mirrors the role's rank (1–100). Doubles as the sort weight for the members listing.
 // Custom roles from 1c.5 will land in 1..99; clubAdmin stays at 100, member at 0.
@@ -41,6 +47,13 @@ const clubMembershipSchema = new mongoose.Schema(
 
       joinedAt: Date,
       leftAt: Date,
+      // Audit: who took the terminal action. Null when the user left voluntarily;
+      // set to the acting admin's userId when status was set to "removed".
+      removedBy: {
+         type: mongoose.Schema.Types.ObjectId,
+         ref: "User",
+         default: null,
+      },
    },
    { timestamps: true, versionKey: false },
 );

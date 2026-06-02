@@ -144,6 +144,12 @@ async function joinClub(req, res) {
             : "Your request is pending",
       );
    }
+   // An admin-removed member can't re-join on their own — they must be re-invited.
+   if (existing && existing.status === "removed") {
+      throw new ForbiddenError(
+         "You were removed from this club; an admin must re-invite you",
+      );
+   }
 
    const nextStatus = policy === "open" ? "approved" : "pending";
    const update = {
@@ -153,7 +159,7 @@ async function joinClub(req, res) {
       roleWeight: ROLE_WEIGHT.member,
       status: nextStatus,
       ...(nextStatus === "approved"
-         ? { joinedAt: new Date(), leftAt: null }
+         ? { joinedAt: new Date(), leftAt: null, removedBy: null }
          : {}),
    };
 
@@ -180,7 +186,12 @@ async function leaveClub(req, res) {
    const club = await findActiveClubBySlug(req.params.slug);
 
    const m = await ClubMembership.findOne({ userId, clubId: club._id });
-   if (!m || m.status === "left" || m.status === "rejected") {
+   if (
+      !m ||
+      m.status === "left" ||
+      m.status === "removed" ||
+      m.status === "rejected"
+   ) {
       throw new NotFoundError("No active membership");
    }
 
@@ -188,6 +199,8 @@ async function leaveClub(req, res) {
    const wasPending = m.status === "pending";
    m.status = "left";
    m.leftAt = new Date();
+   // Voluntary leave — make sure any stale admin-action audit pointer is cleared.
+   m.removedBy = null;
    await m.save();
 
    if (wasApproved) {
@@ -258,6 +271,11 @@ async function assertClubAdmin(user, clubId) {
 
 function publicMemberRow(m) {
    const u = m.userId || {};
+   // removedBy is populated by listMembers, so it's either a user doc or null.
+   const rb = m.removedBy;
+   const removedBy = rb?._id
+      ? { userId: rb._id, name: rb.name || "Unknown" }
+      : null;
    return {
       userId: u._id || null,
       name: u.name || "Unknown",
@@ -268,6 +286,8 @@ function publicMemberRow(m) {
       status: m.status,
       engagementScore: m.engagementScore || 0,
       joinedAt: m.joinedAt || null,
+      leftAt: m.leftAt || null,
+      removedBy,
       createdAt: m.createdAt,
    };
 }
@@ -322,10 +342,14 @@ async function listMembers(req, res) {
          .sort(sort)
          .skip(skip)
          .limit(limit)
-         .populate({
-            path: "userId",
-            select: "name avatarUrl profile.department profile.year",
-         })
+         .populate([
+            {
+               path: "userId",
+               select: "name avatarUrl profile.department profile.year",
+            },
+            // Populate the acting admin so each removed row carries id + name.
+            { path: "removedBy", select: "name" },
+         ])
          .lean(),
       ClubMembership.countDocuments(filter),
    ]);
@@ -349,22 +373,26 @@ async function updateMember(req, res) {
    });
    if (!m) throw new NotFoundError("Membership not found");
 
-   // status changes only apply to pending memberships
-   if (status) {
+   // Approving accepts a pending request OR re-invites an admin-removed member;
+   // rejecting only applies to a pending request.
+   if (status === "approved") {
+      if (m.status !== "pending" && m.status !== "removed") {
+         throw new ConflictError("Membership is not pending or removed");
+      }
+      m.status = "approved";
+      m.joinedAt = new Date();
+      m.leftAt = null;
+      m.removedBy = null;
+   } else if (status === "rejected") {
       if (m.status !== "pending") {
          throw new ConflictError("Membership is not pending");
       }
-      m.status = status;
-      if (status === "approved") {
-         m.joinedAt = new Date();
-         m.leftAt = null;
-      }
+      m.status = "rejected";
    }
 
-   // role changes only apply to approved memberships
+   // role changes only apply to (newly-)approved memberships
    if (role) {
-      const targetStatus = status === "approved" ? "approved" : m.status;
-      if (targetStatus !== "approved") {
+      if (m.status !== "approved") {
          throw new ConflictError("Can only set role on approved members");
       }
       // The `clubAdmin` system role is assignable only by superAdmin (faculty assignment lives in 1c).
@@ -374,7 +402,7 @@ async function updateMember(req, res) {
             "Only a super admin can assign the clubAdmin role",
          );
       }
-      m.role = role;
+      m.role = role; // roleWeight kept in sync by the pre-save hook
    }
 
    await m.save();
@@ -392,7 +420,8 @@ async function updateMember(req, res) {
    });
 }
 
-// DELETE /api/clubs/:slug/members/:userId — admin removes a member (terminal state: left).
+// DELETE /api/clubs/:slug/members/:userId — admin removes a member (terminal state: "removed",
+// distinct from voluntary "left"). `removedBy` records who took the action for audit.
 async function removeMember(req, res) {
    const club = await findActiveClubBySlug(req.params.slug);
    await assertClubAdmin(req.user, club._id);
@@ -406,13 +435,19 @@ async function removeMember(req, res) {
       clubId: club._id,
       userId: req.params.userId,
    });
-   if (!m || m.status === "left" || m.status === "rejected") {
+   if (
+      !m ||
+      m.status === "left" ||
+      m.status === "removed" ||
+      m.status === "rejected"
+   ) {
       throw new NotFoundError("No active membership");
    }
 
    const wasApproved = m.status === "approved";
-   m.status = "left";
+   m.status = "removed";
    m.leftAt = new Date();
+   m.removedBy = req.user._id;
    await m.save();
 
    if (wasApproved) {
@@ -422,7 +457,7 @@ async function removeMember(req, res) {
       );
    }
 
-   return successResponse(res, 200, "Member removed", { status: "left" });
+   return successResponse(res, 200, "Member removed", { status: "removed" });
 }
 
 module.exports = {
