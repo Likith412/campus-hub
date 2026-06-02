@@ -158,19 +158,22 @@ async function joinClub(req, res) {
       role: "member",
       roleWeight: ROLE_WEIGHT.member,
       status: nextStatus,
-      ...(nextStatus === "approved"
-         ? { joinedAt: new Date(), leftAt: null, removedBy: null }
-         : {}),
+      // Clear any stale terminal-state fields from a prior membership on re-join.
+      leftAt: null,
+      removedBy: null,
+      joinedAt: nextStatus === "approved" ? new Date() : null,
    };
 
-   await ClubMembership.findOneAndUpdate({ userId, clubId: club._id }, update, {
-      upsert: true,
-      setDefaultsOnInsert: true,
-      returnDocument: "after",
-   });
+   // returnDocument: "before" lets us see the prior status, so a concurrent
+   // double-join only counts the write that actually flipped them to approved.
+   const prev = await ClubMembership.findOneAndUpdate(
+      { userId, clubId: club._id },
+      update,
+      { upsert: true, setDefaultsOnInsert: true, returnDocument: "before" },
+   );
 
-   // Only increment member count for instant approvals, not pending requests.
-   if (nextStatus === "approved") {
+   // Only increment for instant approvals, and only if this write did the transition.
+   if (nextStatus === "approved" && prev?.status !== "approved") {
       await Club.updateOne(
          { _id: club._id },
          { $inc: { "stats.memberCount": 1 } },
@@ -185,23 +188,18 @@ async function leaveClub(req, res) {
    const userId = req.user._id;
    const club = await findActiveClubBySlug(req.params.slug);
 
-   const m = await ClubMembership.findOne({ userId, clubId: club._id });
-   if (
-      !m ||
-      m.status === "left" ||
-      m.status === "removed" ||
-      m.status === "rejected"
-   ) {
-      throw new NotFoundError("No active membership");
-   }
+   // Atomically flip an active membership to "left"; the filter only matches a
+   // leave-able row, so a concurrent double-leave decrements the count at most once.
+   const prev = await ClubMembership.findOneAndUpdate(
+      { userId, clubId: club._id, status: { $in: ["approved", "pending"] } },
+      // Voluntary leave — clear any stale admin-action audit pointer.
+      { status: "left", leftAt: new Date(), removedBy: null },
+      { returnDocument: "before" },
+   );
+   if (!prev) throw new NotFoundError("No active membership");
 
-   const wasApproved = m.status === "approved";
-   const wasPending = m.status === "pending";
-   m.status = "left";
-   m.leftAt = new Date();
-   // Voluntary leave — make sure any stale admin-action audit pointer is cleared.
-   m.removedBy = null;
-   await m.save();
+   const wasApproved = prev.status === "approved";
+   const wasPending = prev.status === "pending";
 
    if (wasApproved) {
       await Club.updateOne(
@@ -373,26 +371,24 @@ async function updateMember(req, res) {
    });
    if (!m) throw new NotFoundError("Membership not found");
 
+   // Validate the requested transition up-front so errors are precise.
    // Approving accepts a pending request OR re-invites an admin-removed member;
    // rejecting only applies to a pending request.
    if (status === "approved") {
       if (m.status !== "pending" && m.status !== "removed") {
          throw new ConflictError("Membership is not pending or removed");
       }
-      m.status = "approved";
-      m.joinedAt = new Date();
-      m.leftAt = null;
-      m.removedBy = null;
    } else if (status === "rejected") {
       if (m.status !== "pending") {
          throw new ConflictError("Membership is not pending");
       }
-      m.status = "rejected";
    }
 
    // role changes only apply to (newly-)approved memberships
+   const willBeApproved =
+      status === "approved" || (!status && m.status === "approved");
    if (role) {
-      if (m.status !== "approved") {
+      if (!willBeApproved) {
          throw new ConflictError("Can only set role on approved members");
       }
       // The `clubAdmin` system role is assignable only by superAdmin (faculty assignment lives in 1c).
@@ -402,12 +398,35 @@ async function updateMember(req, res) {
             "Only a super admin can assign the clubAdmin role",
          );
       }
-      m.role = role; // roleWeight kept in sync by the pre-save hook
    }
 
-   await m.save();
-
+   const set = {};
    if (status === "approved") {
+      Object.assign(set, {
+         status: "approved",
+         joinedAt: new Date(),
+         leftAt: null,
+         removedBy: null,
+      });
+   } else if (status === "rejected") {
+      set.status = "rejected";
+   }
+   if (role) {
+      set.role = role;
+      set.roleWeight = ROLE_WEIGHT[role]; // findOneAndUpdate skips the pre-save hook
+   }
+
+   // Guard the write on the pre-transition status so a concurrent approve counts once.
+   const guard = { clubId: club._id, userId: req.params.userId };
+   if (status === "approved") guard.status = { $in: ["pending", "removed"] };
+   else if (status === "rejected") guard.status = "pending";
+
+   const prev = await ClubMembership.findOneAndUpdate(guard, set, {
+      returnDocument: "before",
+   });
+
+   // Only the write that actually performed the approve transition bumps the count.
+   if (status === "approved" && prev) {
       await Club.updateOne(
          { _id: club._id },
          { $inc: { "stats.memberCount": 1 } },
@@ -415,13 +434,12 @@ async function updateMember(req, res) {
    }
 
    return successResponse(res, 200, "Member updated", {
-      status: m.status,
-      role: m.role,
+      status: set.status || m.status,
+      role: set.role || m.role,
    });
 }
 
-// DELETE /api/clubs/:slug/members/:userId — admin removes a member (terminal state: "removed",
-// distinct from voluntary "left"). `removedBy` records who took the action for audit.
+// DELETE /api/clubs/:slug/members/:userId — admin removes a member (terminal state: "removed".
 async function removeMember(req, res) {
    const club = await findActiveClubBySlug(req.params.slug);
    await assertClubAdmin(req.user, club._id);
@@ -431,26 +449,20 @@ async function removeMember(req, res) {
       throw new ConflictError("Use leave to remove your own membership");
    }
 
-   const m = await ClubMembership.findOne({
-      clubId: club._id,
-      userId: req.params.userId,
-   });
-   if (
-      !m ||
-      m.status === "left" ||
-      m.status === "removed" ||
-      m.status === "rejected"
-   ) {
-      throw new NotFoundError("No active membership");
-   }
+   // Atomically flip an active membership to "removed"; the filter only matches
+   // an active row, so a concurrent double-remove decrements the count at most once.
+   const prev = await ClubMembership.findOneAndUpdate(
+      {
+         clubId: club._id,
+         userId: req.params.userId,
+         status: { $in: ["approved", "pending"] },
+      },
+      { status: "removed", leftAt: new Date(), removedBy: req.user._id },
+      { returnDocument: "before" },
+   );
+   if (!prev) throw new NotFoundError("No active membership");
 
-   const wasApproved = m.status === "approved";
-   m.status = "removed";
-   m.leftAt = new Date();
-   m.removedBy = req.user._id;
-   await m.save();
-
-   if (wasApproved) {
+   if (prev.status === "approved") {
       await Club.updateOne(
          { _id: club._id, "stats.memberCount": { $gt: 0 } },
          { $inc: { "stats.memberCount": -1 } },

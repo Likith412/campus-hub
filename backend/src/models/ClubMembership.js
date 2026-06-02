@@ -35,7 +35,7 @@ const clubMembershipSchema = new mongoose.Schema(
          enum: MEMBERSHIP_ROLES,
          default: "member",
       },
-      // Mirror of role for fast sort: admin=2, volunteer=1, member=0. Kept in sync via pre-save hook.
+      // Mirror of role for fast sort: clubAdmin=100, member=0. Kept in sync via pre-save hook.
       roleWeight: { type: Number, default: 0 },
       status: {
          type: String,
@@ -57,14 +57,6 @@ const clubMembershipSchema = new mongoose.Schema(
    },
    { timestamps: true, versionKey: false },
 );
-
-// Keep roleWeight in lockstep with role on document saves.
-clubMembershipSchema.pre("save", function (next) {
-   if (this.isModified("role") || this.isNew) {
-      this.roleWeight = ROLE_WEIGHT[this.role] ?? 0;
-   }
-   next();
-});
 
 // One membership per (user, club). Other indexes power "my clubs" and per-club leaderboards.
 clubMembershipSchema.index({ userId: 1, clubId: 1 }, { unique: true });
