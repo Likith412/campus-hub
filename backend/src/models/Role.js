@@ -1,4 +1,4 @@
-// Role model: named bundle of permissions. System roles (student/clubAdmin/superAdmin) seeded from constants.
+// Role model: named bundle of permissions. System roles (student/coordinator/superAdmin) seeded from constants.
 const mongoose = require("mongoose");
 
 const roleSchema = new mongoose.Schema(

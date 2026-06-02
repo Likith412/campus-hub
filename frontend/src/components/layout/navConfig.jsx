@@ -117,7 +117,7 @@ export const NAV_BY_ROLE = {
          icon: I.user,
       },
    ],
-   clubAdmin: [
+   coordinator: [
       { section: "Manage" },
       { id: "admin", label: "Club Overview", to: "/", icon: I.admin },
       { id: "wizard", label: "Create Event", to: "/events/new", icon: I.plus },

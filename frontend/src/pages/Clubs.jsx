@@ -171,6 +171,13 @@ function ClubCard({ club, onJoin, onLeave, busy }) {
          <div className="club-body">
             <div className="club-head-row">
                <div className="club-name">{club.name}</div>
+               {club.verified && (
+                  <span className="verified-tick" title="Verified by institute">
+                     <Icon size={9} strokeWidth={4}>
+                        <polyline points="20 6 9 17 4 12" />
+                     </Icon>
+                  </span>
+               )}
             </div>
             <div className="club-tagline">{club.description}</div>
             <div className="club-meta">
@@ -244,6 +251,13 @@ function ClubRow({ club, onJoin, onLeave, busy }) {
             <div className="cr-name-row">
                <div className="cr-name">{club.name}</div>
                <div className="cr-domain">{cat.label}</div>
+               {club.verified && (
+                  <span className="verified-tick" title="Verified">
+                     <Icon size={9} strokeWidth={4}>
+                        <polyline points="20 6 9 17 4 12" />
+                     </Icon>
+                  </span>
+               )}
             </div>
             <div className="cr-tagline">{club.description}</div>
          </div>
@@ -373,9 +387,11 @@ export default function Clubs() {
    async function handleJoin(club) {
       const isRequest = club.joinPolicy === "request";
       const ok = await confirm({
-         title: isRequest ? `Request to join ${club.name}?` : `Join ${club.name}?`,
+         title: isRequest
+            ? `Request to join ${club.name}?`
+            : `Join ${club.name}?`,
          message: isRequest
-            ? "A club admin will review your request before you're added."
+            ? "A club coordinator will review your request before you're added."
             : "You'll be added to the club and can access members-only posts and events.",
          confirmLabel: isRequest ? "Send request" : "Join club",
       });
@@ -391,7 +407,7 @@ export default function Clubs() {
             toast.success(`Joined ${club.name}`);
          } else {
             patchClub(club.slug, { membershipStatus: "pending" });
-            toast.success("Request sent — club admin will review it");
+            toast.success("Request sent — club coordinator will review it");
          }
       } catch (err) {
          toast.error(

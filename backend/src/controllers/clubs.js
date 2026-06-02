@@ -254,16 +254,16 @@ async function getClub(req, res) {
    });
 }
 
-// Returns the requester's membership doc if they're a club admin (or null if superAdmin → bypass).
-async function assertClubAdmin(user, clubId) {
+// Returns the requester's membership doc if they're a coordinator (or null if superAdmin → bypass).
+async function assertCoordinator(user, clubId) {
    if (user.role === ROLES.SUPER_ADMIN) return null;
    const m = await ClubMembership.findOne({
       userId: user._id,
       clubId,
       status: "approved",
-      role: "clubAdmin",
+      role: "coordinator",
    }).lean();
-   if (!m) throw new ForbiddenError("Club admin access required");
+   if (!m) throw new ForbiddenError("Coordinator access required");
    return m;
 }
 
@@ -295,17 +295,17 @@ async function listMembers(req, res) {
    const { q, role, status, page, limit } = req.validatedQuery;
    const club = await findActiveClubBySlug(req.params.slug);
 
-   // Non-approved listings (pending/rejected/left) require club admin.
-   const viewerIsAdmin =
+   // Non-approved listings (pending/rejected/left) require a coordinator.
+   const viewerIsCoordinator =
       req.user.role === ROLES.SUPER_ADMIN ||
       !!(await ClubMembership.findOne({
          userId: req.user._id,
          clubId: club._id,
          status: "approved",
-         role: "clubAdmin",
+         role: "coordinator",
       }).lean());
-   if (status !== "approved" && !viewerIsAdmin) {
-      throw new ForbiddenError("Club admin access required");
+   if (status !== "approved" && !viewerIsCoordinator) {
+      throw new ForbiddenError("Coordinator access required");
    }
 
    const filter = { clubId: club._id, status, ...(role ? { role } : {}) };
@@ -328,7 +328,7 @@ async function listMembers(req, res) {
       if (userMatch.length === 0) {
          return successResponse(res, 200, "Members", {
             items: [],
-            viewerIsAdmin,
+            viewerIsCoordinator,
             pagination: { page, limit, total: 0, hasMore: false },
          });
       }
@@ -354,7 +354,7 @@ async function listMembers(req, res) {
 
    return successResponse(res, 200, "Members", {
       items: rows.map(publicMemberRow),
-      viewerIsAdmin,
+      viewerIsCoordinator,
       pagination: { page, limit, total, hasMore: skip + rows.length < total },
    });
 }
@@ -363,7 +363,7 @@ async function listMembers(req, res) {
 async function updateMember(req, res) {
    const { role, status } = req.body;
    const club = await findActiveClubBySlug(req.params.slug);
-   await assertClubAdmin(req.user, club._id);
+   await assertCoordinator(req.user, club._id);
 
    const m = await ClubMembership.findOne({
       clubId: club._id,
@@ -391,11 +391,11 @@ async function updateMember(req, res) {
       if (!willBeApproved) {
          throw new ConflictError("Can only set role on approved members");
       }
-      // The `clubAdmin` system role is assignable only by superAdmin (faculty assignment lives in 1c).
-      // A per-club clubAdmin can demote to `member` but can't mint new clubAdmins.
-      if (role === "clubAdmin" && req.user.role !== ROLES.SUPER_ADMIN) {
+      // The `coordinator` role is assignable only by superAdmin (faculty assignment lives in 1c).
+      // A per-club coordinator can demote to `member` but can't mint new coordinators.
+      if (role === "coordinator" && req.user.role !== ROLES.SUPER_ADMIN) {
          throw new ForbiddenError(
-            "Only a super admin can assign the clubAdmin role",
+            "Only a super admin can assign the coordinator role",
          );
       }
    }
@@ -439,12 +439,12 @@ async function updateMember(req, res) {
    });
 }
 
-// DELETE /api/clubs/:slug/members/:userId — admin removes a member (terminal state: "removed".
+// DELETE /api/clubs/:slug/members/:userId — coordinator removes a member (terminal state: "removed".
 async function removeMember(req, res) {
    const club = await findActiveClubBySlug(req.params.slug);
-   await assertClubAdmin(req.user, club._id);
+   await assertCoordinator(req.user, club._id);
 
-   // Don't let an admin remove themselves via this endpoint — they should use leaveClub.
+   // Don't let a coordinator remove themselves via this endpoint — they should use leaveClub.
    if (String(req.user._id) === String(req.params.userId)) {
       throw new ConflictError("Use leave to remove your own membership");
    }

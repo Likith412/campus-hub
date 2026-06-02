@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 
 // Role within a single club. Two system roles today; custom roles (1c.5) will widen this.
 // When 1c.5 lands, the enum constraint is dropped — role becomes any slug from the per-club ClubRole collection.
-const MEMBERSHIP_ROLES = ["clubAdmin", "member"];
+const MEMBERSHIP_ROLES = ["coordinator", "member"];
 // Lifecycle of a join request.
 const MEMBERSHIP_STATUSES = [
    "pending",
@@ -14,8 +14,8 @@ const MEMBERSHIP_STATUSES = [
 ];
 
 // Mirrors the role's rank (1–100). Doubles as the sort weight for the members listing.
-// Custom roles from 1c.5 will land in 1..99; clubAdmin stays at 100, member at 0.
-const ROLE_WEIGHT = { clubAdmin: 100, member: 0 };
+// Custom roles from 1c.5 will land in 1..99; coordinator stays at 100, member at 0.
+const ROLE_WEIGHT = { coordinator: 100, member: 0 };
 
 const clubMembershipSchema = new mongoose.Schema(
    {
@@ -35,7 +35,7 @@ const clubMembershipSchema = new mongoose.Schema(
          enum: MEMBERSHIP_ROLES,
          default: "member",
       },
-      // Mirror of role for fast sort: clubAdmin=100, member=0. Kept in sync via pre-save hook.
+      // Mirror of role for fast sort: coordinator=100, member=0. Kept in sync via pre-save hook.
       roleWeight: { type: Number, default: 0 },
       status: {
          type: String,
