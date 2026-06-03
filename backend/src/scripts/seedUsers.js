@@ -5,7 +5,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const { connectDatabase, disconnectDatabase } = require("../config/database");
-const { User, Club, ClubMembership } = require("../models");
+const { Student, Coordinator, Club, ClubMembership } = require("../models");
 const { ROLES } = require("../constants/roles");
 const { ROLE_WEIGHT } = require("../models/ClubMembership");
 const { hashPassword } = require("../utils/password");
@@ -25,19 +25,16 @@ const STUDENT_NAMES = [
    "Vihaan Chauhan", "Riya Das", "Shaurya Kulkarni", "Meera Banerjee",
 ];
 
-// Upsert a user by email; always (re)set the password so dev login stays known.
+// Upsert a user by email via the role discriminator (sets the right subtype + fields).
 async function upsertUser({ email, name, role, dept, year, passwordHash }) {
-   const doc = await User.findOneAndUpdate(
+   const Model = role === ROLES.COORDINATOR ? Coordinator : Student;
+   const profile =
+      role === ROLES.COORDINATOR
+         ? { department: dept }
+         : { department: dept, year };
+   const doc = await Model.findOneAndUpdate(
       { email },
-      {
-         email,
-         name,
-         role,
-         passwordHash,
-         emailVerified: true,
-         isActive: true,
-         profile: { department: dept, year },
-      },
+      { email, name, passwordHash, emailVerified: true, isActive: true, profile },
       { upsert: true, setDefaultsOnInsert: true, returnDocument: "after" },
    );
    return doc;

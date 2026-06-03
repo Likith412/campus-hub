@@ -5,7 +5,7 @@ dotenv.config();
 
 const { connectDatabase, disconnectDatabase } = require("../config/database");
 const models = require("../models");
-const { DEFAULT_ROLES, ROLES } = require("../constants/roles");
+const { DEFAULT_ROLES } = require("../constants/roles");
 const { hashPassword } = require("../utils/password");
 
 // Walk every model and build any missing indexes declared in its schema.
@@ -36,7 +36,7 @@ async function seedRoles() {
 // Idempotent — if a user with SUPERADMIN_EMAIL already exists, we only ensure role/active/verified flags
 // are correct and leave the existing passwordHash alone.
 async function seedSuperAdmin() {
-   const { User } = models;
+   const { User, SuperAdmin } = models;
    const email = process.env.SUPERADMIN_EMAIL?.toLowerCase().trim();
    const password = process.env.SUPERADMIN_PASSWORD;
    const name = process.env.SUPERADMIN_NAME || "Super Admin";
@@ -49,7 +49,7 @@ async function seedSuperAdmin() {
 
    const existing = await User.findOne({ email });
    if (existing) {
-      existing.role = ROLES.SUPER_ADMIN;
+      // Note: `role` is the discriminator key and can't be changed on an existing doc.
       existing.isActive = true;
       existing.emailVerified = true;
       await existing.save();
@@ -58,11 +58,10 @@ async function seedSuperAdmin() {
    }
 
    const passwordHash = await hashPassword(password);
-   await User.create({
+   await SuperAdmin.create({
       email,
       passwordHash,
       name,
-      role: ROLES.SUPER_ADMIN,
       emailVerified: true,
       isActive: true,
    });
