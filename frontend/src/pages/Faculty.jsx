@@ -396,45 +396,8 @@ export default function Faculty() {
       }
    }
 
-   function exportCsv() {
-      if (!items.length) return;
-      const head = ["Name", "Email", "Status", "Clubs", "Created", "Last active"];
-      const rows = items.map((u) => [
-         u.name,
-         u.email,
-         STATUS_LABEL[derivedStatus(u)],
-         u.clubCount,
-         formatDate(u.createdAt),
-         timeAgo(u.lastLoginAt),
-      ]);
-      const csv = [head, ...rows]
-         .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
-         .join("\n");
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "faculty.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Exported current page to CSV");
-   }
-
-   const topbarRight = (
-      <button
-         type="button"
-         className="btn btn-primary"
-         onClick={() => setModalOpen(true)}
-      >
-         <Icon size={13} strokeWidth={2.5}>
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-         </Icon>
-         Create faculty
-      </button>
-   );
-
    return (
-      <AppShell title="Faculty" topbarRight={topbarRight}>
+      <AppShell title="Faculty">
          <div className="main faculty-page">
             <div className="fac-pagehead">
                <div className="breadcrumb">
@@ -514,15 +477,14 @@ export default function Faculty() {
                </div>
                <button
                   type="button"
-                  className="btn btn-secondary fac-export"
-                  onClick={exportCsv}
+                  className="btn btn-primary fac-export"
+                  onClick={() => setModalOpen(true)}
                >
-                  <Icon size={13} strokeWidth={2.2}>
-                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                     <polyline points="7 10 12 15 17 10" />
-                     <line x1="12" y1="15" x2="12" y2="3" />
+                  <Icon size={13} strokeWidth={2.5}>
+                     <line x1="12" y1="5" x2="12" y2="19" />
+                     <line x1="5" y1="12" x2="19" y2="12" />
                   </Icon>
-                  Export
+                  Create faculty
                </button>
             </div>
 
