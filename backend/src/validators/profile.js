@@ -30,6 +30,10 @@ const updateProfileSchema = z
             githubUrl: urlOrEmpty,
             portfolioUrl: urlOrEmpty,
             tags: z.array(z.string().max(40)).max(10).optional(),
+            // Faculty/coordinator fields.
+            designation: z.string().max(80).optional(),
+            officeLocation: z.string().max(80).optional(),
+            expertise: z.array(z.string().max(40)).max(12).optional(),
          })
          .optional(),
       interests: z.array(z.string().max(40)).max(30).optional(),
@@ -72,8 +76,6 @@ const updatePreferencesSchema = z
             showOnLeaderboards: z.boolean().optional(),
          })
          .optional(),
-      theme: z.enum(["light", "dark", "system"]).optional(),
-      language: z.string().min(2).max(8).optional(),
    })
    .strict();
 

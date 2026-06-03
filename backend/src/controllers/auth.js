@@ -21,11 +21,11 @@ const {
 } = require("../utils/errors");
 const {
    User,
+   Student,
    AuthSession,
    EmailVerification,
    PasswordReset,
 } = require("../models");
-const { ROLES } = require("../constants/roles");
 const { redisClient } = require("../config/redis");
 const { blacklistSessionAccess } = require("../utils/sessionRevocation");
 const { buildDeviceInfo } = require("../utils/deviceInfo");
@@ -132,12 +132,8 @@ async function register(req, res) {
    }
 
    const passwordHash = await hashPassword(password);
-   const user = await User.create({
-      email,
-      passwordHash,
-      name,
-      role: ROLES.STUDENT,
-   });
+   // Student discriminator — sets role: "student" and the student-only schema.
+   const user = await Student.create({ email, passwordHash, name });
 
    const verifyToken = await issueVerificationToken(user._id);
    const link = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;

@@ -13,6 +13,11 @@ const {
 const { REFRESH_COOKIE_NAME } = require("../utils/cookies");
 const { blacklistSessionAccess } = require("../utils/sessionRevocation");
 const { User, AuthSession, ClubMembership, Club } = require("../models");
+const { ROLES } = require("../constants/roles");
+
+// Resolve the role discriminator model so writes cast/validate against the subtype's
+// schema (the base User schema doesn't know subtype paths like profile.designation).
+const modelFor = (u) => User.discriminators?.[u.role] || User;
 
 // Resolve which AuthSession matches the caller's refresh cookie.
 async function findCurrentSession(req) {
@@ -47,20 +52,33 @@ function publicProfile(u) {
 
 // Computes profile completion percentage for the progress bar.
 function computeCompletion(u) {
-   const checks = [
-      !!u.name,
-      !!u.username,
-      !!u.avatarUrl,
-      !!u.coverUrl,
-      !!u.profile?.bio,
-      !!u.profile?.department,
-      !!u.profile?.year,
-      !!u.profile?.linkedinUrl,
-      !!u.profile?.githubUrl,
-      !!u.profile?.portfolioUrl,
-      (u.skills || []).length > 0,
-      (u.interests || []).length > 0,
-   ];
+   // Coordinators have a faculty-shaped profile — score the fields that apply to them.
+   const checks =
+      u.role === ROLES.COORDINATOR
+         ? [
+              !!u.name,
+              !!u.avatarUrl,
+              !!u.profile?.bio,
+              !!u.profile?.department,
+              !!u.profile?.designation,
+              !!u.profile?.officeLocation,
+              !!u.profile?.linkedinUrl,
+              (u.profile?.expertise || []).length > 0,
+           ]
+         : [
+              !!u.name,
+              !!u.username,
+              !!u.avatarUrl,
+              !!u.coverUrl,
+              !!u.profile?.bio,
+              !!u.profile?.department,
+              !!u.profile?.year,
+              !!u.profile?.linkedinUrl,
+              !!u.profile?.githubUrl,
+              !!u.profile?.portfolioUrl,
+              (u.skills || []).length > 0,
+              (u.interests || []).length > 0,
+           ];
    const done = checks.filter(Boolean).length;
    return Math.round((done / checks.length) * 100);
 }
@@ -97,7 +115,7 @@ async function updateMe(req, res) {
       }
    }
 
-   const user = await User.findByIdAndUpdate(
+   const user = await modelFor(req.user).findByIdAndUpdate(
       req.user._id,
       { $set },
       { returnDocument: "after", runValidators: true },
@@ -123,7 +141,7 @@ async function getSkills(req, res) {
 
 // PUT /profile/me/skills — replaces the full list. Frontend re-sends every row after edit.
 async function updateSkills(req, res) {
-   const user = await User.findByIdAndUpdate(
+   const user = await modelFor(req.user).findByIdAndUpdate(
       req.user._id,
       { $set: { skills: req.body.skills } },
       { returnDocument: "after", runValidators: true },
@@ -207,7 +225,7 @@ async function updatePreferences(req, res) {
    };
    flatten("preferences", req.body);
 
-   const user = await User.findByIdAndUpdate(
+   const user = await modelFor(req.user).findByIdAndUpdate(
       req.user._id,
       { $set },
       { returnDocument: "after", runValidators: true },

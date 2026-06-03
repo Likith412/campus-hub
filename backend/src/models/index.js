@@ -1,5 +1,6 @@
 // Barrel export for all mongoose models — import from "../models" anywhere instead of individual files.
 const User = require("./User");
+const { Student, Coordinator, SuperAdmin } = User; // role discriminators
 const Role = require("./Role");
 const Club = require("./Club");
 const ClubMembership = require("./ClubMembership");
@@ -10,6 +11,9 @@ const PasswordReset = require("./PasswordReset");
 
 module.exports = {
    User,
+   Student,
+   Coordinator,
+   SuperAdmin,
    Role,
    Club,
    ClubMembership,

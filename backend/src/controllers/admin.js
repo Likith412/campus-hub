@@ -1,0 +1,166 @@
+// Admin controller — superAdmin-only platform administration (faculty/coordinator accounts).
+const { successResponse } = require("../utils/response");
+const {
+   ConflictError,
+   NotFoundError,
+   ForbiddenError,
+} = require("../utils/errors");
+const { User, Coordinator, ClubMembership } = require("../models");
+const { ROLES } = require("../constants/roles");
+const { hashPassword } = require("../utils/password");
+const { generateTempPassword } = require("../utils/tokens");
+const { sendFacultyAccountEmail } = require("../services/emailService");
+
+// Escape user input before dropping into a RegExp.
+function escapeRegex(s) {
+   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function publicUser(u, clubCount = 0) {
+   return {
+      id: u._id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      isActive: u.isActive,
+      lastLoginAt: u.lastLoginAt || null,
+      createdAt: u.createdAt,
+      clubCount,
+   };
+}
+
+const LOGIN_URL = `${process.env.FRONTEND_URL || "http://localhost:5173"}/login`;
+
+// POST /api/admin/users — create a coordinator (faculty) account; emails generated credentials.
+async function createFaculty(req, res) {
+   const { name, email } = req.body;
+
+   const existing = await User.findOne({ email });
+   if (existing) {
+      throw new ConflictError("A user with this email already exists");
+   }
+
+   const tempPassword = generateTempPassword();
+   const passwordHash = await hashPassword(tempPassword);
+
+   // Coordinator discriminator — sets role: "coordinator" and the faculty schema.
+   const user = await Coordinator.create({
+      name,
+      email,
+      passwordHash,
+      emailVerified: true,
+      isActive: true,
+   });
+
+   await sendFacultyAccountEmail(email, {
+      name,
+      password: tempPassword,
+      loginUrl: LOGIN_URL,
+   });
+
+   // Plaintext password is returned exactly once so the admin can relay it if the email fails.
+   return successResponse(res, 201, "Faculty account created", {
+      user: publicUser(user),
+      tempPassword,
+   });
+}
+
+// GET /api/admin/users — paginated, filterable list of platform users.
+async function listUsers(req, res) {
+   const { role, q, status, page, limit } = req.validatedQuery;
+
+   const filter = {};
+   if (role) filter.role = role;
+   // active = has logged in; pending = created but never logged in; inactive = deactivated.
+   if (status === "active") {
+      filter.isActive = true;
+      filter.lastLoginAt = { $ne: null };
+   } else if (status === "pending") {
+      filter.isActive = true;
+      filter.lastLoginAt = null;
+   } else if (status === "inactive") {
+      filter.isActive = false;
+   }
+   if (q) {
+      const rx = { $regex: escapeRegex(q), $options: "i" };
+      filter.$or = [{ name: rx }, { email: rx }];
+   }
+
+   const skip = (page - 1) * limit;
+   const [items, total] = await Promise.all([
+      User.find(filter)
+         .select("name email role isActive lastLoginAt createdAt")
+         .sort({ createdAt: -1 })
+         .skip(skip)
+         .limit(limit)
+         .lean(),
+      User.countDocuments(filter),
+   ]);
+
+   // Per-user count of clubs they coordinate (approved coordinator memberships).
+   let clubCountByUser = new Map();
+   if (items.length) {
+      const agg = await ClubMembership.aggregate([
+         {
+            $match: {
+               userId: { $in: items.map((u) => u._id) },
+               role: "coordinator",
+               status: "approved",
+            },
+         },
+         { $group: { _id: "$userId", n: { $sum: 1 } } },
+      ]);
+      clubCountByUser = new Map(agg.map((r) => [String(r._id), r.n]));
+   }
+
+   return successResponse(res, 200, "Users", {
+      items: items.map((u) =>
+         publicUser(u, clubCountByUser.get(String(u._id)) || 0),
+      ),
+      pagination: { page, limit, total, hasMore: skip + items.length < total },
+   });
+}
+
+// GET /api/admin/faculty/stats — headline counts for the faculty dashboard.
+async function getFacultyStats(req, res) {
+   const coordinator = { role: ROLES.COORDINATOR };
+   const [total, active, pending, coordinatingClubs] = await Promise.all([
+      User.countDocuments(coordinator),
+      User.countDocuments({ ...coordinator, isActive: true, lastLoginAt: { $ne: null } }),
+      User.countDocuments({ ...coordinator, isActive: true, lastLoginAt: null }),
+      ClubMembership.distinct("clubId", {
+         role: "coordinator",
+         status: "approved",
+      }).then((ids) => ids.length),
+   ]);
+
+   return successResponse(res, 200, "Faculty stats", {
+      total,
+      active,
+      pending,
+      coordinatingClubs,
+   });
+}
+
+// PATCH /api/admin/users/:id/active — activate or deactivate an account.
+async function setUserActive(req, res) {
+   const { isActive } = req.body;
+
+   if (String(req.params.id) === String(req.user._id)) {
+      throw new ConflictError("You can't change your own active status");
+   }
+
+   const user = await User.findById(req.params.id);
+   if (!user) throw new NotFoundError("User not found");
+   // Never let one superAdmin lock out another (or themselves) via this endpoint.
+   if (user.role === ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError("Cannot change a super admin's active status");
+   }
+
+   user.isActive = isActive;
+   await user.save();
+
+   return successResponse(res, 200, "User updated", { user: publicUser(user) });
+}
+
+module.exports = { createFaculty, listUsers, getFacultyStats, setUserActive };

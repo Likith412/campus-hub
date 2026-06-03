@@ -12,4 +12,16 @@ function sha256(value) {
    return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-module.exports = { randomToken, sha256 };
+// Readable temporary password for generated accounts (faculty onboarding).
+// Excludes ambiguous chars (0/O, 1/l/I) so it's easy to type from an email.
+function generateTempPassword(length = 12) {
+   const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+   const bytes = crypto.randomBytes(length);
+   let out = "";
+   for (let i = 0; i < length; i++) {
+      out += charset[bytes[i] % charset.length];
+   }
+   return out;
+}
+
+module.exports = { randomToken, sha256, generateTempPassword };
