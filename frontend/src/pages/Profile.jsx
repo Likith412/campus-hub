@@ -57,7 +57,10 @@ function ProfileLinks({ profile }) {
    const links = [
       profile?.linkedinUrl && { label: "LinkedIn", url: profile.linkedinUrl },
       profile?.githubUrl && { label: "GitHub", url: profile.githubUrl },
-      profile?.portfolioUrl && { label: "Portfolio", url: profile.portfolioUrl },
+      profile?.portfolioUrl && {
+         label: "Portfolio",
+         url: profile.portfolioUrl,
+      },
    ].filter(Boolean);
    if (links.length === 0) return null;
    return (
@@ -80,16 +83,24 @@ function ProfileLinks({ profile }) {
 // ──────────────────────────────────────────────────────────────────────────────
 // Hero — single source of truth for header data (user + completion).
 // ──────────────────────────────────────────────────────────────────────────────
-function Hero({ user, completion }) {
+function Hero({ user, completion, isCoordinator }) {
    const dept = user.profile?.department;
    const year = user.profile?.year;
-   const handle = [
-      user.username ? `@${user.username}` : null,
-      dept,
-      year && (year === "postgrad" ? "Postgrad" : `Year ${year}`),
-   ]
-      .filter(Boolean)
-      .join(" · ");
+   // Faculty: "Designation · Department". Student: "@handle · dept · year".
+   const handle = isCoordinator
+      ? [user.profile?.designation || "Coordinator", dept]
+           .filter(Boolean)
+           .join(" · ")
+      : [
+           user.username ? `@${user.username}` : null,
+           dept,
+           year && (year === "postgrad" ? "Postgrad" : `Year ${year}`),
+        ]
+           .filter(Boolean)
+           .join(" · ");
+   const chips = isCoordinator
+      ? user.profile?.expertise || []
+      : user.profile?.tags || [];
 
    const toast = useToast();
    const shareUrl = `${window.location.origin}/u/${user.username || user._id || ""}`;
@@ -128,7 +139,7 @@ function Hero({ user, completion }) {
                   <span className="profile-tag purple">
                      Profile {completion}% complete
                   </span>
-                  {(user.profile?.tags || []).map((t) => (
+                  {chips.map((t) => (
                      <span key={t} className="profile-tag">
                         {t}
                      </span>
@@ -146,9 +157,9 @@ function Hero({ user, completion }) {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Overview tab
+// Student overview tab
 // ──────────────────────────────────────────────────────────────────────────────
-function OverviewTab() {
+function StudentOverview() {
    const [stats, setStats] = useState(null);
    const [skills, setSkills] = useState(null);
    const [activity, setActivity] = useState(null);
@@ -270,6 +281,111 @@ function OverviewTab() {
    );
 }
 
+// Coordinator overview — faculty-relevant stats from the clubs they run.
+function CoordinatorOverview() {
+   const [clubs, setClubs] = useState(null);
+   const [activity, setActivity] = useState(null);
+
+   useEffect(() => {
+      let cancelled = false;
+      Promise.all([profileApi.getClubs(), profileApi.getRecentActivity()])
+         .then(([c, a]) => {
+            if (cancelled) return;
+            setClubs((c?.items || []).filter((x) => x.role === "coordinator"));
+            setActivity(a?.items || []);
+         })
+         .catch(() => {
+            if (cancelled) return;
+            setClubs([]);
+            setActivity([]);
+         });
+      return () => {
+         cancelled = true;
+      };
+   }, []);
+
+   const loading = clubs === null;
+   const count = clubs?.length ?? 0;
+   const members = (clubs || []).reduce((n, c) => n + (c.memberCount || 0), 0);
+   const avg = count ? Math.round(members / count) : 0;
+
+   return (
+      <div className="tab-pane">
+         <div className="stat-row">
+            <StatCard
+               label="Clubs coordinated"
+               value={count}
+               loading={loading}
+            />
+            <StatCard
+               label="Members reached"
+               value={members}
+               loading={loading}
+            />
+            <StatCard label="Avg / club" value={avg} loading={loading} />
+         </div>
+
+         <div className="overview-grid">
+            <div>
+               <div className="panel">
+                  <div className="panel-head">
+                     <div>
+                        <div className="panel-title">Clubs you coordinate</div>
+                        <div className="panel-sub">
+                           Clubs where you hold the coordinator role
+                        </div>
+                     </div>
+                  </div>
+                  {clubs === null ? (
+                     <LoadingBlock label="Loading clubs" />
+                  ) : clubs.length === 0 ? (
+                     <div className="profile-empty">
+                        You don't coordinate any clubs yet.
+                     </div>
+                  ) : (
+                     clubs.map((c) => (
+                        <div className="skill-row" key={c.clubId}>
+                           <div className="skill-name">{c.name}</div>
+                           <div className="skill-level">
+                              {c.memberCount} member
+                              {c.memberCount === 1 ? "" : "s"}
+                           </div>
+                        </div>
+                     ))
+                  )}
+               </div>
+            </div>
+            <div>
+               <div className="panel">
+                  <div className="panel-head">
+                     <div className="panel-title">Recent activity</div>
+                  </div>
+                  {activity === null ? (
+                     <LoadingBlock label="Loading activity" />
+                  ) : activity.length === 0 ? (
+                     <div className="profile-empty">No recent activity.</div>
+                  ) : (
+                     activity.map((a, i) => (
+                        <div className="activity-row" key={i}>
+                           <div className="act-ico purple">
+                              <Icon size={14}>
+                                 <circle cx="12" cy="12" r="10" />
+                              </Icon>
+                           </div>
+                           <div className="act-meta">
+                              <div className="act-title">{a.title}</div>
+                              <div className="act-time">{a.at}</div>
+                           </div>
+                        </div>
+                     ))
+                  )}
+               </div>
+            </div>
+         </div>
+      </div>
+   );
+}
+
 function StatCard({ label, value, unit, loading }) {
    return (
       <div className="pstat">
@@ -344,7 +460,8 @@ function AchievementsTab() {
          .catch(() => setCount(0));
    }, []);
 
-   if (count === null) return <LoadingBlock label="Loading achievements" size={28} />;
+   if (count === null)
+      return <LoadingBlock label="Loading achievements" size={28} />;
 
    return (
       <div className="achievements-empty">
@@ -373,7 +490,7 @@ const SECTIONS = [
    { id: "danger", label: "Danger zone", danger: true },
 ];
 
-function SettingsTab({ user, onUserUpdated }) {
+function SettingsTab({ user, onUserUpdated, isCoordinator }) {
    const [section, setSection] = useState("account");
    return (
       <div className="settings-layout">
@@ -390,12 +507,21 @@ function SettingsTab({ user, onUserUpdated }) {
          </div>
          <div>
             {section === "account" && (
-               <AccountForm user={user} onUserUpdated={onUserUpdated} />
+               <AccountForm
+                  user={user}
+                  onUserUpdated={onUserUpdated}
+                  isCoordinator={isCoordinator}
+               />
             )}
             {section === "notifications" && (
-               <PreferencesPanel kind="notifications" />
+               <PreferencesPanel
+                  kind="notifications"
+                  isCoordinator={isCoordinator}
+               />
             )}
-            {section === "privacy" && <PreferencesPanel kind="privacy" />}
+            {section === "privacy" && (
+               <PreferencesPanel kind="privacy" isCoordinator={isCoordinator} />
+            )}
             {section === "sessions" && <SessionsPanel />}
             {section === "danger" && <DangerZone />}
          </div>
@@ -410,7 +536,7 @@ const fromCsv = (s) =>
       .map((x) => x.trim())
       .filter(Boolean);
 
-function AccountForm({ user, onUserUpdated }) {
+function AccountForm({ user, onUserUpdated, isCoordinator }) {
    const [form, setForm] = useState({
       name: user.name || "",
       username: user.username || "",
@@ -422,9 +548,12 @@ function AccountForm({ user, onUserUpdated }) {
          linkedinUrl: user.profile?.linkedinUrl || "",
          githubUrl: user.profile?.githubUrl || "",
          portfolioUrl: user.profile?.portfolioUrl || "",
+         designation: user.profile?.designation || "",
+         officeLocation: user.profile?.officeLocation || "",
       },
       tags: (user.profile?.tags || []).join(", "),
       interests: (user.interests || []).join(", "),
+      expertise: (user.profile?.expertise || []).join(", "),
    });
    const [saving, setSaving] = useState(false);
    const toast = useToast();
@@ -443,12 +572,34 @@ function AccountForm({ user, onUserUpdated }) {
       e.preventDefault();
       setSaving(true);
       try {
-         // Shape the payload to match the backend's strict() schema. Strip empty optionals so
-         // Zod's url() validator doesn't reject "" — the backend already maps "" → undefined,
-         // but only on fields it sees, so we omit them here for clarity.
-         const profile = { ...form.profile, tags: fromCsv(form.tags) };
+         // Shape the payload to match the backend's strict() schema, scoped to the
+         // fields that apply to this role. Empty optionals are stripped so Zod's
+         // url() validator doesn't reject "".
+         const p = form.profile;
+         const profile = isCoordinator
+            ? {
+                 bio: p.bio,
+                 department: p.department,
+                 designation: p.designation,
+                 officeLocation: p.officeLocation,
+                 linkedinUrl: p.linkedinUrl,
+                 portfolioUrl: p.portfolioUrl,
+                 expertise: fromCsv(form.expertise),
+              }
+            : {
+                 bio: p.bio,
+                 department: p.department,
+                 year: p.year,
+                 linkedinUrl: p.linkedinUrl,
+                 githubUrl: p.githubUrl,
+                 portfolioUrl: p.portfolioUrl,
+                 tags: fromCsv(form.tags),
+              };
          for (const k of Object.keys(profile)) {
-            if (profile[k] === "" || (Array.isArray(profile[k]) && profile[k].length === 0)) {
+            if (
+               profile[k] === "" ||
+               (Array.isArray(profile[k]) && profile[k].length === 0)
+            ) {
                delete profile[k];
             }
          }
@@ -457,9 +608,10 @@ function AccountForm({ user, onUserUpdated }) {
             ...(form.username ? { username: form.username } : {}),
             ...(form.phone ? { phone: form.phone } : {}),
             ...(Object.keys(profile).length ? { profile } : {}),
-            interests: fromCsv(form.interests),
+            ...(isCoordinator ? {} : { interests: fromCsv(form.interests) }),
          };
-         if (payload.interests.length === 0) delete payload.interests;
+         if (payload.interests && payload.interests.length === 0)
+            delete payload.interests;
 
          const data = await profileApi.updateMe(payload);
          onUserUpdated?.(data);
@@ -477,7 +629,9 @@ function AccountForm({ user, onUserUpdated }) {
             <div>
                <div className="panel-title">Account</div>
                <div className="panel-sub">
-                  Update your basic profile information
+                  {isCoordinator
+                     ? "Your faculty profile, shown to members of clubs you coordinate"
+                     : "Update your basic profile information"}
                </div>
             </div>
          </div>
@@ -537,96 +691,185 @@ function AccountForm({ user, onUserUpdated }) {
             </div>
          </div>
 
-         <div className="form-row">
-            <div className="form-group">
-               <label className="form-label">Department</label>
-               <input
-                  className="input"
-                  value={form.profile.department}
-                  onChange={(e) =>
-                     setField("profile.department", e.target.value)
-                  }
-               />
-            </div>
-            <div className="form-group">
-               <label className="form-label">Year</label>
-               <select
-                  className="input"
-                  value={form.profile.year}
-                  onChange={(e) => setField("profile.year", e.target.value)}
-               >
-                  <option value="">—</option>
-                  <option value="1">1st year</option>
-                  <option value="2">2nd year</option>
-                  <option value="3">3rd year</option>
-                  <option value="4">Final year</option>
-                  <option value="postgrad">Postgrad</option>
-               </select>
-            </div>
-         </div>
+         {isCoordinator ? (
+            <>
+               <div className="form-row">
+                  <div className="form-group">
+                     <label className="form-label">Designation</label>
+                     <input
+                        className="input"
+                        value={form.profile.designation}
+                        onChange={(e) =>
+                           setField("profile.designation", e.target.value)
+                        }
+                        placeholder="e.g. Assistant Professor"
+                     />
+                  </div>
+                  <div className="form-group">
+                     <label className="form-label">Department</label>
+                     <input
+                        className="input"
+                        value={form.profile.department}
+                        onChange={(e) =>
+                           setField("profile.department", e.target.value)
+                        }
+                        placeholder="e.g. Computer Science"
+                     />
+                  </div>
+               </div>
 
-         <div className="form-row">
-            <div className="form-group">
-               <label className="form-label">LinkedIn</label>
-               <input
-                  className="input"
-                  type="url"
-                  value={form.profile.linkedinUrl}
-                  onChange={(e) =>
-                     setField("profile.linkedinUrl", e.target.value)
-                  }
-                  placeholder="https://linkedin.com/in/…"
-               />
-            </div>
-            <div className="form-group">
-               <label className="form-label">GitHub</label>
-               <input
-                  className="input"
-                  type="url"
-                  value={form.profile.githubUrl}
-                  onChange={(e) =>
-                     setField("profile.githubUrl", e.target.value)
-                  }
-                  placeholder="https://github.com/…"
-               />
-            </div>
-         </div>
+               <div className="form-group">
+                  <label className="form-label">Office location</label>
+                  <input
+                     className="input"
+                     value={form.profile.officeLocation}
+                     onChange={(e) =>
+                        setField("profile.officeLocation", e.target.value)
+                     }
+                     placeholder="e.g. Block C, Cabin 214"
+                  />
+               </div>
 
-         <div className="form-group">
-            <label className="form-label">Portfolio</label>
-            <input
-               className="input"
-               type="url"
-               value={form.profile.portfolioUrl}
-               onChange={(e) =>
-                  setField("profile.portfolioUrl", e.target.value)
-               }
-               placeholder="https://…"
-            />
-         </div>
+               <div className="form-row">
+                  <div className="form-group">
+                     <label className="form-label">LinkedIn</label>
+                     <input
+                        className="input"
+                        type="url"
+                        value={form.profile.linkedinUrl}
+                        onChange={(e) =>
+                           setField("profile.linkedinUrl", e.target.value)
+                        }
+                        placeholder="https://linkedin.com/in/…"
+                     />
+                  </div>
+                  <div className="form-group">
+                     <label className="form-label">Website</label>
+                     <input
+                        className="input"
+                        type="url"
+                        value={form.profile.portfolioUrl}
+                        onChange={(e) =>
+                           setField("profile.portfolioUrl", e.target.value)
+                        }
+                        placeholder="https://… (faculty page, scholar, etc.)"
+                     />
+                  </div>
+               </div>
 
-         <div className="form-row">
-            <div className="form-group">
-               <label className="form-label">Tags</label>
-               <input
-                  className="input"
-                  value={form.tags}
-                  onChange={(e) => setField("tags", e.target.value)}
-                  placeholder="comma-separated"
-               />
-               <div className="form-help">Up to 10 · max 40 chars each</div>
-            </div>
-            <div className="form-group">
-               <label className="form-label">Interests</label>
-               <input
-                  className="input"
-                  value={form.interests}
-                  onChange={(e) => setField("interests", e.target.value)}
-                  placeholder="comma-separated"
-               />
-               <div className="form-help">Up to 30 · max 40 chars each</div>
-            </div>
-         </div>
+               <div className="form-group">
+                  <label className="form-label">Areas of expertise</label>
+                  <input
+                     className="input"
+                     value={form.expertise}
+                     onChange={(e) => setField("expertise", e.target.value)}
+                     placeholder="comma-separated · e.g. Machine Learning, Robotics"
+                  />
+                  <div className="form-help">
+                     Up to 12 · shown as tags on your profile
+                  </div>
+               </div>
+            </>
+         ) : (
+            <>
+               <div className="form-row">
+                  <div className="form-group">
+                     <label className="form-label">Department</label>
+                     <input
+                        className="input"
+                        value={form.profile.department}
+                        onChange={(e) =>
+                           setField("profile.department", e.target.value)
+                        }
+                     />
+                  </div>
+                  <div className="form-group">
+                     <label className="form-label">Year</label>
+                     <select
+                        className="input"
+                        value={form.profile.year}
+                        onChange={(e) =>
+                           setField("profile.year", e.target.value)
+                        }
+                     >
+                        <option value="">—</option>
+                        <option value="1">1st year</option>
+                        <option value="2">2nd year</option>
+                        <option value="3">3rd year</option>
+                        <option value="4">Final year</option>
+                        <option value="postgrad">Postgrad</option>
+                     </select>
+                  </div>
+               </div>
+
+               <div className="form-row">
+                  <div className="form-group">
+                     <label className="form-label">LinkedIn</label>
+                     <input
+                        className="input"
+                        type="url"
+                        value={form.profile.linkedinUrl}
+                        onChange={(e) =>
+                           setField("profile.linkedinUrl", e.target.value)
+                        }
+                        placeholder="https://linkedin.com/in/…"
+                     />
+                  </div>
+                  <div className="form-group">
+                     <label className="form-label">GitHub</label>
+                     <input
+                        className="input"
+                        type="url"
+                        value={form.profile.githubUrl}
+                        onChange={(e) =>
+                           setField("profile.githubUrl", e.target.value)
+                        }
+                        placeholder="https://github.com/…"
+                     />
+                  </div>
+               </div>
+
+               <div className="form-group">
+                  <label className="form-label">Portfolio</label>
+                  <input
+                     className="input"
+                     type="url"
+                     value={form.profile.portfolioUrl}
+                     onChange={(e) =>
+                        setField("profile.portfolioUrl", e.target.value)
+                     }
+                     placeholder="https://…"
+                  />
+               </div>
+
+               <div className="form-row">
+                  <div className="form-group">
+                     <label className="form-label">Tags</label>
+                     <input
+                        className="input"
+                        value={form.tags}
+                        onChange={(e) => setField("tags", e.target.value)}
+                        placeholder="comma-separated"
+                     />
+                     <div className="form-help">
+                        Up to 10 · max 40 chars each
+                     </div>
+                  </div>
+                  <div className="form-group">
+                     <label className="form-label">Interests</label>
+                     <input
+                        className="input"
+                        value={form.interests}
+                        onChange={(e) => setField("interests", e.target.value)}
+                        placeholder="comma-separated"
+                     />
+                     <div className="form-help">
+                        Up to 30 · max 40 chars each
+                     </div>
+                  </div>
+               </div>
+            </>
+         )}
 
          <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>
@@ -653,6 +896,7 @@ const PREF_SECTIONS = {
             key: "contestInvitations",
             title: "Contest invitations",
             sub: "Notify when a coding contest matching your skill drops",
+            studentOnly: true,
          },
          {
             key: "clubAnnouncements",
@@ -679,13 +923,17 @@ const PREF_SECTIONS = {
             key: "showOnLeaderboards",
             title: "Show on leaderboards",
             sub: "Display your name & rank on contest leaderboards",
+            studentOnly: true,
          },
       ],
    },
 };
 
-function PreferencesPanel({ kind }) {
+function PreferencesPanel({ kind, isCoordinator }) {
    const meta = PREF_SECTIONS[kind];
+   const toggles = meta.toggles.filter(
+      (t) => !(isCoordinator && t.studentOnly),
+   );
    const [values, setValues] = useState(null);
 
    useEffect(() => {
@@ -716,7 +964,7 @@ function PreferencesPanel({ kind }) {
          {values === null ? (
             <LoadingBlock label="Loading preferences" />
          ) : (
-            meta.toggles.map((t) => (
+            toggles.map((t) => (
                <div className="toggle-row" key={t.key}>
                   <div className="toggle-meta">
                      <div className="toggle-title">{t.title}</div>
@@ -762,7 +1010,9 @@ function SessionsPanel() {
          setSessions((s) => s.filter((x) => x.id !== id));
          toast.success("Session revoked");
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't revoke session");
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't revoke session",
+         );
       } finally {
          setBusy(false);
       }
@@ -781,7 +1031,11 @@ function SessionsPanel() {
          setReloadTick((t) => t + 1);
          toast.success("Signed out of other sessions");
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't sign out other sessions");
+         toast.error(
+            err instanceof ApiError
+               ? err.message
+               : "Couldn't sign out other sessions",
+         );
       } finally {
          setBusy(false);
       }
@@ -873,7 +1127,9 @@ function DangerZone() {
          toast.success("Account deleted");
          window.location.href = "/login";
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't delete account");
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't delete account",
+         );
       } finally {
          setBusy(false);
       }
@@ -924,6 +1180,8 @@ export default function Profile() {
       setCompletion(d?.completion ?? completion);
    };
 
+   const isCoordinator = user?.role === "coordinator";
+
    return (
       <AppShell title="Profile & Settings">
          <div className="main">
@@ -932,9 +1190,16 @@ export default function Profile() {
                <LoadingBlock label="Loading profile" size={28} />
             ) : (
                <>
-                  <Hero user={user} completion={completion} />
+                  <Hero
+                     user={user}
+                     completion={completion}
+                     isCoordinator={isCoordinator}
+                  />
                   <div className="profile-tabs">
-                     {TABS.map((t) => (
+                     {(isCoordinator
+                        ? TABS.filter((t) => t.id !== "achievements")
+                        : TABS
+                     ).map((t) => (
                         <button
                            key={t.id}
                            className={`profile-tab${tab === t.id ? " active" : ""}`}
@@ -944,13 +1209,19 @@ export default function Profile() {
                         </button>
                      ))}
                   </div>
-                  {tab === "overview" && <OverviewTab />}
+                  {tab === "overview" &&
+                     (isCoordinator ? (
+                        <CoordinatorOverview />
+                     ) : (
+                        <StudentOverview />
+                     ))}
                   {tab === "clubs" && <ClubsTab />}
                   {tab === "achievements" && <AchievementsTab />}
                   {tab === "settings" && (
                      <SettingsTab
                         user={user}
                         onUserUpdated={handleUserUpdated}
+                        isCoordinator={isCoordinator}
                      />
                   )}
                </>
