@@ -4,6 +4,7 @@ const {
    NotFoundError,
    ForbiddenError,
    ConflictError,
+   ValidationError,
 } = require("../utils/errors");
 const { Club, ClubMembership, User } = require("../models");
 const { ROLE_WEIGHT } = require("../models/ClubMembership");
@@ -29,6 +30,7 @@ function publicClubCard(c, membershipByClubId) {
       slug: c.slug,
       name: c.name,
       category: c.category,
+      tagline: c.tagline,
       description: c.description,
       logoUrl: c.logoUrl,
       bannerUrl: c.bannerUrl,
@@ -49,10 +51,12 @@ function publicClubCard(c, membershipByClubId) {
 
 // GET /api/clubs — paginated list with category counts and per-user membership state.
 async function listClubs(req, res) {
-   const { q, category, sort, page, limit } = req.validatedQuery;
+   const { q, category, sort, verified, page, limit } = req.validatedQuery;
    const userId = req.user?._id;
 
    const baseFilter = { status: "active" };
+   if (verified === "true") baseFilter.verified = true;
+   if (verified === "false") baseFilter.verified = false;
    const searchFilter = q
       ? {
            $or: [
@@ -121,6 +125,129 @@ async function findActiveClubBySlug(slug) {
    const club = await Club.findOne({ slug, status: "active" });
    if (!club) throw new NotFoundError("Club not found");
    return club;
+}
+
+// Turn a name into a url-safe slug.
+function slugify(s) {
+   return s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+}
+
+// Find an unused slug, appending -2, -3, … on collision.
+async function uniqueSlug(base) {
+   const root = slugify(base) || "club";
+   let slug = root;
+   for (let n = 2; await Club.exists({ slug }); n++) slug = `${root}-${n}`;
+   return slug;
+}
+
+// POST /api/clubs — coordinator/superAdmin create a club; live immediately, unverified.
+async function createClub(req, res) {
+   const {
+      name,
+      category,
+      tagline,
+      description,
+      tags,
+      joinPolicy,
+      isPrivate,
+      socialLinks,
+      coverFrom,
+      coverTo,
+      foundedYear,
+   } = req.body;
+   const isSuperAdmin = req.user.role === ROLES.SUPER_ADMIN;
+
+   // Resolve who coordinates the new club:
+   //  - coordinator creates → they are the sole coordinator (self-assigned).
+   //  - superAdmin creates → must assign ≥1 active faculty (coordinator assignment is superAdmin-only).
+   let coordinatorIds;
+   if (isSuperAdmin) {
+      const requested = [
+         ...new Set((req.body.coordinatorIds || []).map(String)),
+      ];
+      if (requested.length === 0) {
+         throw new ValidationError("Assign at least one coordinator");
+      }
+      const valid = await User.find({
+         _id: { $in: requested },
+         role: ROLES.COORDINATOR,
+         isActive: true,
+      })
+         .select("_id")
+         .lean();
+      if (valid.length !== requested.length) {
+         throw new ValidationError(
+            "Coordinators must be active faculty accounts",
+         );
+      }
+      coordinatorIds = valid.map((u) => u._id);
+   } else {
+      coordinatorIds = [req.user._id];
+   }
+
+   // slug is optional — fall back to the name, then de-duplicate on collision.
+   const slug = await uniqueSlug(req.body.slug || name);
+
+   const club = await Club.create({
+      name,
+      slug,
+      category,
+      tagline,
+      description,
+      tags: tags || [],
+      socialLinks: socialLinks || {},
+      coverFrom,
+      coverTo,
+      foundedYear,
+      settings: { joinPolicy: joinPolicy || "request", isPrivate: !!isPrivate },
+      status: "active",
+      // superAdmin-created clubs are verified on the spot; faculty-created start unverified.
+      verified: isSuperAdmin,
+      createdBy: req.user._id,
+      stats: { memberCount: coordinatorIds.length },
+   });
+
+   // Issue an approved coordinator membership for each assigned coordinator.
+   const now = new Date();
+   await ClubMembership.insertMany(
+      coordinatorIds.map((userId) => ({
+         userId,
+         clubId: club._id,
+         role: "coordinator",
+         roleWeight: ROLE_WEIGHT.coordinator,
+         status: "approved",
+         joinedAt: now,
+      })),
+   );
+
+   return successResponse(res, 201, "Club created", {
+      slug: club.slug,
+      verified: !!club.verified,
+   });
+}
+
+// PATCH /api/clubs/:slug/verification — superAdmin flips the ✓ verified badge.
+async function setVerification(req, res) {
+   const club = await Club.findOne({ slug: req.params.slug });
+   if (!club) throw new NotFoundError("Club not found");
+   club.verified = req.body.verified;
+   await club.save();
+   return successResponse(res, 200, "Verification updated", {
+      verified: club.verified,
+   });
+}
+
+// PATCH /api/clubs/:slug/status — superAdmin suspends/archives/reactivates a club.
+async function setStatus(req, res) {
+   const club = await Club.findOne({ slug: req.params.slug });
+   if (!club) throw new NotFoundError("Club not found");
+   club.status = req.body.status;
+   await club.save();
+   return successResponse(res, 200, "Status updated", { status: club.status });
 }
 
 // POST /api/clubs/:slug/join — open=instant approved, request=pending, invite-only=forbidden.
@@ -230,11 +357,13 @@ async function getClub(req, res) {
       slug: club.slug,
       name: club.name,
       category: club.category,
+      tagline: club.tagline,
       description: club.description,
       logoUrl: club.logoUrl,
       bannerUrl: club.bannerUrl,
       coverFrom: club.coverFrom,
       coverTo: club.coverTo,
+      verified: !!club.verified,
       foundedYear: club.foundedYear,
       tags: club.tags || [],
       socialLinks: club.socialLinks || {},
@@ -475,6 +604,9 @@ async function removeMember(req, res) {
 module.exports = {
    listClubs,
    getClub,
+   createClub,
+   setVerification,
+   setStatus,
    joinClub,
    leaveClub,
    listMembers,

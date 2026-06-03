@@ -12,7 +12,8 @@ const CLUB_CATEGORIES = [
    "other",
 ];
 
-const CLUB_STATUSES = ["pending", "active", "suspended", "archived"];
+// Clubs go live immediately on creation; verification (the ✓ badge) is a separate trust signal.
+const CLUB_STATUSES = ["active", "suspended", "archived"];
 
 const clubSchema = new mongoose.Schema(
    {
@@ -29,6 +30,8 @@ const clubSchema = new mongoose.Schema(
          enum: CLUB_CATEGORIES,
          required: true,
       },
+      // One-line hook shown on the club card; `description` is the longer about text.
+      tagline: String,
       description: String,
       logoUrl: String,
       bannerUrl: String,
@@ -50,7 +53,7 @@ const clubSchema = new mongoose.Schema(
       status: {
          type: String,
          enum: CLUB_STATUSES,
-         default: "pending",
+         default: "active",
       },
 
       settings: {
@@ -60,7 +63,6 @@ const clubSchema = new mongoose.Schema(
             enum: ["open", "request", "invite-only"],
             default: "request",
          },
-         allowGuests: { type: Boolean, default: false },
       },
 
       // Denormalized counters for fast listing pages — kept in sync by service-layer writes.

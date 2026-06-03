@@ -173,7 +173,7 @@ async function getClubs(req, res) {
       .populate({
          path: "clubId",
          model: Club,
-         select: "name slug logoUrl stats.memberCount category",
+         select: "name slug logoUrl stats.memberCount category coverFrom coverTo verified",
       })
       .lean();
 
@@ -185,6 +185,9 @@ async function getClubs(req, res) {
          slug: m.clubId.slug,
          category: m.clubId.category,
          logoUrl: m.clubId.logoUrl,
+         coverFrom: m.clubId.coverFrom,
+         coverTo: m.clubId.coverTo,
+         verified: !!m.clubId.verified,
          memberCount: m.clubId.stats?.memberCount || 0,
          role: m.role,
          engagementScore: m.engagementScore,
