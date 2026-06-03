@@ -3305,3 +3305,580 @@ body {
    display: flex;
    gap: 8px;
 }
+
+/* ── Faculty (superAdmin) ─────────────────────────────────────────── */
+.fac-pagehead {
+   margin-bottom: 24px;
+}
+.fac-page-title {
+   font-family: var(--font-display);
+   font-weight: 800;
+   font-size: 28px;
+   line-height: 36px;
+   letter-spacing: -0.02em;
+   color: var(--text-primary);
+}
+.fac-page-sub {
+   color: var(--text-secondary);
+   margin-top: 4px;
+   font-size: 13.5px;
+   max-width: 620px;
+}
+.fac-inline-link {
+   color: var(--accent-purple);
+   font-weight: 500;
+}
+.fac-inline-link:hover {
+   text-decoration: underline;
+}
+
+/* Stat cards */
+.fac-stat-row {
+   display: grid;
+   grid-template-columns: repeat(4, 1fr);
+   gap: 14px;
+   margin-bottom: 24px;
+}
+.fac-stat {
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 12px;
+   padding: 16px 18px;
+   box-shadow: var(--shadow-sm);
+   display: flex;
+   align-items: center;
+   gap: 14px;
+}
+.fac-stat-ic {
+   width: 42px;
+   height: 42px;
+   border-radius: 10px;
+   display: grid;
+   place-items: center;
+   flex-shrink: 0;
+}
+.fac-stat-ic.purple {
+   background: var(--accent-purple-light);
+   color: var(--accent-purple);
+}
+.fac-stat-ic.green {
+   background: var(--accent-green-light);
+   color: var(--accent-green);
+}
+.fac-stat-ic.orange {
+   background: var(--accent-orange-light);
+   color: var(--accent-orange);
+}
+.fac-stat-ic.blue {
+   background: var(--accent-blue-light);
+   color: var(--accent-blue);
+}
+.fac-stat-label {
+   font-size: 11.5px;
+   color: var(--text-secondary);
+   font-weight: 500;
+}
+.fac-stat-value {
+   font-family: var(--font-display);
+   font-weight: 700;
+   font-size: 24px;
+   line-height: 30px;
+   letter-spacing: -0.02em;
+   margin-top: 2px;
+   color: var(--text-primary);
+}
+
+/* Toolbar */
+.fac-toolbar {
+   display: flex;
+   align-items: center;
+   gap: 10px;
+   margin-bottom: 14px;
+   flex-wrap: wrap;
+}
+.fac-search {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+   flex: 1;
+   max-width: 360px;
+   height: 38px;
+   padding: 0 12px;
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 8px;
+   color: var(--text-tertiary);
+   transition: all var(--transition-base);
+}
+.fac-search:focus-within {
+   border-color: var(--accent-purple);
+   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+}
+.fac-search input {
+   border: none;
+   background: transparent;
+   outline: none;
+   width: 100%;
+   font-size: 13px;
+   color: var(--text-primary);
+}
+.fac-tabs {
+   display: inline-flex;
+   padding: 3px;
+   background: var(--bg-elevated);
+   border-radius: 8px;
+   gap: 2px;
+}
+.fac-tabs button {
+   padding: 6px 14px;
+   border-radius: 5px;
+   font-size: 12.5px;
+   font-weight: 600;
+   color: var(--text-secondary);
+   transition: all var(--transition-base);
+}
+.fac-tabs button:hover {
+   color: var(--text-primary);
+}
+.fac-tabs button.active {
+   background: var(--bg-base);
+   color: var(--text-primary);
+   box-shadow: var(--shadow-sm);
+}
+.fac-export {
+   margin-left: auto;
+}
+
+/* Table */
+.fac-table-card {
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 12px;
+   overflow: hidden;
+   box-shadow: var(--shadow-sm);
+}
+.fac-dt {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 13px;
+   transition: opacity var(--transition-base);
+}
+.fac-dt.is-refetching {
+   opacity: 0.6;
+}
+.fac-dt thead th {
+   text-align: left;
+   font-weight: 600;
+   font-size: 11px;
+   letter-spacing: 0.4px;
+   text-transform: uppercase;
+   color: var(--text-tertiary);
+   padding: 12px 16px;
+   background: var(--bg-surface);
+   border-bottom: 1px solid var(--border-light);
+}
+.fac-dt thead th.ta-right {
+   text-align: right;
+}
+.fac-dt tbody td {
+   padding: 14px 16px;
+   border-bottom: 1px solid var(--border-light);
+   vertical-align: middle;
+}
+.fac-dt tbody tr:last-child td {
+   border-bottom: none;
+}
+.fac-dt tbody tr {
+   transition: background var(--transition-base);
+}
+.fac-dt tbody tr:hover {
+   background: var(--bg-surface);
+}
+.fac-dt tbody tr.inactive {
+   opacity: 0.62;
+}
+.fac-cell {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+}
+.fac-avatar {
+   width: 38px;
+   height: 38px;
+   border-radius: var(--radius-full);
+   display: grid;
+   place-items: center;
+   color: white;
+   font-weight: 700;
+   font-size: 13px;
+   flex-shrink: 0;
+}
+.fac-name {
+   font-weight: 600;
+   font-size: 13.5px;
+   color: var(--text-primary);
+}
+.fac-email {
+   font-family: var(--font-mono);
+   font-size: 11.5px;
+   color: var(--text-tertiary);
+   margin-top: 1px;
+}
+.fac-status {
+   display: inline-flex;
+   align-items: center;
+   gap: 5px;
+   font-size: 11px;
+   font-weight: 600;
+   padding: 3px 9px;
+   border-radius: var(--radius-full);
+}
+.fac-status .dot {
+   width: 6px;
+   height: 6px;
+   border-radius: var(--radius-full);
+}
+.fac-status.active {
+   background: var(--accent-green-light);
+   color: #047857;
+}
+.fac-status.active .dot {
+   background: var(--accent-green);
+}
+.fac-status.inactive {
+   background: var(--bg-elevated);
+   color: var(--text-tertiary);
+}
+.fac-status.inactive .dot {
+   background: var(--text-tertiary);
+}
+.fac-status.pending {
+   background: var(--accent-orange-light);
+   color: #b45309;
+}
+.fac-status.pending .dot {
+   background: var(--accent-orange);
+   animation: fac-blink 1.4s infinite;
+}
+@keyframes fac-blink {
+   50% {
+      opacity: 0.4;
+   }
+}
+.fac-clubs {
+   font-family: var(--font-mono);
+   font-size: 12px;
+   color: var(--text-secondary);
+}
+.fac-clubs.zero {
+   color: var(--text-tertiary);
+}
+.fac-date {
+   font-family: var(--font-mono);
+   font-size: 12px;
+   color: var(--text-secondary);
+}
+.fac-row-actions {
+   display: flex;
+   align-items: center;
+   justify-content: flex-end;
+   min-height: 20px;
+}
+.fac-toggle {
+   width: 36px;
+   height: 20px;
+   background: var(--accent-green);
+   border-radius: var(--radius-full);
+   position: relative;
+   cursor: pointer;
+   transition: background var(--transition-base);
+   flex-shrink: 0;
+}
+.fac-toggle::after {
+   content: "";
+   position: absolute;
+   top: 2px;
+   left: 2px;
+   width: 16px;
+   height: 16px;
+   background: white;
+   border-radius: var(--radius-full);
+   box-shadow: var(--shadow-sm);
+   transition: transform var(--transition-base);
+   transform: translateX(16px);
+}
+.fac-toggle.off {
+   background: var(--border-default);
+}
+.fac-toggle.off::after {
+   transform: translateX(0);
+}
+
+/* Table footer / pagination */
+.fac-table-foot {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   padding: 12px 16px;
+   border-top: 1px solid var(--border-light);
+   background: var(--bg-surface);
+}
+.fac-page-info {
+   font-size: 12px;
+   color: var(--text-secondary);
+}
+.fac-page-info b {
+   color: var(--text-primary);
+   font-weight: 600;
+}
+.fac-page-ctrl {
+   display: flex;
+   gap: 4px;
+}
+.fac-pg {
+   min-width: 30px;
+   height: 30px;
+   padding: 0 8px;
+   border-radius: 6px;
+   font-size: 12.5px;
+   font-weight: 600;
+   color: var(--text-secondary);
+   transition: all var(--transition-base);
+}
+.fac-pg:hover:not(:disabled) {
+   background: var(--bg-hover);
+   color: var(--text-primary);
+}
+.fac-pg.active {
+   background: var(--accent-purple-light);
+   color: var(--accent-purple);
+}
+.fac-pg:disabled {
+   opacity: 0.4;
+   cursor: not-allowed;
+}
+
+/* Create-faculty modal */
+.fac-overlay {
+   position: fixed;
+   inset: 0;
+   z-index: 1000;
+   display: grid;
+   place-items: center;
+   padding: 20px;
+   background: rgba(14, 16, 24, 0.45);
+   backdrop-filter: blur(4px);
+   animation: cm-fade 150ms ease;
+}
+.fac-modal {
+   width: 100%;
+   max-width: 460px;
+   background: var(--bg-base);
+   border-radius: 16px;
+   box-shadow: var(--shadow-xl);
+   overflow: hidden;
+   animation: cm-pop 160ms ease;
+}
+.fac-modal-head {
+   padding: 22px 24px 0;
+}
+.fac-modal-icon {
+   width: 44px;
+   height: 44px;
+   border-radius: 12px;
+   background: var(--gradient-accent);
+   display: grid;
+   place-items: center;
+   color: white;
+   margin-bottom: 14px;
+   box-shadow: var(--shadow-sm);
+}
+.fac-modal-title {
+   font-family: var(--font-display);
+   font-weight: 700;
+   font-size: 19px;
+   letter-spacing: -0.01em;
+   color: var(--text-primary);
+}
+.fac-modal-sub {
+   color: var(--text-secondary);
+   font-size: 13px;
+   line-height: 19px;
+   margin-top: 4px;
+}
+.fac-modal-body {
+   padding: 20px 24px;
+}
+.fac-modal-field {
+   margin-bottom: 16px;
+}
+.fac-modal-label {
+   font-size: 12.5px;
+   font-weight: 600;
+   color: var(--text-primary);
+   margin-bottom: 6px;
+   display: block;
+}
+.fac-modal-input {
+   width: 100%;
+   height: 42px;
+   padding: 0 14px;
+   background: var(--bg-base);
+   border: 1px solid var(--border-default);
+   border-radius: 8px;
+   font-size: 13.5px;
+   color: var(--text-primary);
+   transition: all var(--transition-base);
+}
+.fac-modal-input:focus {
+   outline: none;
+   border-color: var(--accent-purple);
+   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.12);
+}
+.fac-modal-input::placeholder {
+   color: var(--text-tertiary);
+}
+.fac-modal-input.error {
+   border-color: var(--accent-red);
+}
+.fac-modal-help {
+   font-size: 11.5px;
+   color: var(--text-tertiary);
+   margin-top: 6px;
+   line-height: 16px;
+}
+.fac-modal-help.err {
+   color: var(--accent-red);
+}
+.fac-modal-note {
+   display: flex;
+   gap: 10px;
+   align-items: flex-start;
+   padding: 12px 14px;
+   background: var(--accent-purple-light);
+   border-radius: 8px;
+   font-size: 12px;
+   color: var(--text-secondary);
+   line-height: 17px;
+}
+.fac-modal-note svg {
+   color: var(--accent-purple);
+   flex-shrink: 0;
+   margin-top: 1px;
+}
+.fac-modal-foot {
+   display: flex;
+   gap: 10px;
+   justify-content: flex-end;
+   padding: 16px 24px;
+   border-top: 1px solid var(--border-light);
+   background: var(--bg-surface);
+}
+
+/* Success state */
+.fac-modal-success {
+   padding: 28px 24px 24px;
+   text-align: center;
+}
+.fac-success-ring {
+   width: 64px;
+   height: 64px;
+   border-radius: var(--radius-full);
+   background: var(--accent-green-light);
+   color: var(--accent-green);
+   display: grid;
+   place-items: center;
+   margin: 0 auto 16px;
+   animation: cm-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.fac-modal-success h3 {
+   font-family: var(--font-display);
+   font-weight: 700;
+   font-size: 19px;
+   letter-spacing: -0.01em;
+   color: var(--text-primary);
+}
+.fac-modal-success p {
+   color: var(--text-secondary);
+   font-size: 13px;
+   line-height: 19px;
+   margin-top: 6px;
+}
+.fac-cred-box {
+   margin: 18px 0;
+   border: 1px solid var(--border-light);
+   border-radius: 10px;
+   overflow: hidden;
+   text-align: left;
+}
+.fac-cred-row {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 10px;
+   padding: 11px 14px;
+   border-bottom: 1px solid var(--border-light);
+}
+.fac-cred-row:last-child {
+   border-bottom: none;
+}
+.fac-cred-k {
+   font-size: 11px;
+   font-weight: 600;
+   letter-spacing: 0.4px;
+   text-transform: uppercase;
+   color: var(--text-tertiary);
+}
+.fac-cred-v {
+   font-family: var(--font-mono);
+   font-size: 13px;
+   color: var(--text-primary);
+   font-weight: 500;
+   word-break: break-all;
+}
+.fac-cred-v.pw {
+   display: flex;
+   align-items: center;
+   gap: 8px;
+}
+.fac-copy {
+   color: var(--accent-purple);
+   cursor: pointer;
+   display: grid;
+   place-items: center;
+}
+.fac-copy:hover {
+   color: #5a52d5;
+}
+.fac-sent-banner {
+   display: inline-flex;
+   align-items: center;
+   gap: 6px;
+   padding: 6px 12px;
+   border-radius: var(--radius-full);
+   background: var(--accent-green-light);
+   color: #047857;
+   font-size: 12px;
+   font-weight: 600;
+   margin-bottom: 18px;
+}
+.fac-success-actions {
+   display: flex;
+   gap: 10px;
+}
+.fac-success-actions .btn {
+   flex: 1;
+   justify-content: center;
+}
+
+@media (max-width: 720px) {
+   .fac-stat-row {
+      grid-template-columns: repeat(2, 1fr);
+   }
+   .fac-dt thead th:nth-child(3),
+   .fac-dt thead th:nth-child(4),
+   .fac-dt tbody td:nth-child(3),
+   .fac-dt tbody td:nth-child(4) {
+      display: none;
+   }
+}

@@ -146,6 +146,7 @@ export const NAV_BY_ROLE = {
    superAdmin: [
       { section: "Institute" },
       { id: "super", label: "Overview", to: "/", icon: I.shield },
+      { id: "faculty", label: "Faculty", to: "/faculty", icon: I.admin },
       {
          id: "clubs",
          label: "All Clubs",
@@ -162,6 +163,5 @@ export const NAV_BY_ROLE = {
          icon: I.analytics,
       },
       { id: "audit", label: "Audit Log", to: "/audit", icon: I.log },
-      { id: "profile", label: "Settings", to: "/profile", icon: I.user },
    ],
 };

@@ -3,7 +3,9 @@ import { useAuth } from "../contexts/AuthContext";
 
 // Gate for authenticated routes. Returns null during bootstrap to avoid flashing
 // the login page while we're still checking whether the user has a valid session.
-export function ProtectedRoute() {
+// Pass `roles` (allow-list) to restrict a route group to specific platform roles,
+// e.g. roles={["student", "coordinator"]} or roles={["superAdmin"]}.
+export function ProtectedRoute({ roles }) {
    const { user, loading } = useAuth();
    const location = useLocation();
 
@@ -11,6 +13,10 @@ export function ProtectedRoute() {
    if (!user) {
       // Stash the attempted path so we can send them back after login.
       return <Navigate to="/login" replace state={{ from: location }} />;
+   }
+   if (roles && !roles.includes(user.role)) {
+      // Authenticated but role not allowed here — bounce home rather than to login.
+      return <Navigate to="/" replace />;
    }
    return <Outlet />;
 }

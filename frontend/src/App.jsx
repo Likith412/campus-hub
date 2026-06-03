@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import Clubs from "./pages/Clubs";
 import ClubDetail from "./pages/ClubDetail";
+import Faculty from "./pages/Faculty";
 
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ToastProvider } from "./contexts/ToastProvider";
@@ -23,31 +24,47 @@ function App() {
       // AuthProvider wraps everything so route guards can read auth state.
       <AuthProvider>
          <ToastProvider>
-         <ConfirmProvider>
-         <Routes>
-            {/* Auth pages: redirect to "/" if already logged in. */}
-            <Route element={<PublicOnlyRoute />}>
-               <Route path="/login" element={<Login />} />
-               <Route path="/register" element={<Register />} />
-               <Route path="/forgot-password" element={<ForgotPassword />} />
-            </Route>
+            <ConfirmProvider>
+               <Routes>
+                  {/* Auth pages: redirect to "/" if already logged in. */}
+                  <Route element={<PublicOnlyRoute />}>
+                     <Route path="/login" element={<Login />} />
+                     <Route path="/register" element={<Register />} />
+                     <Route
+                        path="/forgot-password"
+                        element={<ForgotPassword />}
+                     />
+                  </Route>
 
-            {/* Email-link landing pages: reachable regardless of session state. */}
-            <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+                  {/* Email-link landing pages: reachable regardless of session state. */}
+                  <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* Everything below requires a logged-in user. */}
-            <Route element={<ProtectedRoute />}>
-               <Route path="/" element={<Home />} />
-               <Route path="/profile" element={<Profile />} />
-               <Route path="/clubs" element={<Clubs />} />
-               <Route path="/clubs/:slug" element={<ClubDetail />} />
-            </Route>
+                  {/* Everything below requires a logged-in user (any role). */}
+                  <Route element={<ProtectedRoute />}>
+                     <Route path="/" element={<Home />} />
+                     <Route path="/clubs" element={<Clubs />} />
+                     <Route path="/clubs/:slug" element={<ClubDetail />} />
+                  </Route>
 
-            {/* Catch-all: any unmatched URL renders the 404 page. */}
-            <Route path="*" element={<NotFound />} />
-         </Routes>
-         </ConfirmProvider>
+                  {/* Profile is for students + coordinators only (super admin has none). */}
+                  <Route
+                     element={
+                        <ProtectedRoute roles={["student", "coordinator"]} />
+                     }
+                  >
+                     <Route path="/profile" element={<Profile />} />
+                  </Route>
+
+                  {/* SuperAdmin-only platform administration. */}
+                  <Route element={<ProtectedRoute roles={["superAdmin"]} />}>
+                     <Route path="/faculty" element={<Faculty />} />
+                  </Route>
+
+                  {/* Catch-all: any unmatched URL renders the 404 page. */}
+                  <Route path="*" element={<NotFound />} />
+               </Routes>
+            </ConfirmProvider>
          </ToastProvider>
       </AuthProvider>
    );
