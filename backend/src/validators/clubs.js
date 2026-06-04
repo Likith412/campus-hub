@@ -86,21 +86,21 @@ const listMembersQuerySchema = z
    })
    .strict();
 
-// PATCH body — at least one of role/status must be provided.
-const updateMemberBodySchema = z
-   .object({
-      role: z.enum(MEMBERSHIP_ROLES).optional(),
-      status: z.enum(["approved", "rejected"]).optional(),
-   })
-   .strict()
-   .refine((b) => b.role || b.status, {
-      message: "Provide role or status",
-   });
+// PATCH .../members/:userId/status — accept or reject a join request.
+const memberStatusBodySchema = z
+   .object({ status: z.enum(["approved", "rejected"]) })
+   .strict();
+
+// PATCH .../members/:userId/role — change an approved member's role.
+const memberRoleBodySchema = z
+   .object({ role: z.enum(MEMBERSHIP_ROLES) })
+   .strict();
 
 module.exports = {
    listClubsQuerySchema,
    listMembersQuerySchema,
-   updateMemberBodySchema,
+   memberStatusBodySchema,
+   memberRoleBodySchema,
    createClubBodySchema,
    verificationBodySchema,
    statusBodySchema,

@@ -10,7 +10,8 @@ const { ROLES } = require("../constants/roles");
 const {
    listClubsQuerySchema,
    listMembersQuerySchema,
-   updateMemberBodySchema,
+   memberStatusBodySchema,
+   memberRoleBodySchema,
    createClubBodySchema,
    verificationBodySchema,
    statusBodySchema,
@@ -51,10 +52,16 @@ router.get(
    validateQuery(listMembersQuerySchema),
    clubs.listMembers,
 );
+// Member admin: status (approve/reject) and role (promote/demote) are separate operations.
 router.patch(
-   "/:slug/members/:userId",
-   validate(updateMemberBodySchema),
-   clubs.updateMember,
+   "/:slug/members/:userId/status",
+   validate(memberStatusBodySchema),
+   clubs.moderateMember,
+);
+router.patch(
+   "/:slug/members/:userId/role",
+   validate(memberRoleBodySchema),
+   clubs.setMemberRole,
 );
 router.delete("/:slug/members/:userId", clubs.removeMember);
 

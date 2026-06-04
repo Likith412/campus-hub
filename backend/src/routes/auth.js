@@ -2,6 +2,7 @@
 const express = require("express");
 
 const authController = require("../controllers/auth");
+const passwordReset = require("../controllers/passwordReset");
 const authenticate = require("../middlewares/authenticate");
 const validate = require("../middlewares/validate");
 const {
@@ -55,16 +56,16 @@ router.post(
    "/forgot-password",
    passwordLimiter,
    validate(forgotPasswordSchema),
-   authController.forgotPassword,
+   passwordReset.forgotPassword,
 );
 // Public — checks token validity without consuming it (used by the reset page on mount).
-router.get("/reset-password/validate", authController.validateResetToken);
+router.get("/reset-password/validate", passwordReset.validateResetToken);
 // Public — consumes the password reset token from the link, sets new password.
 router.post(
    "/reset-password",
    // passwordLimiter,
    validate(resetPasswordSchema),
-   authController.resetPassword,
+   passwordReset.resetPassword,
 );
 
 module.exports = router;

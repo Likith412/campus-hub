@@ -3,6 +3,7 @@
 const express = require("express");
 
 const profile = require("../controllers/profile");
+const account = require("../controllers/accountSecurity");
 const authenticate = require("../middlewares/authenticate");
 const validate = require("../middlewares/validate");
 const {
@@ -44,15 +45,15 @@ router.patch(
 router.post(
    "/me/change-password",
    validate(changePasswordSchema),
-   profile.changePassword,
+   account.changePassword,
 );
 
 // Settings: sessions & devices
-router.get("/me/sessions", profile.getSessions);
-router.delete("/me/sessions/:id", profile.revokeSession);
-router.post("/me/sessions/revoke-others", profile.revokeOtherSessions);
+router.get("/me/sessions", account.getSessions);
+router.delete("/me/sessions/:id", account.revokeSession);
+router.post("/me/sessions/revoke-others", account.revokeOtherSessions);
 
 // Danger zone
-router.delete("/me", profile.deleteAccount); // Pending. Need to develop background job for this.
+router.delete("/me", account.deleteAccount); // Pending. Need to develop background job for this.
 
 module.exports = router;

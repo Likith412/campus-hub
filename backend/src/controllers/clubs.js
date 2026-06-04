@@ -49,6 +49,7 @@ function publicClubCard(c, membershipByClubId) {
    };
 }
 
+// TODO: Status filtering (archived and suspended - for only superAdmin, active for everyone).
 // GET /api/clubs — paginated list with category counts and per-user membership state.
 async function listClubs(req, res) {
    const { q, category, sort, verified, page, limit } = req.validatedQuery;
@@ -253,6 +254,13 @@ async function setStatus(req, res) {
 // POST /api/clubs/:slug/join — open=instant approved, request=pending, invite-only=forbidden.
 async function joinClub(req, res) {
    const userId = req.user._id;
+
+   // Only students join clubs. Coordinators are assigned at club creation or by a
+   // superAdmin; superAdmins manage rather than join.
+   if (req.user.role !== ROLES.STUDENT) {
+      throw new ForbiddenError("Only students can join clubs");
+   }
+
    const club = await findActiveClubBySlug(req.params.slug);
 
    const policy = club.settings?.joinPolicy || "request";
@@ -310,6 +318,7 @@ async function joinClub(req, res) {
    return successResponse(res, 200, "Join processed", { status: nextStatus });
 }
 
+// == TODO: clubadmin can't leave. only superadmin can remove them.
 // DELETE /api/clubs/:slug/membership — leave the club (or cancel a pending request).
 async function leaveClub(req, res) {
    const userId = req.user._id;
@@ -488,9 +497,66 @@ async function listMembers(req, res) {
    });
 }
 
-// PATCH /api/clubs/:slug/members/:userId — change role and/or accept/reject pending.
-async function updateMember(req, res) {
-   const { role, status } = req.body;
+// PATCH /api/clubs/:slug/members/:userId/status — coordinator accepts/rejects a join request.
+// Approving accepts a pending request OR re-invites an admin-removed member; rejecting only
+// applies to a pending request. The approve transition bumps memberCount.
+async function moderateMember(req, res) {
+   const { status } = req.body; // "approved" | "rejected"
+   const club = await findActiveClubBySlug(req.params.slug);
+   await assertCoordinator(req.user, club._id);
+
+   const m = await ClubMembership.findOne({
+      clubId: club._id,
+      userId: req.params.userId,
+   }).lean();
+   if (!m) throw new NotFoundError("Membership not found");
+
+   if (status === "approved") {
+      if (m.status !== "pending" && m.status !== "removed") {
+         throw new ConflictError("Membership is not pending or removed");
+      }
+   } else if (m.status !== "pending") {
+      throw new ConflictError("Membership is not pending");
+   }
+
+   const set =
+      status === "approved"
+         ? {
+              status: "approved",
+              joinedAt: new Date(),
+              leftAt: null,
+              removedBy: null,
+           }
+         : { status: "rejected" };
+
+   // Guard on the pre-transition status so a concurrent approve counts at most once.
+   const guard = {
+      clubId: club._id,
+      userId: req.params.userId,
+      status:
+         status === "approved" ? { $in: ["pending", "removed"] } : "pending",
+   };
+   const prev = await ClubMembership.findOneAndUpdate(guard, set, {
+      returnDocument: "before",
+   });
+   if (!prev)
+      throw new ConflictError("Membership was just updated; please retry");
+
+   if (status === "approved") {
+      await Club.updateOne(
+         { _id: club._id },
+         { $inc: { "stats.memberCount": 1 } },
+      );
+   }
+
+   return successResponse(res, 200, "Member updated", { status });
+}
+
+// PATCH /api/clubs/:slug/members/:userId/role — change an approved member's role.
+// Assigning OR removing the `coordinator` role is superAdmin-only; a per-club coordinator
+// can't mint new coordinators or demote an existing one.
+async function setMemberRole(req, res) {
+   const { role } = req.body; // "coordinator" | "member"
    const club = await findActiveClubBySlug(req.params.slug);
    await assertCoordinator(req.user, club._id);
 
@@ -499,76 +565,25 @@ async function updateMember(req, res) {
       userId: req.params.userId,
    });
    if (!m) throw new NotFoundError("Membership not found");
-
-   // Validate the requested transition up-front so errors are precise.
-   // Approving accepts a pending request OR re-invites an admin-removed member;
-   // rejecting only applies to a pending request.
-   if (status === "approved") {
-      if (m.status !== "pending" && m.status !== "removed") {
-         throw new ConflictError("Membership is not pending or removed");
-      }
-   } else if (status === "rejected") {
-      if (m.status !== "pending") {
-         throw new ConflictError("Membership is not pending");
-      }
+   if (m.status !== "approved") {
+      throw new ConflictError("Can only set role on approved members");
    }
 
-   // role changes only apply to (newly-)approved memberships
-   const willBeApproved =
-      status === "approved" || (!status && m.status === "approved");
-   if (role) {
-      if (!willBeApproved) {
-         throw new ConflictError("Can only set role on approved members");
-      }
-      // The `coordinator` role is assignable only by superAdmin (faculty assignment lives in 1c).
-      // A per-club coordinator can demote to `member` but can't mint new coordinators.
-      if (role === "coordinator" && req.user.role !== ROLES.SUPER_ADMIN) {
-         throw new ForbiddenError(
-            "Only a super admin can assign the coordinator role",
-         );
-      }
-   }
-
-   const set = {};
-   if (status === "approved") {
-      Object.assign(set, {
-         status: "approved",
-         joinedAt: new Date(),
-         leftAt: null,
-         removedBy: null,
-      });
-   } else if (status === "rejected") {
-      set.status = "rejected";
-   }
-   if (role) {
-      set.role = role;
-      set.roleWeight = ROLE_WEIGHT[role]; // findOneAndUpdate skips the pre-save hook
-   }
-
-   // Guard the write on the pre-transition status so a concurrent approve counts once.
-   const guard = { clubId: club._id, userId: req.params.userId };
-   if (status === "approved") guard.status = { $in: ["pending", "removed"] };
-   else if (status === "rejected") guard.status = "pending";
-
-   const prev = await ClubMembership.findOneAndUpdate(guard, set, {
-      returnDocument: "before",
-   });
-
-   // Only the write that actually performed the approve transition bumps the count.
-   if (status === "approved" && prev) {
-      await Club.updateOne(
-         { _id: club._id },
-         { $inc: { "stats.memberCount": 1 } },
+   const touchesCoordinator =
+      role === "coordinator" || m.role === "coordinator";
+   if (touchesCoordinator && req.user.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError(
+         "Only a super admin can assign or remove the coordinator role",
       );
    }
 
-   return successResponse(res, 200, "Member updated", {
-      status: set.status || m.status,
-      role: set.role || m.role,
-   });
+   m.role = role; // roleWeight kept in sync by the pre-save hook
+   await m.save();
+
+   return successResponse(res, 200, "Member role updated", { role: m.role });
 }
 
-// DELETE /api/clubs/:slug/members/:userId — coordinator removes a member (terminal state: "removed".
+// DELETE /api/clubs/:slug/members/:userId — coordinator removes a member (terminal state: "removed").
 async function removeMember(req, res) {
    const club = await findActiveClubBySlug(req.params.slug);
    await assertCoordinator(req.user, club._id);
@@ -610,6 +625,7 @@ module.exports = {
    joinClub,
    leaveClub,
    listMembers,
-   updateMember,
+   moderateMember,
+   setMemberRole,
    removeMember,
 };
