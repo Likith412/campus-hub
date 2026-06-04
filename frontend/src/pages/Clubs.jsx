@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { clubsApi, ApiError } from "../services";
+import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -157,6 +158,15 @@ function ClubCard({ club, onJoin, onLeave, busy }) {
          >
             <div className="cover-bg" />
             <span className="domain-tag">{cat.label}</span>
+            {club.isPrivate && (
+               <span className="private-tag" title="Private club">
+                  <Icon size={9} strokeWidth={2.5}>
+                     <rect x="3" y="11" width="18" height="11" rx="2" />
+                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </Icon>
+                  Private
+               </span>
+            )}
             <div
                className="club-logo-lg"
                style={{ background: coverGradient(club) }}
@@ -171,15 +181,19 @@ function ClubCard({ club, onJoin, onLeave, busy }) {
          <div className="club-body">
             <div className="club-head-row">
                <div className="club-name">{club.name}</div>
-               {club.verified && (
+               {club.verified ? (
                   <span className="verified-tick" title="Verified by institute">
                      <Icon size={9} strokeWidth={4}>
                         <polyline points="20 6 9 17 4 12" />
                      </Icon>
                   </span>
+               ) : (
+                  <span className="unverified-pill" title="Not yet verified">
+                     Unverified
+                  </span>
                )}
             </div>
-            <div className="club-tagline">{club.description}</div>
+            <div className="club-tagline">{club.tagline || club.description}</div>
             <div className="club-meta">
                <span>
                   <MemberIcon /> <b>{club.memberCount}</b> members
@@ -251,15 +265,28 @@ function ClubRow({ club, onJoin, onLeave, busy }) {
             <div className="cr-name-row">
                <div className="cr-name">{club.name}</div>
                <div className="cr-domain">{cat.label}</div>
-               {club.verified && (
+               {club.verified ? (
                   <span className="verified-tick" title="Verified">
                      <Icon size={9} strokeWidth={4}>
                         <polyline points="20 6 9 17 4 12" />
                      </Icon>
                   </span>
+               ) : (
+                  <span className="unverified-pill" title="Not yet verified">
+                     Unverified
+                  </span>
+               )}
+               {club.isPrivate && (
+                  <span className="cr-private" title="Private club">
+                     <Icon size={9} strokeWidth={2.5}>
+                        <rect x="3" y="11" width="18" height="11" rx="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                     </Icon>
+                     Private
+                  </span>
                )}
             </div>
-            <div className="cr-tagline">{club.description}</div>
+            <div className="cr-tagline">{club.tagline || club.description}</div>
          </div>
          <div className="cr-stat">
             Members<b>{club.memberCount}</b>
@@ -296,6 +323,9 @@ export default function Clubs() {
    const [loadedKey, setLoadedKey] = useState(null);
    const toast = useToast();
    const confirm = useConfirm();
+   const { user } = useAuth();
+   const canCreate =
+      user?.role === "coordinator" || user?.role === "superAdmin";
    const reqIdRef = useRef(0);
 
    // Derive loading instead of setting it in the fetch effect: we're loading
@@ -491,6 +521,15 @@ export default function Clubs() {
                         </button>
                      )}
                   </div>
+                  {canCreate && (
+                     <Link to="/clubs/new" className="btn btn-primary clubs-create">
+                        <Icon size={15} strokeWidth={2.5}>
+                           <line x1="12" y1="5" x2="12" y2="19" />
+                           <line x1="5" y1="12" x2="19" y2="12" />
+                        </Icon>
+                        Create club
+                     </Link>
+                  )}
                </div>
             </div>
 

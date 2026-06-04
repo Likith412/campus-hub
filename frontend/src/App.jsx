@@ -10,6 +10,7 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import Clubs from "./pages/Clubs";
 import ClubDetail from "./pages/ClubDetail";
+import CreateClub from "./pages/CreateClub";
 import Faculty from "./pages/Faculty";
 
 import { AuthProvider } from "./contexts/AuthProvider";
@@ -54,6 +55,15 @@ function App() {
                      }
                   >
                      <Route path="/profile" element={<Profile />} />
+                  </Route>
+
+                  {/* Club creation — coordinators + super admins. */}
+                  <Route
+                     element={
+                        <ProtectedRoute roles={["coordinator", "superAdmin"]} />
+                     }
+                  >
+                     <Route path="/clubs/new" element={<CreateClub />} />
                   </Route>
 
                   {/* SuperAdmin-only platform administration. */}

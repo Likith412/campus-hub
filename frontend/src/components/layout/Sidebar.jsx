@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
 import Icon from "../Icon";
+import ClubSwitcher from "./ClubSwitcher";
 import { NAV_BY_ROLE } from "./navConfig";
 
 // Two-letter initials for the avatar (e.g. "Arjun Sharma" → "AS").
@@ -31,6 +32,8 @@ export default function Sidebar() {
                CampusHub <span>AI</span>
             </div>
          </div>
+
+         {user?.role === "coordinator" && <ClubSwitcher />}
 
          {items.map((item, i) =>
             item.section ? (

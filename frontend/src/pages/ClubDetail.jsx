@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { clubsApi, ApiError } from "../services";
+import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -63,7 +64,7 @@ function HeaderSkeleton() {
    return <LoadingBlock label="Loading club" size={26} />;
 }
 
-function MemberRow({ row, canManage, busy, onChangeRole, onRemove }) {
+function MemberRow({ row, canManage, canManageRole, busy, onChangeRole, onRemove }) {
    const [menuOpen, setMenuOpen] = useState(false);
    const ref = useRef(null);
 
@@ -116,8 +117,8 @@ function MemberRow({ row, canManage, busy, onChangeRole, onRemove }) {
                </button>
                {menuOpen && (
                   <div className="ml-menu" role="menu">
-                     {/* coordinator can only be assigned by superAdmin (1c); offered only as a demote → member here. */}
-                     {row.role !== "member" && (
+                     {/* Demoting a coordinator → member is superAdmin-only (backend enforces it too). */}
+                     {canManageRole && row.role !== "member" && (
                         <button
                            type="button"
                            onClick={() => {
@@ -196,9 +197,13 @@ export default function ClubDetail() {
    const { slug } = useParams();
    const toast = useToast();
    const confirm = useConfirm();
+   const { user } = useAuth();
+   const isSuperAdmin = user?.role === "superAdmin";
+   const isStudent = user?.role === "student";
    const [club, setClub] = useState(null);
    const [clubLoadedSlug, setClubLoadedSlug] = useState(null);
    const [joinBusy, setJoinBusy] = useState(false);
+   const [verifyBusy, setVerifyBusy] = useState(false);
    const [tab, setTab] = useState("members");
 
    // Members tab state
@@ -326,6 +331,34 @@ export default function ClubDetail() {
       }
    }
 
+   async function handleToggleVerify() {
+      if (!club) return;
+      const next = !club.verified;
+      const ok = await confirm({
+         title: next
+            ? `Verify ${club.name}?`
+            : `Remove verification from ${club.name}?`,
+         message: next
+            ? "This marks the club as institute-verified, showing the ✓ badge across the app."
+            : "The ✓ badge will be removed and the club will show as unverified.",
+         confirmLabel: next ? "Verify" : "Remove verification",
+         danger: !next,
+      });
+      if (!ok) return;
+      setVerifyBusy(true);
+      try {
+         await clubsApi.setVerification(slug, next);
+         setClub((c) => (c ? { ...c, verified: next } : c));
+         toast.success(next ? "Club verified" : "Verification removed");
+      } catch (err) {
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't update verification",
+         );
+      } finally {
+         setVerifyBusy(false);
+      }
+   }
+
    async function handleLeave() {
       if (!club) return;
       const ok = await confirm({
@@ -365,7 +398,7 @@ export default function ClubDetail() {
       if (!ok) return;
       setBusyUserId(row.userId);
       try {
-         await clubsApi.updateMember(slug, row.userId, { role });
+         await clubsApi.setMemberRole(slug, row.userId, role);
          toast.success("Role updated");
          fetchMembers();
       } catch (err) {
@@ -405,7 +438,7 @@ export default function ClubDetail() {
    async function handleApprove(row) {
       setBusyUserId(row.userId);
       try {
-         await clubsApi.updateMember(slug, row.userId, { status: "approved" });
+         await clubsApi.setMemberStatus(slug, row.userId, "approved");
          toast.success(`${row.name} approved`);
          setClub((c) => (c ? { ...c, memberCount: c.memberCount + 1 } : c));
          fetchMembers();
@@ -425,7 +458,7 @@ export default function ClubDetail() {
       if (!ok) return;
       setBusyUserId(row.userId);
       try {
-         await clubsApi.updateMember(slug, row.userId, { status: "rejected" });
+         await clubsApi.setMemberStatus(slug, row.userId, "rejected");
          toast.success("Request rejected");
          fetchMembers();
       } catch (err) {
@@ -484,6 +517,9 @@ export default function ClubDetail() {
       if (joinKind === "leave") handleLeave();
       else if (joinKind === "join") handleJoin();
    }
+   // Only students join clubs. Non-students who are already approved members (e.g. a
+   // coordinator) still see "Leave"; everyone else gets no join CTA.
+   const showJoinButton = isStudent || joinKind === "leave";
 
    const items = members?.items || [];
 
@@ -516,7 +552,20 @@ export default function ClubDetail() {
                   )}
                </div>
                <div className="club-id-text">
-                  <div className="club-name">{club.name}</div>
+                  <div className="club-name">
+                     {club.name}
+                     {club.verified ? (
+                        <span className="verified-tick" title="Verified by institute">
+                           <Icon size={10} strokeWidth={4}>
+                              <polyline points="20 6 9 17 4 12" />
+                           </Icon>
+                        </span>
+                     ) : (
+                        <span className="unverified-pill" title="Not yet verified">
+                           Unverified
+                        </span>
+                     )}
+                  </div>
                   <div className="club-meta">
                      <span className="badge purple" style={{ fontSize: 10 }}>
                         {CATEGORY_LABEL[club.category] || club.category}
@@ -530,19 +579,38 @@ export default function ClubDetail() {
                         </>
                      )}
                   </div>
+                  {club.tagline && (
+                     <div className="club-tagline">{club.tagline}</div>
+                  )}
                   {club.description && (
-                     <div className="club-tagline">{club.description}</div>
+                     <div className="club-about">{club.description}</div>
                   )}
                </div>
                <div className="club-actions">
-                  <button
-                     type="button"
-                     className={`join-btn ${joinCls}`}
-                     disabled={joinDisabled}
-                     onClick={onJoinClick}
-                  >
-                     {joinBusy ? "…" : joinLabel}
-                  </button>
+                  {isSuperAdmin && (
+                     <button
+                        type="button"
+                        className="btn btn-secondary"
+                        disabled={verifyBusy}
+                        onClick={handleToggleVerify}
+                     >
+                        {verifyBusy
+                           ? "…"
+                           : club.verified
+                             ? "Unverify"
+                             : "Verify ✓"}
+                     </button>
+                  )}
+                  {showJoinButton && (
+                     <button
+                        type="button"
+                        className={`join-btn ${joinCls}`}
+                        disabled={joinDisabled}
+                        onClick={onJoinClick}
+                     >
+                        {joinBusy ? "…" : joinLabel}
+                     </button>
+                  )}
                </div>
             </div>
 
@@ -641,6 +709,7 @@ export default function ClubDetail() {
                                  key={row.userId}
                                  row={row}
                                  canManage={viewerIsCoordinator}
+                                 canManageRole={isSuperAdmin}
                                  busy={busyUserId === row.userId}
                                  onChangeRole={handleChangeRole}
                                  onRemove={handleRemove}
