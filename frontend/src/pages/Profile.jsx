@@ -1180,7 +1180,7 @@ export default function Profile() {
       setCompletion(d?.completion ?? completion);
    };
 
-   const isCoordinator = user?.role === "coordinator";
+   const isCoordinator = user?.role === "faculty";
 
    return (
       <AppShell title="Profile & Settings">

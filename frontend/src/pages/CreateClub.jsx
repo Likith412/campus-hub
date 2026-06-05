@@ -25,6 +25,8 @@ const DOMAINS = [
    { id: "sports", label: "⚽ Sports" },
    { id: "business", label: "📈 Business" },
    { id: "media", label: "📷 Media" },
+   { id: "social", label: "🤝 Social" },
+   { id: "other", label: "✨ Other" },
 ];
 const DOMAIN_LABEL = Object.fromEntries(DOMAINS.map((d) => [d.id, d.label]));
 // Plain category labels (no emoji) — mirror the Clubs page card's domain-tag.
@@ -35,6 +37,8 @@ const DOMAIN_TAG = {
    sports: "Sports",
    business: "Business",
    media: "Media",
+   social: "Social",
+   other: "Other",
 };
 // Join-button label the real card shows for a non-member viewer.
 const JOIN_PREVIEW = {
@@ -296,7 +300,11 @@ export default function CreateClub() {
             <div className="wizard">
                <div className="wizard-head">
                   <div className="breadcrumb">
-                     <Link to="/clubs">Clubs</Link>
+                     {isSuperAdmin ? (
+                        <Link to="/admin/clubs">Clubs</Link>
+                     ) : (
+                        <span>Clubs</span>
+                     )}
                      <span className="sep">›</span>
                      <span className="now">Create a club</span>
                   </div>
@@ -948,9 +956,18 @@ export default function CreateClub() {
                               {DOMAIN_TAG[domain] || "Domain"}
                            </span>
                            {isPrivate && (
-                              <span className="private-tag" title="Private club">
+                              <span
+                                 className="private-tag"
+                                 title="Private club"
+                              >
                                  <Icon size={9} strokeWidth={2.5}>
-                                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                                    <rect
+                                       x="3"
+                                       y="11"
+                                       width="18"
+                                       height="11"
+                                       rx="2"
+                                    />
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                  </Icon>
                                  Private

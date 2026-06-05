@@ -1,5 +1,6 @@
 // Zod schemas for /api/admin/* endpoints (superAdmin-only platform administration).
 const { z } = require("zod");
+const { CLUB_CATEGORIES } = require("../models/Club");
 
 // Create a faculty (coordinator) account. Password is generated server-side.
 const createFacultyBodySchema = z
@@ -13,9 +14,10 @@ const createFacultyBodySchema = z
 // status: active = logged in at least once; pending = created but never logged in; inactive = deactivated.
 const listUsersQuerySchema = z
    .object({
-      role: z.enum(["student", "coordinator", "superAdmin"]).optional(),
+      role: z.enum(["student", "faculty", "superAdmin"]).optional(),
       q: z.string().trim().max(100).optional(),
       status: z.enum(["active", "inactive", "pending"]).optional(),
+      sort: z.enum(["new", "name", "clubs"]).default("new"),
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(50).default(20),
    })
@@ -28,8 +30,21 @@ const setUserActiveBodySchema = z
    })
    .strict();
 
+// GET /api/admin/clubs — every club across the institute, filterable by domain + status.
+const listAllClubsQuerySchema = z
+   .object({
+      q: z.string().trim().max(100).optional(),
+      category: z.enum(CLUB_CATEGORIES).optional(),
+      status: z.enum(["active", "suspended", "archived"]).optional(),
+      sort: z.enum(["popular", "new", "name"]).default("popular"),
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+   })
+   .strict();
+
 module.exports = {
    createFacultyBodySchema,
    listUsersQuerySchema,
    setUserActiveBodySchema,
+   listAllClubsQuerySchema,
 };

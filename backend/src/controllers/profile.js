@@ -32,9 +32,9 @@ function publicProfile(u) {
 
 // Computes profile completion percentage for the progress bar.
 function computeCompletion(u) {
-   // Coordinators have a faculty-shaped profile — score the fields that apply to them.
+   // Faculty have a faculty-shaped profile — score the fields that apply to them.
    const checks =
-      u.role === ROLES.COORDINATOR
+      u.role === ROLES.FACULTY
          ? [
               !!u.name,
               !!u.avatarUrl,

@@ -4,7 +4,7 @@ import { useAuth } from "../contexts/AuthContext";
 // Gate for authenticated routes. Returns null during bootstrap to avoid flashing
 // the login page while we're still checking whether the user has a valid session.
 // Pass `roles` (allow-list) to restrict a route group to specific platform roles,
-// e.g. roles={["student", "coordinator"]} or roles={["superAdmin"]}.
+// e.g. roles={["student", "faculty"]} or roles={["superAdmin"]}.
 export function ProtectedRoute({ roles }) {
    const { user, loading } = useAuth();
    const location = useLocation();

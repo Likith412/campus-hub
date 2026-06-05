@@ -4,7 +4,7 @@ const { PERMISSIONS: P } = require("./permissions");
 // Role identifiers stored on the User document.
 const ROLES = {
    STUDENT: "student",
-   COORDINATOR: "coordinator",
+   FACULTY: "faculty",
    SUPER_ADMIN: "superAdmin",
 };
 
@@ -22,8 +22,8 @@ const DEFAULT_ROLES = [
       isSystem: true,
    },
    {
-      name: ROLES.COORDINATOR,
-      description: "Coordinates a club, its members, events, and announcements.",
+      name: ROLES.FACULTY,
+      description: "Faculty who coordinates a club, its members, events, and announcements.",
       permissions: [
          P.PROFILE_MANAGE,
          P.CLUB_READ,

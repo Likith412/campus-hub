@@ -1,7 +1,7 @@
 // User accounts. One `users` collection, split by role via Mongoose discriminators
 // (keyed on `role`) so each account type only carries the fields that apply to it:
 //   - student     → academic profile, skills, interests, stats, full preferences
-//   - coordinator → faculty profile (designation/office/expertise), slim preferences
+//   - faculty     → faculty profile (designation/office/expertise), slim preferences
 //   - superAdmin  → base fields only
 const mongoose = require("mongoose");
 const { ROLES } = require("../constants/roles");
@@ -105,8 +105,8 @@ const studentSchema = new mongoose.Schema({
 });
 studentSchema.index({ "skills.name": 1 });
 
-// ── Coordinator (faculty): runs clubs; no academic/contest fields ─────────────
-const coordinatorSchema = new mongoose.Schema({
+// ── Faculty: runs clubs; no academic/contest fields ─────────────
+const facultySchema = new mongoose.Schema({
    profile: {
       department: String,
       designation: String,
@@ -137,11 +137,11 @@ const coordinatorSchema = new mongoose.Schema({
 const superAdminSchema = new mongoose.Schema({});
 
 const Student = User.discriminator(ROLES.STUDENT, studentSchema);
-const Coordinator = User.discriminator(ROLES.COORDINATOR, coordinatorSchema);
+const Faculty = User.discriminator(ROLES.FACULTY, facultySchema);
 const SuperAdmin = User.discriminator(ROLES.SUPER_ADMIN, superAdminSchema);
 
 module.exports = User;
 module.exports.Student = Student;
-module.exports.Coordinator = Coordinator;
+module.exports.Faculty = Faculty;
 module.exports.SuperAdmin = SuperAdmin;
 module.exports.YEAR_OPTIONS = YEAR_OPTIONS;

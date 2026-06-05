@@ -52,16 +52,11 @@ function publicClubCard(c, membershipByClubId) {
 
 // GET /api/clubs — paginated list with category counts and per-user membership state.
 async function listClubs(req, res) {
-   const { q, category, sort, verified, status, page, limit } =
-      req.validatedQuery;
-   const userId = req.user?._id;
+   const { q, category, sort, verified, page, limit } = req.validatedQuery;
+   const userId = req.user._id;
 
-   // Everyone sees active clubs. Only a superAdmin may filter to suspended/archived;
-   // for anyone else the status filter is ignored and pinned to "active".
-   const isSuperAdmin = req.user?.role === ROLES.SUPER_ADMIN;
-   const baseFilter = {
-      status: isSuperAdmin && status ? status : "active",
-   };
+   // Student-only browse — always scoped to active clubs.
+   const baseFilter = { status: "active" };
    if (verified === "true") baseFilter.verified = true;
    if (verified === "false") baseFilter.verified = false;
    const searchFilter = q
@@ -184,7 +179,7 @@ async function createClub(req, res) {
       }
       const valid = await User.find({
          _id: { $in: requested },
-         role: ROLES.COORDINATOR,
+         role: ROLES.FACULTY,
          isActive: true,
       })
          .select("_id")
@@ -643,13 +638,13 @@ async function setMemberRole(req, res) {
       );
    }
 
-   // Only platform `coordinator` (faculty) accounts may hold the club coordinator role —
+   // Only platform `faculty` accounts may hold the club coordinator role —
    // never a student or superAdmin. (Members reach this list by joining, i.e. students.)
    if (role === "coordinator") {
       const target = await User.findById(m.userId).select("role").lean();
-      if (target?.role !== ROLES.COORDINATOR) {
+      if (target?.role !== ROLES.FACULTY) {
          throw new ConflictError(
-            "Only faculty (coordinator) accounts can be made a club coordinator",
+            "Only faculty accounts can be made a club coordinator",
          );
       }
    }
@@ -717,7 +712,7 @@ async function addCoordinator(req, res) {
    const club = await findClubBySlugFor(req.user, req.params.slug);
    const { userId } = req.body;
 
-   const user = await User.findOne({ _id: userId, role: ROLES.COORDINATOR })
+   const user = await User.findOne({ _id: userId, role: ROLES.FACULTY })
       .select("isActive")
       .lean();
    if (!user) throw new NotFoundError("No faculty account with that id");

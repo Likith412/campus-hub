@@ -47,6 +47,8 @@ const CATEGORIES = [
       to: "#818cf8",
    },
    { id: "media", label: "Media", emoji: "📷", from: "#831843", to: "#ec4899" },
+   { id: "social", label: "Social", emoji: "🤝", from: "#0e7490", to: "#22d3ee" },
+   { id: "other", label: "Other", emoji: "✨", from: "#475569", to: "#94a3b8" },
 ];
 
 const SORTS = [

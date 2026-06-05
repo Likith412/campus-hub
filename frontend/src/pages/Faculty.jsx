@@ -14,6 +14,11 @@ const FILTER_TABS = [
    { id: "inactive", label: "Inactive" },
    { id: "pending", label: "Pending" },
 ];
+const SORTS = [
+   { id: "new", label: "Newest" },
+   { id: "name", label: "Name (A–Z)" },
+   { id: "clubs", label: "Most clubs" },
+];
 
 // Deterministic avatar color from the name (mirrors the design mockup).
 const AVATAR_COLORS = [
@@ -55,34 +60,16 @@ function timeAgo(d) {
    return formatDate(d);
 }
 
-// active = logged in; pending = created but never logged in; inactive = deactivated.
-function derivedStatus(u) {
-   if (!u.isActive) return "inactive";
-   if (!u.lastLoginAt) return "pending";
-   return "active";
-}
-const STATUS_LABEL = {
-   active: "Active",
-   inactive: "Deactivated",
-   pending: "Awaiting login",
-};
 
-function StatusPill({ status }) {
-   return (
-      <span className={`fac-status ${status}`}>
-         <span className="dot" />
-         {STATUS_LABEL[status]}
-      </span>
-   );
-}
-
-function StatCard({ tone, label, value, children }) {
+function StatCard({ tone, label, value, loading, children }) {
    return (
       <div className="fac-stat">
          <div className={`fac-stat-ic ${tone}`}>{children}</div>
          <div>
             <div className="fac-stat-label">{label}</div>
-            <div className="fac-stat-value">{value}</div>
+            <div className="fac-stat-value">
+               {loading ? <span className="skeleton fac-stat-skel" /> : value}
+            </div>
          </div>
       </div>
    );
@@ -203,7 +190,7 @@ function CreateFacultyModal({ onClose, onCreated }) {
                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                         </Icon>
                         <span>
-                           Role is set to <b>Coordinator</b>. Email is pre-verified,
+                           Role is set to <b>Faculty</b>. Email is pre-verified,
                            no OTP needed. The generated password is shown once and
                            emailed — store it safely.
                         </span>
@@ -291,6 +278,7 @@ export default function Faculty() {
    const [search, setSearch] = useState("");
    const [debounced, setDebounced] = useState("");
    const [filter, setFilter] = useState("all");
+   const [sort, setSort] = useState("new");
    const [page, setPage] = useState(1);
    const [data, setData] = useState(null);
    const [loadedKey, setLoadedKey] = useState(null);
@@ -299,7 +287,7 @@ export default function Faculty() {
    const [stats, setStats] = useState(null);
    const reqIdRef = useRef(0);
 
-   const currentKey = `${debounced}|${filter}|${page}`;
+   const currentKey = `${debounced}|${filter}|${sort}|${page}`;
    const loading = loadedKey !== currentKey;
 
    useEffect(() => {
@@ -308,9 +296,13 @@ export default function Faculty() {
    }, [search]);
 
    // Reset to page 1 when filters change.
-   const [prevFilters, setPrevFilters] = useState({ debounced, filter });
-   if (prevFilters.debounced !== debounced || prevFilters.filter !== filter) {
-      setPrevFilters({ debounced, filter });
+   const [prevFilters, setPrevFilters] = useState({ debounced, filter, sort });
+   if (
+      prevFilters.debounced !== debounced ||
+      prevFilters.filter !== filter ||
+      prevFilters.sort !== sort
+   ) {
+      setPrevFilters({ debounced, filter, sort });
       setPage(1);
    }
 
@@ -320,12 +312,13 @@ export default function Faculty() {
 
    const fetchFaculty = useCallback(() => {
       const myReqId = ++reqIdRef.current;
-      const myKey = `${debounced}|${filter}|${page}`;
+      const myKey = `${debounced}|${filter}|${sort}|${page}`;
       adminApi
          .listUsers({
-            role: "coordinator",
+            role: "faculty",
             q: debounced || undefined,
             status: filter === "all" ? undefined : filter,
+            sort,
             page,
             limit: PAGE_SIZE,
          })
@@ -344,7 +337,7 @@ export default function Faculty() {
          .finally(() => {
             if (myReqId === reqIdRef.current) setLoadedKey(myKey);
          });
-   }, [debounced, filter, page, toast]);
+   }, [debounced, filter, sort, page, toast]);
 
    useEffect(() => {
       fetchFaculty();
@@ -397,14 +390,29 @@ export default function Faculty() {
    }
 
    return (
-      <AppShell title="Faculty">
+      <AppShell
+         title="All Faculties"
+         topbarRight={
+            <button
+               type="button"
+               className="btn btn-primary"
+               onClick={() => setModalOpen(true)}
+            >
+               <Icon size={13} strokeWidth={2.5}>
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+               </Icon>
+               Create faculty
+            </button>
+         }
+      >
          <div className="main faculty-page">
             <div className="fac-pagehead">
                <div className="breadcrumb">
                   Institute <span className="sep">›</span>{" "}
-                  <span className="now">Faculty</span>
+                  <span className="now">All Faculties</span>
                </div>
-               <h1 className="fac-page-title">Faculty &amp; coordinators</h1>
+               <h1 className="fac-page-title">All Faculties</h1>
                <p className="fac-page-sub">
                   Mint faculty accounts. Each gets an email with login credentials.
                   Coordinators can then be{" "}
@@ -416,13 +424,13 @@ export default function Faculty() {
             </div>
 
             <div className="fac-stat-row">
-               <StatCard tone="purple" label="Total faculty" value={stats?.total ?? "—"}>
+               <StatCard tone="purple" label="Total faculty" value={stats?.total} loading={!stats}>
                   <Icon size={20} strokeWidth={2.2}>
                      <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
                      <path d="M6 12v5c3 3 9 3 12 0v-5" />
                   </Icon>
                </StatCard>
-               <StatCard tone="green" label="Active" value={stats?.active ?? "—"}>
+               <StatCard tone="green" label="Active" value={stats?.active} loading={!stats}>
                   <Icon size={20} strokeWidth={2.2}>
                      <path d="M9 12l2 2 4-4" />
                      <circle cx="12" cy="12" r="10" />
@@ -431,7 +439,8 @@ export default function Faculty() {
                <StatCard
                   tone="orange"
                   label="Pending first login"
-                  value={stats?.pending ?? "—"}
+                  value={stats?.pending}
+                  loading={!stats}
                >
                   <Icon size={20} strokeWidth={2.2}>
                      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -441,7 +450,8 @@ export default function Faculty() {
                <StatCard
                   tone="blue"
                   label="Coordinating clubs"
-                  value={stats?.coordinatingClubs ?? "—"}
+                  value={stats?.coordinatingClubs}
+                  loading={!stats}
                >
                   <Icon size={20} strokeWidth={2.2}>
                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -475,17 +485,25 @@ export default function Faculty() {
                      </button>
                   ))}
                </div>
-               <button
-                  type="button"
-                  className="btn btn-primary fac-export"
-                  onClick={() => setModalOpen(true)}
-               >
-                  <Icon size={13} strokeWidth={2.5}>
-                     <line x1="12" y1="5" x2="12" y2="19" />
-                     <line x1="5" y1="12" x2="19" y2="12" />
+               <div className="ac-sort">
+                  <Icon size={13} strokeWidth={2.2}>
+                     <line x1="3" y1="6" x2="13" y2="6" />
+                     <line x1="3" y1="12" x2="10" y2="12" />
+                     <line x1="3" y1="18" x2="7" y2="18" />
                   </Icon>
-                  Create faculty
-               </button>
+                  <span>Sort</span>
+                  <select
+                     value={sort}
+                     onChange={(e) => setSort(e.target.value)}
+                     aria-label="Sort faculty"
+                  >
+                     {SORTS.map((s) => (
+                        <option key={s.id} value={s.id}>
+                           {s.label}
+                        </option>
+                     ))}
+                  </select>
+               </div>
             </div>
 
             <div className="fac-table-card">
@@ -501,18 +519,18 @@ export default function Faculty() {
                         <thead>
                            <tr>
                               <th>Faculty</th>
-                              <th>Status</th>
                               <th>Clubs</th>
                               <th>Created</th>
                               <th>Last active</th>
-                              <th className="ta-right">Active</th>
+                              <th>Active</th>
                            </tr>
                         </thead>
                         <tbody>
-                           {items.map((u) => {
-                              const status = derivedStatus(u);
-                              return (
-                                 <tr key={u.id} className={status === "inactive" ? "inactive" : ""}>
+                           {items.map((u) => (
+                              <tr
+                                 key={u.id}
+                                 className={u.isActive ? "" : "inactive"}
+                              >
                                     <td>
                                        <div className="fac-cell">
                                           <div
@@ -526,9 +544,6 @@ export default function Faculty() {
                                              <div className="fac-email">{u.email}</div>
                                           </div>
                                        </div>
-                                    </td>
-                                    <td>
-                                       <StatusPill status={status} />
                                     </td>
                                     <td>
                                        <span className={`fac-clubs${u.clubCount === 0 ? " zero" : ""}`}>
@@ -557,8 +572,7 @@ export default function Faculty() {
                                        </div>
                                     </td>
                                  </tr>
-                              );
-                           })}
+                           ))}
                         </tbody>
                      </table>
 

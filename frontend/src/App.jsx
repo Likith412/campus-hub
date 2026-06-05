@@ -12,6 +12,7 @@ import Clubs from "./pages/Clubs";
 import ClubDetail from "./pages/ClubDetail";
 import CreateClub from "./pages/CreateClub";
 import Faculty from "./pages/Faculty";
+import AllClubs from "./pages/AllClubs";
 
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ToastProvider } from "./contexts/ToastProvider";
@@ -52,19 +53,19 @@ function App() {
                      <Route path="/clubs" element={<Clubs />} />
                   </Route>
 
-                  {/* Profile is for students + coordinators only (super admin has none). */}
+                  {/* Profile is for students + faculty only (super admin has none). */}
                   <Route
                      element={
-                        <ProtectedRoute roles={["student", "coordinator"]} />
+                        <ProtectedRoute roles={["student", "faculty"]} />
                      }
                   >
                      <Route path="/profile" element={<Profile />} />
                   </Route>
 
-                  {/* Club creation — coordinators + super admins. */}
+                  {/* Club creation — faculty + super admins. */}
                   <Route
                      element={
-                        <ProtectedRoute roles={["coordinator", "superAdmin"]} />
+                        <ProtectedRoute roles={["faculty", "superAdmin"]} />
                      }
                   >
                      <Route path="/clubs/new" element={<CreateClub />} />
@@ -77,6 +78,7 @@ function App() {
                         element={<Navigate to="/admin/faculty" replace />}
                      />
                      <Route path="/admin/faculty" element={<Faculty />} />
+                     <Route path="/admin/clubs" element={<AllClubs />} />
                   </Route>
 
                   {/* Catch-all: any unmatched URL renders the 404 page. */}

@@ -57,11 +57,11 @@ async function sendPasswordResetEmail(to, link) {
    await addToQueue("sendEmail", { to, subject, html, text });
 }
 
-// Sends a new faculty (coordinator) their generated login credentials.
+// Sends a new faculty their generated login credentials.
 async function sendFacultyAccountEmail(to, { name, password, loginUrl }) {
    const subject = "Your CampusHub faculty account";
-   const text = `Hi ${name},\n\nA CampusHub coordinator account has been created for you.\n\nLogin: ${loginUrl}\nEmail: ${to}\nTemporary password: ${password}\n\nPlease sign in and change your password from your profile.`;
-   const html = `<p>Hi ${name},</p><p>A CampusHub coordinator account has been created for you.</p><p><b>Login:</b> <a href="${loginUrl}">${loginUrl}</a><br/><b>Email:</b> ${to}<br/><b>Temporary password:</b> <code>${password}</code></p><p>Please sign in and change your password from your profile.</p>`;
+   const text = `Hi ${name},\n\nA CampusHub faculty account has been created for you.\n\nLogin: ${loginUrl}\nEmail: ${to}\nTemporary password: ${password}\n\nPlease sign in and change your password from your profile.`;
+   const html = `<p>Hi ${name},</p><p>A CampusHub faculty account has been created for you.</p><p><b>Login:</b> <a href="${loginUrl}">${loginUrl}</a><br/><b>Email:</b> ${to}<br/><b>Temporary password:</b> <code>${password}</code></p><p>Please sign in and change your password from your profile.</p>`;
    await addToQueue("sendEmail", { to, subject, html, text });
 }
 

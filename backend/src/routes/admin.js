@@ -11,11 +11,13 @@ const {
    createFacultyBodySchema,
    listUsersQuerySchema,
    setUserActiveBodySchema,
+   listAllClubsQuerySchema,
 } = require("../validators/admin");
 
 const router = express.Router();
 router.use(authenticate, requireRole(ROLES.SUPER_ADMIN));
 
+router.get("/clubs", validateQuery(listAllClubsQuerySchema), admin.listAllClubs);
 router.get("/users", validateQuery(listUsersQuerySchema), admin.listUsers);
 router.get("/faculty/stats", admin.getFacultyStats);
 router.post("/users", validate(createFacultyBodySchema), admin.createFaculty);

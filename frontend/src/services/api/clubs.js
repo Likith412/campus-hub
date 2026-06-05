@@ -1,21 +1,12 @@
 // Wrappers around /api/clubs/* endpoints.
 import { apiClient } from "./client";
 
-export async function listClubs({
-   q,
-   category,
-   sort,
-   verified,
-   status,
-   page,
-   limit,
-} = {}) {
+export async function listClubs({ q, category, sort, verified, page, limit } = {}) {
    const params = new URLSearchParams();
    if (q) params.set("q", q);
    if (category) params.set("category", category);
    if (sort) params.set("sort", sort);
    if (verified) params.set("verified", verified);
-   if (status) params.set("status", status);
    if (page) params.set("page", String(page));
    if (limit) params.set("limit", String(limit));
    const qs = params.toString();

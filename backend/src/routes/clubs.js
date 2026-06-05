@@ -22,11 +22,17 @@ const {
 const router = express.Router();
 router.use(authenticate);
 
-router.get("/", validateQuery(listClubsQuerySchema), clubs.listClubs);
-// Coordinators and superAdmins can create clubs.
+// Browse/join is a student feature — superAdmins use GET /api/admin/clubs instead.
+router.get(
+   "/",
+   requireRole(ROLES.STUDENT),
+   validateQuery(listClubsQuerySchema),
+   clubs.listClubs,
+);
+// Faculty and superAdmins can create clubs.
 router.post(
    "/",
-   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
+   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
    validate(createClubBodySchema),
    clubs.createClub,
 );
@@ -49,7 +55,7 @@ router.get("/:slug", clubs.getClub);
 // Edit a club — gated per-club (coordinator of this club or superAdmin) inside the controller.
 router.patch(
    "/:slug",
-   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
+   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
    validate(updateClubBodySchema),
    clubs.updateClub,
 );
@@ -77,19 +83,19 @@ router.get(
 // Member admin: status (approve/reject) and role (promote/demote) are separate operations.
 router.patch(
    "/:slug/members/:userId/status",
-   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
+   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
    validate(memberStatusBodySchema),
    clubs.moderateMember,
 );
 router.patch(
    "/:slug/members/:userId/role",
-   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
+   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
    validate(memberRoleBodySchema),
    clubs.setMemberRole,
 );
 router.delete(
    "/:slug/members/:userId",
-   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
+   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
    clubs.removeMember,
 );
 

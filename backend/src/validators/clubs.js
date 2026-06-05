@@ -71,8 +71,6 @@ const listClubsQuerySchema = z
       category: z.enum(CLUB_CATEGORIES).optional(),
       sort: z.enum(SORTS).default("popular"),
       verified: z.enum(["true", "false"]).optional(),
-      // superAdmin-only filter; ignored (pinned to "active") for everyone else.
-      status: z.enum(["active", "suspended", "archived"]).optional(),
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(50).default(12),
    })

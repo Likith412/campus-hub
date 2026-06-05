@@ -17,7 +17,7 @@ async function syncIndexes() {
    }
 }
 
-// Idempotent upsert of the built-in roles (student, coordinator, superAdmin).
+// Idempotent upsert of the built-in roles (student, faculty, superAdmin).
 async function seedRoles() {
    const { Role } = models;
    for (const role of DEFAULT_ROLES) {

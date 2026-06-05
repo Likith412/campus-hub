@@ -5,7 +5,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const { connectDatabase, disconnectDatabase } = require("../config/database");
-const { Student, Coordinator, Club, ClubMembership } = require("../models");
+const { Student, Faculty, Club, ClubMembership } = require("../models");
 const { ROLES } = require("../constants/roles");
 const { ROLE_WEIGHT } = require("../models/ClubMembership");
 const { hashPassword } = require("../utils/password");
@@ -27,9 +27,9 @@ const STUDENT_NAMES = [
 
 // Upsert a user by email via the role discriminator (sets the right subtype + fields).
 async function upsertUser({ email, name, role, dept, year, passwordHash }) {
-   const Model = role === ROLES.COORDINATOR ? Coordinator : Student;
+   const Model = role === ROLES.FACULTY ? Faculty : Student;
    const profile =
-      role === ROLES.COORDINATOR
+      role === ROLES.FACULTY
          ? { department: dept }
          : { department: dept, year };
    const doc = await Model.findOneAndUpdate(
@@ -91,11 +91,11 @@ async function seed() {
    for (let ci = 0; ci < clubs.length; ci++) {
       const club = clubs[ci];
 
-      // One dedicated coordinator user per club (system role + approved coordinator membership).
+      // One dedicated faculty user per club (faculty system role + approved coordinator membership).
       const coordinator = await upsertUser({
          email: `coordinator.${club.slug}@college.edu`,
          name: `${club.name} Coordinator`,
-         role: ROLES.COORDINATOR,
+         role: ROLES.FACULTY,
          dept: DEPARTMENTS[ci % DEPARTMENTS.length],
          year: "4",
          passwordHash,

@@ -1,11 +1,12 @@
 // Wrappers around /api/admin/* endpoints (superAdmin-only).
 import { apiClient } from "./client";
 
-export async function listUsers({ role, q, status, page, limit } = {}) {
+export async function listUsers({ role, q, status, sort, page, limit } = {}) {
    const params = new URLSearchParams();
    if (role) params.set("role", role);
    if (q) params.set("q", q);
    if (status) params.set("status", status);
+   if (sort) params.set("sort", sort);
    if (page) params.set("page", String(page));
    if (limit) params.set("limit", String(limit));
    const qs = params.toString();
@@ -15,6 +16,20 @@ export async function listUsers({ role, q, status, page, limit } = {}) {
 
 export async function getFacultyStats() {
    const { data } = await apiClient.get("/admin/faculty/stats");
+   return data;
+}
+
+// Every club across the institute (any status) — superAdmin "All Clubs" view.
+export async function listClubs({ q, category, status, sort, page, limit } = {}) {
+   const params = new URLSearchParams();
+   if (q) params.set("q", q);
+   if (category) params.set("category", category);
+   if (status) params.set("status", status);
+   if (sort) params.set("sort", sort);
+   if (page) params.set("page", String(page));
+   if (limit) params.set("limit", String(limit));
+   const qs = params.toString();
+   const { data } = await apiClient.get(`/admin/clubs${qs ? `?${qs}` : ""}`);
    return data;
 }
 

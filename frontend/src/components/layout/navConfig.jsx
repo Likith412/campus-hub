@@ -117,7 +117,7 @@ export const NAV_BY_ROLE = {
          icon: I.user,
       },
    ],
-   coordinator: [
+   faculty: [
       { section: "Manage" },
       { id: "admin", label: "Club Overview", to: "/", icon: I.admin },
       { id: "wizard", label: "Create Event", to: "/events/new", icon: I.plus },
@@ -146,7 +146,8 @@ export const NAV_BY_ROLE = {
    superAdmin: [
       { section: "Institute" },
       { id: "super", label: "Overview", to: "/", icon: I.shield },
-      { id: "faculty", label: "Faculty", to: "/admin/faculty", icon: I.admin },
+      { id: "faculty", label: "All Faculties", to: "/admin/faculty", icon: I.admin },
+      { id: "clubs", label: "All Clubs", to: "/admin/clubs", icon: I.admin },
       { id: "users", label: "All Users", to: "/users", icon: I.admin },
       { id: "events", label: "All Events", to: "/events", icon: I.calendar },
       { section: "System" },

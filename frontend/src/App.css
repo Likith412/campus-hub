@@ -3424,6 +3424,12 @@ body {
    margin-top: 2px;
    color: var(--text-primary);
 }
+.fac-stat-skel {
+   width: 44px;
+   height: 22px;
+   margin: 4px 0;
+   vertical-align: middle;
+}
 
 /* Toolbar */
 .fac-toolbar {
@@ -3618,7 +3624,7 @@ body {
 .fac-row-actions {
    display: flex;
    align-items: center;
-   justify-content: flex-end;
+   justify-content: flex-start;
    min-height: 20px;
 }
 .fac-toggle {
@@ -4077,6 +4083,207 @@ body {
    cursor: not-allowed;
 }
 
+/* ── All Clubs (superAdmin) — reuses the faculty table shell (.fac-*) ──── */
+.ac-select {
+   height: 38px;
+   padding: 0 30px 0 12px;
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 8px;
+   font-size: 12.5px;
+   font-family: inherit;
+   color: var(--text-primary);
+   cursor: pointer;
+}
+.ac-select:focus {
+   outline: none;
+   border-color: var(--accent-purple);
+   box-shadow: 0 0 0 3px var(--accent-purple-light);
+}
+/* Sort control: an icon + "Sort" label + a borderless select, in one pill.
+   margin-left:auto pushes it (and the New club button after it) to the far right. */
+.ac-sort {
+   margin-left: auto;
+   display: inline-flex;
+   align-items: center;
+   gap: 7px;
+   height: 38px;
+   padding: 0 8px 0 12px;
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 8px;
+   color: var(--text-tertiary);
+   transition: all var(--transition-base);
+}
+.ac-sort:focus-within {
+   border-color: var(--accent-purple);
+   box-shadow: 0 0 0 3px var(--accent-purple-light);
+   color: var(--accent-purple);
+}
+.ac-sort > span {
+   font-size: 12px;
+   font-weight: 600;
+   color: var(--text-secondary);
+}
+.ac-sort select {
+   border: none;
+   background: none;
+   font-family: inherit;
+   font-size: 12.5px;
+   font-weight: 600;
+   color: var(--text-primary);
+   cursor: pointer;
+   padding: 0 2px;
+}
+.ac-sort select:focus {
+   outline: none;
+}
+.fac-dt tbody tr.ac-row {
+   cursor: pointer;
+}
+.fac-dt tbody tr.ac-row.dim {
+   opacity: 0.6;
+}
+.ac-logo {
+   width: 40px;
+   height: 40px;
+   border-radius: 10px;
+   display: grid;
+   place-items: center;
+   color: #fff;
+   font-weight: 800;
+   font-size: 13px;
+   flex-shrink: 0;
+   overflow: hidden;
+}
+.ac-logo img {
+   width: 100%;
+   height: 100%;
+   object-fit: cover;
+}
+.ac-name {
+   display: flex;
+   align-items: center;
+   gap: 6px;
+   font-weight: 600;
+   font-size: 13.5px;
+   color: var(--text-primary);
+}
+.ac-tagline {
+   font-size: 11.5px;
+   color: var(--text-tertiary);
+   margin-top: 1px;
+   max-width: 280px;
+   overflow: hidden;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+}
+.ac-domain {
+   font-size: 11px;
+   font-weight: 600;
+   padding: 2px 8px;
+   border-radius: 4px;
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
+}
+.ac-coord {
+   font-size: 12.5px;
+   color: var(--text-secondary);
+}
+.ac-coord.unassigned {
+   color: var(--accent-orange);
+   font-weight: 600;
+}
+.ac-coord-more {
+   display: inline-block;
+   margin-left: 6px;
+   padding: 1px 6px;
+   border-radius: var(--radius-full);
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
+   font-size: 11px;
+   font-weight: 700;
+   font-family: var(--font-mono);
+}
+.ac-num {
+   font-family: var(--font-mono);
+   font-size: 12px;
+   color: var(--text-secondary);
+}
+.ac-num b {
+   color: var(--text-primary);
+   font-weight: 600;
+}
+.ac-status {
+   display: inline-flex;
+   align-items: center;
+   gap: 5px;
+   font-size: 11px;
+   font-weight: 600;
+   padding: 3px 9px;
+   border-radius: var(--radius-full);
+}
+.ac-status .dot {
+   width: 6px;
+   height: 6px;
+   border-radius: var(--radius-full);
+}
+.ac-status.active {
+   background: var(--accent-green-light);
+   color: #047857;
+}
+.ac-status.active .dot {
+   background: var(--accent-green);
+}
+.ac-status.suspended {
+   background: var(--accent-red-light);
+   color: #b91c1c;
+}
+.ac-status.suspended .dot {
+   background: var(--accent-red);
+}
+.ac-status.archived {
+   background: var(--bg-elevated);
+   color: var(--text-tertiary);
+}
+.ac-status.archived .dot {
+   background: var(--text-tertiary);
+}
+/* Inline per-row status changer — a colour-coded pill <select>. */
+.ac-status-select {
+   appearance: none;
+   -webkit-appearance: none;
+   height: 28px;
+   padding: 0 26px 0 11px;
+   border: 1px solid transparent;
+   border-radius: var(--radius-full);
+   font-size: 11.5px;
+   font-weight: 600;
+   font-family: inherit;
+   cursor: pointer;
+   background-repeat: no-repeat;
+   background-position: right 9px center;
+}
+.ac-status-select:disabled {
+   opacity: 0.55;
+   cursor: not-allowed;
+}
+.ac-status-select.active {
+   background-color: var(--accent-green-light);
+   color: #047857;
+   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23047857' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+.ac-status-select.suspended {
+   background-color: var(--accent-red-light);
+   color: #b91c1c;
+   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23b91c1c' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+.ac-status-select.archived {
+   background-color: var(--bg-elevated);
+   color: var(--text-secondary);
+   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%23999999' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+}
+
 /* Private indicator on the clubs list row */
 .cr-private {
    display: inline-flex;
@@ -4317,9 +4524,9 @@ body {
 }
 
 .create-club .wizard {
-   max-width: 1180px;
+   max-width: 1400px;
    margin: 0 auto;
-   padding: 28px 32px 96px;
+   padding: 24px 32px 96px;
    animation: ccFadeUp 300ms ease;
 }
 .create-club .wizard-head {
