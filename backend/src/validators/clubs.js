@@ -71,6 +71,8 @@ const listClubsQuerySchema = z
       category: z.enum(CLUB_CATEGORIES).optional(),
       sort: z.enum(SORTS).default("popular"),
       verified: z.enum(["true", "false"]).optional(),
+      // superAdmin-only filter; ignored (pinned to "active") for everyone else.
+      status: z.enum(["active", "suspended", "archived"]).optional(),
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(50).default(12),
    })
@@ -96,12 +98,56 @@ const memberRoleBodySchema = z
    .object({ role: z.enum(MEMBERSHIP_ROLES) })
    .strict();
 
+// PATCH /api/clubs/:slug — edit a club. Every field optional; at least one required.
+const updateClubBodySchema = z
+   .object({
+      name: z.string().trim().min(3).max(80),
+      tagline: z.string().trim().max(90),
+      description: z.string().trim().max(500),
+      category: z.enum(CLUB_CATEGORIES),
+      logoUrl: urlOrEmpty,
+      bannerUrl: urlOrEmpty,
+      tags: z.array(z.string().trim().max(40)).max(10),
+      settings: z
+         .object({
+            joinPolicy: z.enum(JOIN_POLICIES).optional(),
+            isPrivate: z.boolean().optional(),
+         })
+         .strict(),
+      socialLinks: z.object({
+         website: urlOrEmpty,
+         instagram: urlOrEmpty,
+         linkedin: urlOrEmpty,
+      }),
+      coverFrom: z.string().regex(HEX_COLOR),
+      coverTo: z.string().regex(HEX_COLOR),
+      foundedYear: z.coerce
+         .number()
+         .int()
+         .min(1900)
+         .max(new Date().getFullYear()),
+   })
+   .partial()
+   .strict()
+   .refine((b) => Object.keys(b).length > 0, {
+      message: "Provide at least one field to update",
+   });
+
+// POST /api/clubs/:slug/coordinators — assign another faculty as a per-club coordinator.
+const addCoordinatorBodySchema = z
+   .object({
+      userId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid user id"),
+   })
+   .strict();
+
 module.exports = {
    listClubsQuerySchema,
    listMembersQuerySchema,
    memberStatusBodySchema,
    memberRoleBodySchema,
    createClubBodySchema,
+   updateClubBodySchema,
+   addCoordinatorBodySchema,
    verificationBodySchema,
    statusBodySchema,
    SORTS,

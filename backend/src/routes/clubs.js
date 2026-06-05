@@ -13,6 +13,8 @@ const {
    memberStatusBodySchema,
    memberRoleBodySchema,
    createClubBodySchema,
+   updateClubBodySchema,
+   addCoordinatorBodySchema,
    verificationBodySchema,
    statusBodySchema,
 } = require("../validators/clubs");
@@ -44,8 +46,28 @@ router.patch(
 );
 
 router.get("/:slug", clubs.getClub);
+// Edit a club — gated per-club (coordinator of this club or superAdmin) inside the controller.
+router.patch(
+   "/:slug",
+   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
+   validate(updateClubBodySchema),
+   clubs.updateClub,
+);
 router.post("/:slug/join", clubs.joinClub);
 router.delete("/:slug/membership", clubs.leaveClub);
+
+// SuperAdmin-only faculty assignment.
+router.post(
+   "/:slug/coordinators",
+   requireRole(ROLES.SUPER_ADMIN),
+   validate(addCoordinatorBodySchema),
+   clubs.addCoordinator,
+);
+router.delete(
+   "/:slug/coordinators/:userId",
+   requireRole(ROLES.SUPER_ADMIN),
+   clubs.removeCoordinator,
+);
 
 router.get(
    "/:slug/members",
@@ -55,14 +77,20 @@ router.get(
 // Member admin: status (approve/reject) and role (promote/demote) are separate operations.
 router.patch(
    "/:slug/members/:userId/status",
+   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
    validate(memberStatusBodySchema),
    clubs.moderateMember,
 );
 router.patch(
    "/:slug/members/:userId/role",
+   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
    validate(memberRoleBodySchema),
    clubs.setMemberRole,
 );
-router.delete("/:slug/members/:userId", clubs.removeMember);
+router.delete(
+   "/:slug/members/:userId",
+   requireRole(ROLES.COORDINATOR, ROLES.SUPER_ADMIN),
+   clubs.removeMember,
+);
 
 module.exports = router;

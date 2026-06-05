@@ -37,6 +37,7 @@ function publicClubCard(c, membershipByClubId) {
       coverFrom: c.coverFrom,
       coverTo: c.coverTo,
       verified: !!c.verified,
+      status: c.status,
       foundedYear: c.foundedYear,
       tags: c.tags || [],
       memberCount: c.stats?.memberCount ?? 0,
@@ -49,13 +50,18 @@ function publicClubCard(c, membershipByClubId) {
    };
 }
 
-// TODO: Status filtering (archived and suspended - for only superAdmin, active for everyone).
 // GET /api/clubs — paginated list with category counts and per-user membership state.
 async function listClubs(req, res) {
-   const { q, category, sort, verified, page, limit } = req.validatedQuery;
+   const { q, category, sort, verified, status, page, limit } =
+      req.validatedQuery;
    const userId = req.user?._id;
 
-   const baseFilter = { status: "active" };
+   // Everyone sees active clubs. Only a superAdmin may filter to suspended/archived;
+   // for anyone else the status filter is ignored and pinned to "active".
+   const isSuperAdmin = req.user?.role === ROLES.SUPER_ADMIN;
+   const baseFilter = {
+      status: isSuperAdmin && status ? status : "active",
+   };
    if (verified === "true") baseFilter.verified = true;
    if (verified === "false") baseFilter.verified = false;
    const searchFilter = q
@@ -231,6 +237,48 @@ async function createClub(req, res) {
    });
 }
 
+// PATCH /api/clubs/:slug — a club's coordinator (or superAdmin) edits its profile.
+// Only the fields present in the body are touched; slug and verification are not editable here.
+async function updateClub(req, res) {
+   const club = await findActiveClubBySlug(req.params.slug);
+   await assertCoordinator(req.user, club._id);
+
+   const b = req.body;
+   // Dotted $set so nested settings/socialLinks don't clobber sibling keys (e.g. allowGuests).
+   const $set = {};
+   for (const f of [
+      "name",
+      "tagline",
+      "description",
+      "category",
+      "logoUrl",
+      "bannerUrl",
+      "coverFrom",
+      "coverTo",
+      "foundedYear",
+      "tags",
+   ]) {
+      if (b[f] !== undefined) $set[f] = b[f];
+   }
+   if (b.settings?.joinPolicy !== undefined) {
+      $set["settings.joinPolicy"] = b.settings.joinPolicy;
+   }
+   if (b.settings?.isPrivate !== undefined) {
+      $set["settings.isPrivate"] = b.settings.isPrivate;
+   }
+   if (b.socialLinks !== undefined) {
+      for (const k of ["website", "instagram", "linkedin"]) {
+         if (b.socialLinks[k] !== undefined) {
+            $set[`socialLinks.${k}`] = b.socialLinks[k];
+         }
+      }
+   }
+
+   await Club.updateOne({ _id: club._id }, { $set }, { runValidators: true });
+
+   return successResponse(res, 200, "Club updated", { slug: club.slug });
+}
+
 // PATCH /api/clubs/:slug/verification — superAdmin flips the ✓ verified badge.
 async function setVerification(req, res) {
    const club = await Club.findOne({ slug: req.params.slug });
@@ -318,16 +366,30 @@ async function joinClub(req, res) {
    return successResponse(res, 200, "Join processed", { status: nextStatus });
 }
 
-// == TODO: clubadmin can't leave. only superadmin can remove them.
+// == TODO: coordinator can't leave. only superadmin can remove them.
 // DELETE /api/clubs/:slug/membership — leave the club (or cancel a pending request).
 async function leaveClub(req, res) {
    const userId = req.user._id;
    const club = await findActiveClubBySlug(req.params.slug);
 
-   // Atomically flip an active membership to "left"; the filter only matches a
-   // leave-able row, so a concurrent double-leave decrements the count at most once.
+   // A coordinator can't walk away from a club they run — only a superAdmin can remove them or step them down.
+   const current = await ClubMembership.findOne({ userId, clubId: club._id })
+      .select("role status")
+      .lean();
+   if (current?.status === "approved" && current.role === "coordinator") {
+      throw new ForbiddenError(
+         "Coordinators can't leave a club — a super admin must step you down first",
+      );
+   }
+
+   // Atomically flip an active membership to "left" for members.
    const prev = await ClubMembership.findOneAndUpdate(
-      { userId, clubId: club._id, status: { $in: ["approved", "pending"] } },
+      {
+         userId,
+         clubId: club._id,
+         status: { $in: ["approved", "pending"] },
+         role: { $ne: "coordinator" },
+      },
       // Voluntary leave — clear any stale admin-action audit pointer.
       { status: "left", leftAt: new Date(), removedBy: null },
       { returnDocument: "before" },
@@ -351,7 +413,12 @@ async function leaveClub(req, res) {
 
 // GET /api/clubs/:slug — public detail with current user's membership state inlined.
 async function getClub(req, res) {
-   const club = await findActiveClubBySlug(req.params.slug);
+   // Look up by slug regardless of status — non-active clubs stay visible to superAdmin.
+   const club = await Club.findOne({ slug: req.params.slug });
+   if (!club) throw new NotFoundError("Club not found");
+   if (club.status !== "active" && req.user?.role !== ROLES.SUPER_ADMIN) {
+      throw new NotFoundError("Club not found");
+   }
    const userId = req.user?._id;
 
    let membership = null;
@@ -373,6 +440,7 @@ async function getClub(req, res) {
       coverFrom: club.coverFrom,
       coverTo: club.coverTo,
       verified: !!club.verified,
+      status: club.status,
       foundedYear: club.foundedYear,
       tags: club.tags || [],
       socialLinks: club.socialLinks || {},
@@ -498,8 +566,6 @@ async function listMembers(req, res) {
 }
 
 // PATCH /api/clubs/:slug/members/:userId/status — coordinator accepts/rejects a join request.
-// Approving accepts a pending request OR re-invites an admin-removed member; rejecting only
-// applies to a pending request. The approve transition bumps memberCount.
 async function moderateMember(req, res) {
    const { status } = req.body; // "approved" | "rejected"
    const club = await findActiveClubBySlug(req.params.slug);
@@ -512,10 +578,12 @@ async function moderateMember(req, res) {
    if (!m) throw new NotFoundError("Membership not found");
 
    if (status === "approved") {
+      // Approving accepts a pending request OR re-invites an admin-removed member.
       if (m.status !== "pending" && m.status !== "removed") {
          throw new ConflictError("Membership is not pending or removed");
       }
    } else if (m.status !== "pending") {
+      // rejecting only applies to a pending request
       throw new ConflictError("Membership is not pending");
    }
 
@@ -577,6 +645,17 @@ async function setMemberRole(req, res) {
       );
    }
 
+   // Only platform `coordinator` (faculty) accounts may hold the club coordinator role —
+   // never a student or superAdmin. (Members reach this list by joining, i.e. students.)
+   if (role === "coordinator") {
+      const target = await User.findById(m.userId).select("role").lean();
+      if (target?.role !== ROLES.COORDINATOR) {
+         throw new ConflictError(
+            "Only faculty (coordinator) accounts can be made a club coordinator",
+         );
+      }
+   }
+
    m.role = role; // roleWeight kept in sync by the pre-save hook
    await m.save();
 
@@ -593,13 +672,32 @@ async function removeMember(req, res) {
       throw new ConflictError("Use leave to remove your own membership");
    }
 
-   // Atomically flip an active membership to "removed"; the filter only matches
-   // an active row, so a concurrent double-remove decrements the count at most once.
+   // Coordinators are managed only via the superAdmin coordinators endpoint — never kicked
+   // here. This keeps the whole coordinator lifecycle (assign / step-down) superAdmin-owned.
+   const target = await ClubMembership.findOne({
+      clubId: club._id,
+      userId: req.params.userId,
+   })
+      .select("role status")
+      .lean();
+   if (
+      target &&
+      ["approved", "pending"].includes(target.status) &&
+      target.role === "coordinator"
+   ) {
+      throw new ForbiddenError(
+         "Use the coordinators endpoint to step a coordinator down first",
+      );
+   }
+
+   // Atomically flip an active member row to "removed"; the filter excludes coordinators and
+   // only matches an active row, so a concurrent double-remove decrements the count at most once.
    const prev = await ClubMembership.findOneAndUpdate(
       {
          clubId: club._id,
          userId: req.params.userId,
          status: { $in: ["approved", "pending"] },
+         role: { $ne: "coordinator" },
       },
       { status: "removed", leftAt: new Date(), removedBy: req.user._id },
       { returnDocument: "before" },
@@ -616,10 +714,84 @@ async function removeMember(req, res) {
    return successResponse(res, 200, "Member removed", { status: "removed" });
 }
 
+// POST /api/clubs/:slug/coordinators — superAdmin assigns another faculty as a club coordinator.
+async function addCoordinator(req, res) {
+   const club = await findActiveClubBySlug(req.params.slug);
+   const { userId } = req.body;
+
+   const user = await User.findOne({ _id: userId, role: ROLES.COORDINATOR })
+      .select("isActive")
+      .lean();
+   if (!user) throw new NotFoundError("No faculty account with that id");
+   if (!user.isActive) {
+      throw new ConflictError("That faculty account is deactivated");
+   }
+
+   const existing = await ClubMembership.findOne({ userId, clubId: club._id });
+   if (existing?.status === "approved" && existing.role === "coordinator") {
+      throw new ConflictError("Already a coordinator of this club");
+   }
+
+   await ClubMembership.findOneAndUpdate(
+      { userId, clubId: club._id },
+      {
+         role: "coordinator",
+         roleWeight: ROLE_WEIGHT.coordinator,
+         status: "approved",
+         joinedAt: new Date(),
+         leftAt: null,
+         removedBy: null,
+      },
+      { upsert: true, setDefaultsOnInsert: true },
+   );
+
+   // Count them only if they weren't already an approved member of the club.
+   if (existing?.status !== "approved") {
+      await Club.updateOne(
+         { _id: club._id },
+         { $inc: { "stats.memberCount": 1 } },
+      );
+   }
+
+   return successResponse(res, 200, "Coordinator added", { userId });
+}
+
+// DELETE /api/clubs/:slug/coordinators/:userId — superAdmin steps a coordinator down to member.
+async function removeCoordinator(req, res) {
+   const club = await findActiveClubBySlug(req.params.slug);
+   const { userId } = req.params;
+
+   const m = await ClubMembership.findOne({
+      userId,
+      clubId: club._id,
+      status: "approved",
+      role: "coordinator",
+   });
+   if (!m) throw new NotFoundError("Not a coordinator of this club");
+
+   // Refuses to remove the last coordinator (add the replacement first — add-before-remove swap).
+   const coordinatorCount = await ClubMembership.countDocuments({
+      clubId: club._id,
+      status: "approved",
+      role: "coordinator",
+   });
+   if (coordinatorCount <= 1) {
+      throw new ConflictError(
+         "A club must keep at least one coordinator — add another before removing this one",
+      );
+   }
+
+   m.role = "member"; // roleWeight resynced by the pre-save hook
+   await m.save();
+
+   return successResponse(res, 200, "Coordinator stepped down", { userId });
+}
+
 module.exports = {
    listClubs,
    getClub,
    createClub,
+   updateClub,
    setVerification,
    setStatus,
    joinClub,
@@ -628,4 +800,6 @@ module.exports = {
    moderateMember,
    setMemberRole,
    removeMember,
+   addCoordinator,
+   removeCoordinator,
 };
