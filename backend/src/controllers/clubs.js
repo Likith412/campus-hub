@@ -6,7 +6,7 @@ const {
    ConflictError,
    ValidationError,
 } = require("../utils/errors");
-const { Club, ClubMembership, User } = require("../models");
+const { Club, ClubMembership, User, Event } = require("../models");
 const { ROLE_WEIGHT } = require("../models/ClubMembership");
 const { ROLES } = require("../constants/roles");
 
@@ -297,6 +297,30 @@ async function setStatus(req, res) {
    return successResponse(res, 200, "Status updated", { status: club.status });
 }
 
+// DELETE /api/clubs/:slug — permanently delete a club + its memberships and events.
+// Allowed for a superAdmin, or the faculty who created the club.
+async function deleteClub(req, res) {
+   const club = await Club.findOne({ slug: req.params.slug }).select(
+      "_id createdBy",
+   );
+   if (!club) throw new NotFoundError("Club not found");
+
+   const isSuperAdmin = req.user.role === ROLES.SUPER_ADMIN;
+   const isCreator = String(club.createdBy) === String(req.user._id);
+   if (!isSuperAdmin && !isCreator) {
+      throw new ForbiddenError("Only the club's creator or a super admin can delete it");
+   }
+
+   // Cascade: drop memberships and events before the club itself.
+   await Promise.all([
+      ClubMembership.deleteMany({ clubId: club._id }),
+      Event.deleteMany({ clubId: club._id }),
+   ]);
+   await Club.deleteOne({ _id: club._id });
+
+   return successResponse(res, 200, "Club deleted", { slug: req.params.slug });
+}
+
 // POST /api/clubs/:slug/join — open=instant approved, request=pending, invite-only=forbidden.
 async function joinClub(req, res) {
    const userId = req.user._id;
@@ -425,6 +449,7 @@ async function getClub(req, res) {
       id: club._id,
       slug: club.slug,
       name: club.name,
+      createdBy: club.createdBy,
       category: club.category,
       tagline: club.tagline,
       description: club.description,
@@ -787,6 +812,7 @@ module.exports = {
    updateClub,
    setVerification,
    setStatus,
+   deleteClub,
    joinClub,
    leaveClub,
    listMembers,

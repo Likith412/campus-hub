@@ -59,6 +59,12 @@ router.patch(
    validate(updateClubBodySchema),
    clubs.updateClub,
 );
+// Delete a club — superAdmin or the creating faculty (enforced in the controller).
+router.delete(
+   "/:slug",
+   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
+   clubs.deleteClub,
+);
 router.post("/:slug/join", clubs.joinClub);
 router.delete("/:slug/membership", clubs.leaveClub);
 

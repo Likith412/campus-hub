@@ -161,7 +161,11 @@ async function getFacultyStats(req, res) {
    const faculty = { role: ROLES.FACULTY };
    const [total, active, pending, coordinatingClubs] = await Promise.all([
       User.countDocuments(faculty),
-      User.countDocuments({ ...faculty, isActive: true, lastLoginAt: { $ne: null } }),
+      User.countDocuments({
+         ...faculty,
+         isActive: true,
+         lastLoginAt: { $ne: null },
+      }),
       User.countDocuments({ ...faculty, isActive: true, lastLoginAt: null }),
       ClubMembership.distinct("clubId", {
          role: "coordinator",
@@ -190,6 +194,40 @@ async function setUserActive(req, res) {
    // Never let one superAdmin lock out another (or themselves) via this endpoint.
    if (user.role === ROLES.SUPER_ADMIN) {
       throw new ForbiddenError("Cannot change a super admin's active status");
+   }
+
+   // Deactivating a faculty who is the sole coordinator of a club would leave it
+   // unmanaged — block until another coordinator is assigned to those clubs.
+   if (!isActive && user.role === ROLES.FACULTY) {
+      const coordClubIds = await ClubMembership.find({
+         userId: user._id,
+         role: "coordinator",
+         status: "approved",
+      }).distinct("clubId");
+      if (coordClubIds.length) {
+         const sole = await ClubMembership.aggregate([
+            {
+               $match: {
+                  clubId: { $in: coordClubIds },
+                  role: "coordinator",
+                  status: "approved",
+               },
+            },
+            { $group: { _id: "$clubId", n: { $sum: 1 } } },
+            { $match: { n: { $lte: 1 } } },
+         ]);
+         if (sole.length) {
+            const clubs = await Club.find({
+               _id: { $in: sole.map((s) => s._id) },
+            })
+               .select("name")
+               .lean();
+            const names = clubs.map((c) => c.name).join(", ");
+            throw new ConflictError(
+               `Can't deactivate — they're the only coordinator of ${names}. Assign another coordinator to ${clubs.length > 1 ? "those clubs" : "that club"} first.`,
+            );
+         }
+      }
    }
 
    user.isActive = isActive;
@@ -239,7 +277,10 @@ async function listAllClubs(req, res) {
       for (const r of rows) {
          if (!r.userId?.name) continue;
          const key = String(r.clubId);
-         coordsByClub.set(key, [...(coordsByClub.get(key) || []), r.userId.name]);
+         coordsByClub.set(key, [
+            ...(coordsByClub.get(key) || []),
+            r.userId.name,
+         ]);
       }
    }
 

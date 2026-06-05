@@ -75,6 +75,12 @@ export async function leaveClub(slug) {
    return data;
 }
 
+// superAdmin or the creating faculty: permanently delete a club + its memberships and events.
+export async function deleteClub(slug) {
+   const { data } = await apiClient.delete(`/clubs/${encodeURIComponent(slug)}`);
+   return data;
+}
+
 export async function getClub(slug) {
    const { data } = await apiClient.get(`/clubs/${encodeURIComponent(slug)}`);
    return data;
