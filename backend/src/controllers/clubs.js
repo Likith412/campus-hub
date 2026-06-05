@@ -127,10 +127,13 @@ async function listClubs(req, res) {
    });
 }
 
-// Find an active club by slug or 404.
-async function findActiveClubBySlug(slug) {
-   const club = await Club.findOne({ slug, status: "active" });
+// Find a club by slug. Non-active (suspended/archived) clubs are visible & manageable only to superAdmin.
+async function findClubBySlugFor(user, slug) {
+   const club = await Club.findOne({ slug });
    if (!club) throw new NotFoundError("Club not found");
+   if (club.status !== "active" && user?.role !== ROLES.SUPER_ADMIN) {
+      throw new NotFoundError("Club not found");
+   }
    return club;
 }
 
@@ -240,7 +243,7 @@ async function createClub(req, res) {
 // PATCH /api/clubs/:slug — a club's coordinator (or superAdmin) edits its profile.
 // Only the fields present in the body are touched; slug and verification are not editable here.
 async function updateClub(req, res) {
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
    await assertCoordinator(req.user, club._id);
 
    const b = req.body;
@@ -309,7 +312,7 @@ async function joinClub(req, res) {
       throw new ForbiddenError("Only students can join clubs");
    }
 
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
 
    const policy = club.settings?.joinPolicy || "request";
    if (policy === "invite-only") {
@@ -370,7 +373,7 @@ async function joinClub(req, res) {
 // DELETE /api/clubs/:slug/membership — leave the club (or cancel a pending request).
 async function leaveClub(req, res) {
    const userId = req.user._id;
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
 
    // A coordinator can't walk away from a club they run — only a superAdmin can remove them or step them down.
    const current = await ClubMembership.findOne({ userId, clubId: club._id })
@@ -413,12 +416,7 @@ async function leaveClub(req, res) {
 
 // GET /api/clubs/:slug — public detail with current user's membership state inlined.
 async function getClub(req, res) {
-   // Look up by slug regardless of status — non-active clubs stay visible to superAdmin.
-   const club = await Club.findOne({ slug: req.params.slug });
-   if (!club) throw new NotFoundError("Club not found");
-   if (club.status !== "active" && req.user?.role !== ROLES.SUPER_ADMIN) {
-      throw new NotFoundError("Club not found");
-   }
+   const club = await findClubBySlugFor(req.user, req.params.slug);
    const userId = req.user?._id;
 
    let membership = null;
@@ -499,7 +497,7 @@ function publicMemberRow(m) {
 // GET /api/clubs/:slug/members — paginated, filterable by role/status. Pending list is admin-only.
 async function listMembers(req, res) {
    const { q, role, status, page, limit } = req.validatedQuery;
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
 
    // Non-approved listings (pending/rejected/left) require a coordinator.
    const viewerIsCoordinator =
@@ -568,7 +566,7 @@ async function listMembers(req, res) {
 // PATCH /api/clubs/:slug/members/:userId/status — coordinator accepts/rejects a join request.
 async function moderateMember(req, res) {
    const { status } = req.body; // "approved" | "rejected"
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
    await assertCoordinator(req.user, club._id);
 
    const m = await ClubMembership.findOne({
@@ -625,7 +623,7 @@ async function moderateMember(req, res) {
 // can't mint new coordinators or demote an existing one.
 async function setMemberRole(req, res) {
    const { role } = req.body; // "coordinator" | "member"
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
    await assertCoordinator(req.user, club._id);
 
    const m = await ClubMembership.findOne({
@@ -664,7 +662,7 @@ async function setMemberRole(req, res) {
 
 // DELETE /api/clubs/:slug/members/:userId — coordinator removes a member (terminal state: "removed").
 async function removeMember(req, res) {
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
    await assertCoordinator(req.user, club._id);
 
    // Don't let a coordinator remove themselves via this endpoint — they should use leaveClub.
@@ -716,7 +714,7 @@ async function removeMember(req, res) {
 
 // POST /api/clubs/:slug/coordinators — superAdmin assigns another faculty as a club coordinator.
 async function addCoordinator(req, res) {
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
    const { userId } = req.body;
 
    const user = await User.findOne({ _id: userId, role: ROLES.COORDINATOR })
@@ -758,7 +756,7 @@ async function addCoordinator(req, res) {
 
 // DELETE /api/clubs/:slug/coordinators/:userId — superAdmin steps a coordinator down to member.
 async function removeCoordinator(req, res) {
-   const club = await findActiveClubBySlug(req.params.slug);
+   const club = await findClubBySlugFor(req.user, req.params.slug);
    const { userId } = req.params;
 
    const m = await ClubMembership.findOne({

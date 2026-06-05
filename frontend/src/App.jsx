@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router";
+import { Routes, Route, Navigate } from "react-router";
 
 import Register from "./pages/Register";
 import Login from "./pages/Login";
@@ -44,8 +44,12 @@ function App() {
                   {/* Everything below requires a logged-in user (any role). */}
                   <Route element={<ProtectedRoute />}>
                      <Route path="/" element={<Home />} />
-                     <Route path="/clubs" element={<Clubs />} />
                      <Route path="/clubs/:slug" element={<ClubDetail />} />
+                  </Route>
+
+                  {/* Club browse/join is a student feature. */}
+                  <Route element={<ProtectedRoute roles={["student"]} />}>
+                     <Route path="/clubs" element={<Clubs />} />
                   </Route>
 
                   {/* Profile is for students + coordinators only (super admin has none). */}
@@ -66,9 +70,13 @@ function App() {
                      <Route path="/clubs/new" element={<CreateClub />} />
                   </Route>
 
-                  {/* SuperAdmin-only platform administration. */}
+                  {/* SuperAdmin-only platform administration, grouped under /admin. */}
                   <Route element={<ProtectedRoute roles={["superAdmin"]} />}>
-                     <Route path="/faculty" element={<Faculty />} />
+                     <Route
+                        path="/admin"
+                        element={<Navigate to="/admin/faculty" replace />}
+                     />
+                     <Route path="/admin/faculty" element={<Faculty />} />
                   </Route>
 
                   {/* Catch-all: any unmatched URL renders the 404 page. */}

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { clubsApi, ApiError } from "../services";
-import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -122,22 +121,6 @@ function joinButtonState(club) {
    return { label: "Join", cls: "" };
 }
 
-// Who sees the join/leave button: a coordinator of the club can't leave; only students
-// get a join CTA. Approved (non-coordinator) members and pending requesters keep theirs.
-function canSeeJoinButton(club, isStudent) {
-   if (
-      club.membershipStatus === "approved" &&
-      club.membershipRole === "coordinator"
-   )
-      return false;
-   if (
-      club.membershipStatus === "approved" ||
-      club.membershipStatus === "pending"
-   )
-      return true;
-   return isStudent;
-}
-
 function MemberIcon() {
    return (
       <Icon size={11}>
@@ -156,9 +139,8 @@ function CalendarIcon() {
    );
 }
 
-function ClubCard({ club, onJoin, onLeave, busy, isStudent }) {
+function ClubCard({ club, onJoin, onLeave, busy }) {
    const btn = joinButtonState(club);
-   const showBtn = canSeeJoinButton(club, isStudent);
    const cat = categoryMeta(club.category);
    const handleClick = (e) => {
       e.preventDefault();
@@ -209,11 +191,6 @@ function ClubCard({ club, onJoin, onLeave, busy, isStudent }) {
                      Unverified
                   </span>
                )}
-               {club.status && club.status !== "active" && (
-                  <span className={`club-status-pill ${club.status}`}>
-                     {club.status}
-                  </span>
-               )}
             </div>
             <div className="club-tagline">{club.tagline || club.description}</div>
             <div className="club-meta">
@@ -243,29 +220,26 @@ function ClubCard({ club, onJoin, onLeave, busy, isStudent }) {
                   <span className="dot" />
                   {POLICY_LABEL[club.joinPolicy] || club.joinPolicy}
                </span>
-               {showBtn && (
-                  <button
-                     type="button"
-                     className={`join-btn ${btn.cls}`}
-                     onClick={handleClick}
-                     disabled={
-                        busy ||
-                        btn.cls === "disabled" ||
-                        club.membershipStatus === "pending"
-                     }
-                  >
-                     {busy ? "…" : btn.label}
-                  </button>
-               )}
+               <button
+                  type="button"
+                  className={`join-btn ${btn.cls}`}
+                  onClick={handleClick}
+                  disabled={
+                     busy ||
+                     btn.cls === "disabled" ||
+                     club.membershipStatus === "pending"
+                  }
+               >
+                  {busy ? "…" : btn.label}
+               </button>
             </div>
          </div>
       </Link>
    );
 }
 
-function ClubRow({ club, onJoin, onLeave, busy, isStudent }) {
+function ClubRow({ club, onJoin, onLeave, busy }) {
    const btn = joinButtonState(club);
-   const showBtn = canSeeJoinButton(club, isStudent);
    const cat = categoryMeta(club.category);
    const handleClick = (e) => {
       e.preventDefault();
@@ -301,11 +275,6 @@ function ClubRow({ club, onJoin, onLeave, busy, isStudent }) {
                      Unverified
                   </span>
                )}
-               {club.status && club.status !== "active" && (
-                  <span className={`club-status-pill ${club.status}`}>
-                     {club.status}
-                  </span>
-               )}
                {club.isPrivate && (
                   <span className="cr-private" title="Private club">
                      <Icon size={9} strokeWidth={2.5}>
@@ -324,22 +293,18 @@ function ClubRow({ club, onJoin, onLeave, busy, isStudent }) {
          <div className="cr-stat">
             Events<b>{club.eventCount}</b>
          </div>
-         {showBtn ? (
-            <button
-               type="button"
-               className={`join-btn ${btn.cls}`}
-               onClick={handleClick}
-               disabled={
-                  busy ||
-                  btn.cls === "disabled" ||
-                  club.membershipStatus === "pending"
-               }
-            >
-               {busy ? "…" : btn.label}
-            </button>
-         ) : (
-            <span />
-         )}
+         <button
+            type="button"
+            className={`join-btn ${btn.cls}`}
+            onClick={handleClick}
+            disabled={
+               busy ||
+               btn.cls === "disabled" ||
+               club.membershipStatus === "pending"
+            }
+         >
+            {busy ? "…" : btn.label}
+         </button>
       </Link>
    );
 }
@@ -349,7 +314,6 @@ export default function Clubs() {
    const [debounced, setDebounced] = useState("");
    const [category, setCategory] = useState("all");
    const [sort, setSort] = useState("popular");
-   const [statusFilter, setStatusFilter] = useState("active"); // superAdmin only
    const [view, setView] = useState("grid"); // grid | list
    const [page, setPage] = useState(1);
    const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
@@ -358,16 +322,11 @@ export default function Clubs() {
    const [loadedKey, setLoadedKey] = useState(null);
    const toast = useToast();
    const confirm = useConfirm();
-   const { user } = useAuth();
-   const canCreate =
-      user?.role === "coordinator" || user?.role === "superAdmin";
-   const isSuperAdmin = user?.role === "superAdmin";
-   const isStudent = user?.role === "student";
    const reqIdRef = useRef(0);
 
    // Derive loading instead of setting it in the fetch effect: we're loading
    // whenever the data on screen doesn't match the current filter/page.
-   const currentKey = `${debounced}|${category}|${sort}|${statusFilter}|${page}|${perPage}`;
+   const currentKey = `${debounced}|${category}|${sort}|${page}|${perPage}`;
    const loading = loadedKey !== currentKey;
 
    useEffect(() => {
@@ -380,31 +339,27 @@ export default function Clubs() {
       debounced,
       category,
       sort,
-      statusFilter,
       perPage,
    });
    if (
       prevFilters.debounced !== debounced ||
       prevFilters.category !== category ||
       prevFilters.sort !== sort ||
-      prevFilters.statusFilter !== statusFilter ||
       prevFilters.perPage !== perPage
    ) {
-      setPrevFilters({ debounced, category, sort, statusFilter, perPage });
+      setPrevFilters({ debounced, category, sort, perPage });
       setPage(1);
    }
 
    // Only keep the latest request's response, ignore the rest (e.g. from a stale filter state).
    const fetchClubs = useCallback(() => {
       const myReqId = ++reqIdRef.current;
-      const myKey = `${debounced}|${category}|${sort}|${statusFilter}|${page}|${perPage}`;
+      const myKey = `${debounced}|${category}|${sort}|${page}|${perPage}`;
       clubsApi
          .listClubs({
             q: debounced || undefined,
             category: category === "all" ? undefined : category,
             sort,
-            // Only superAdmin may scope to non-active clubs; others always get active.
-            status: isSuperAdmin && statusFilter !== "active" ? statusFilter : undefined,
             page,
             limit: perPage,
          })
@@ -426,7 +381,7 @@ export default function Clubs() {
          .finally(() => {
             if (myReqId === reqIdRef.current) setLoadedKey(myKey);
          });
-   }, [debounced, category, sort, statusFilter, isSuperAdmin, page, perPage, toast]);
+   }, [debounced, category, sort, page, perPage, toast]);
 
    useEffect(() => {
       fetchClubs();
@@ -562,15 +517,6 @@ export default function Clubs() {
                         </button>
                      )}
                   </div>
-                  {canCreate && (
-                     <Link to="/clubs/new" className="btn btn-primary clubs-create">
-                        <Icon size={15} strokeWidth={2.5}>
-                           <line x1="12" y1="5" x2="12" y2="19" />
-                           <line x1="5" y1="12" x2="19" y2="12" />
-                        </Icon>
-                        Create club
-                     </Link>
-                  )}
                </div>
             </div>
 
@@ -647,19 +593,6 @@ export default function Clubs() {
                      </button>
                   );
                })}
-               {isSuperAdmin && (
-                  <div className="sort-wrap">
-                     <span>Status</span>
-                     <select
-                        value={statusFilter}
-                        onChange={(e) => setStatusFilter(e.target.value)}
-                     >
-                        <option value="active">Active</option>
-                        <option value="suspended">Suspended</option>
-                        <option value="archived">Archived</option>
-                     </select>
-                  </div>
-               )}
                <div className="sort-wrap">
                   <span>Sort by</span>
                   <select
@@ -730,7 +663,6 @@ export default function Clubs() {
                         onJoin={handleJoin}
                         onLeave={handleLeave}
                         busy={busyId === c.id}
-                        isStudent={isStudent}
                      />
                   ))}
                </div>
@@ -743,7 +675,6 @@ export default function Clubs() {
                         onJoin={handleJoin}
                         onLeave={handleLeave}
                         busy={busyId === c.id}
-                        isStudent={isStudent}
                      />
                   ))}
                </div>
