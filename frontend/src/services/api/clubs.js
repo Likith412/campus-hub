@@ -1,12 +1,21 @@
 // Wrappers around /api/clubs/* endpoints.
 import { apiClient } from "./client";
 
-export async function listClubs({ q, category, sort, verified, page, limit } = {}) {
+export async function listClubs({
+   q,
+   category,
+   sort,
+   verified,
+   status,
+   page,
+   limit,
+} = {}) {
    const params = new URLSearchParams();
    if (q) params.set("q", q);
    if (category) params.set("category", category);
    if (sort) params.set("sort", sort);
    if (verified) params.set("verified", verified);
+   if (status) params.set("status", status);
    if (page) params.set("page", String(page));
    if (limit) params.set("limit", String(limit));
    const qs = params.toString();
@@ -16,6 +25,32 @@ export async function listClubs({ q, category, sort, verified, page, limit } = {
 
 export async function createClub(body) {
    const { data } = await apiClient.post("/clubs", body);
+   return data;
+}
+
+// Edit a club (coordinator of the club, or superAdmin). `patch` is a partial club body.
+export async function updateClub(slug, patch) {
+   const { data } = await apiClient.patch(
+      `/clubs/${encodeURIComponent(slug)}`,
+      patch,
+   );
+   return data;
+}
+
+// superAdmin: assign another faculty as a per-club coordinator.
+export async function addCoordinator(slug, userId) {
+   const { data } = await apiClient.post(
+      `/clubs/${encodeURIComponent(slug)}/coordinators`,
+      { userId },
+   );
+   return data;
+}
+
+// superAdmin: step a coordinator down to member.
+export async function removeCoordinator(slug, userId) {
+   const { data } = await apiClient.delete(
+      `/clubs/${encodeURIComponent(slug)}/coordinators/${encodeURIComponent(userId)}`,
+   );
    return data;
 }
 

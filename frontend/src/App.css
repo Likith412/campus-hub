@@ -3812,6 +3812,104 @@ body {
    background: var(--bg-surface);
 }
 
+/* ── Club edit + manage-faculty modals (Phase 5) ──────────────────── */
+.fac-modal.wide {
+   max-width: 560px;
+}
+.ec-body {
+   max-height: min(72vh, 640px);
+   overflow-y: auto;
+}
+/* The edit-club form reuses the create-club wizard's field styling (.create-club scope). */
+.mf-results {
+   margin-top: 8px;
+   border: 1px solid var(--border-light);
+   border-radius: 8px;
+   overflow: hidden;
+}
+.mf-result {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   width: 100%;
+   padding: 9px 12px;
+   background: var(--bg-base);
+   border: none;
+   border-bottom: 1px solid var(--border-light);
+   cursor: pointer;
+   text-align: left;
+   transition: background var(--transition-base);
+}
+.mf-result:last-child {
+   border-bottom: none;
+}
+.mf-result:hover:not(:disabled) {
+   background: var(--bg-surface);
+}
+.mf-result:disabled {
+   opacity: 0.6;
+   cursor: default;
+}
+.mf-add {
+   font-size: 12px;
+   font-weight: 600;
+   color: var(--accent-purple);
+   flex-shrink: 0;
+}
+.mf-list {
+   display: flex;
+   flex-direction: column;
+   gap: 8px;
+   margin-top: 8px;
+}
+.mf-row {
+   display: grid;
+   grid-template-columns: 32px 1fr auto;
+   gap: 12px;
+   align-items: center;
+   padding: 8px 10px;
+   border: 1px solid var(--border-light);
+   border-radius: 8px;
+}
+.mf-rowtext {
+   min-width: 0;
+}
+.mf-name {
+   font-size: 13px;
+   font-weight: 600;
+   color: var(--text-primary);
+}
+.mf-sub {
+   font-size: 11.5px;
+   color: var(--text-tertiary);
+}
+.mf-remove {
+   font-size: 12px;
+   font-weight: 600;
+   padding: 5px 10px;
+   border: 1px solid var(--border-default);
+   border-radius: 6px;
+   background: var(--bg-base);
+   color: var(--accent-red);
+   cursor: pointer;
+   transition: all var(--transition-base);
+}
+.mf-remove:hover:not(:disabled) {
+   background: var(--accent-red-light);
+   border-color: var(--accent-red-light);
+}
+.mf-remove:disabled {
+   opacity: 0.45;
+   cursor: not-allowed;
+   color: var(--text-tertiary);
+}
+.mf-empty {
+   padding: 14px;
+   text-align: center;
+   font-size: 12.5px;
+   color: var(--text-tertiary);
+}
+
 /* Success state */
 .fac-modal-success {
    padding: 28px 24px 24px;
@@ -3935,6 +4033,50 @@ body {
    white-space: nowrap;
    flex-shrink: 0;
 }
+
+/* SuperAdmin club status: a pill next to the name + the status switcher in the header. */
+.club-status-pill {
+   display: inline-flex;
+   align-items: center;
+   padding: 2px 8px;
+   border-radius: var(--radius-full);
+   font-size: 10px;
+   font-weight: 700;
+   letter-spacing: 0.3px;
+   text-transform: uppercase;
+   white-space: nowrap;
+   flex-shrink: 0;
+}
+.club-status-pill.suspended {
+   background: var(--accent-red-light);
+   color: var(--accent-red);
+}
+.club-status-pill.archived {
+   background: var(--bg-hover);
+   color: var(--text-secondary);
+}
+.club-status-select {
+   height: 34px;
+   padding: 0 10px;
+   border: 1px solid var(--border-default);
+   border-radius: var(--radius-lg);
+   background: var(--bg-base);
+   color: var(--text-secondary);
+   font-size: 12.5px;
+   font-weight: 600;
+   font-family: inherit;
+   cursor: pointer;
+   transition: all var(--transition-base);
+}
+.club-status-select:hover:not(:disabled) {
+   border-color: var(--border-strong);
+   color: var(--text-primary);
+}
+.club-status-select:disabled {
+   opacity: 0.6;
+   cursor: not-allowed;
+}
+
 /* Private indicator on the clubs list row */
 .cr-private {
    display: inline-flex;
