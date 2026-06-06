@@ -81,6 +81,7 @@ const listMembersQuerySchema = z
       q: z.string().trim().max(100).optional(),
       role: z.enum(MEMBERSHIP_ROLES).optional(),
       status: z.enum(MEMBERSHIP_STATUSES).default("approved"),
+      sort: z.enum(["role", "new", "active"]).default("role"),
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(50).default(20),
    })

@@ -58,6 +58,13 @@ const clubMembershipSchema = new mongoose.Schema(
    { timestamps: true, versionKey: false },
 );
 
+// Keep roleWeight mirrored to role on every save, so save-based role changes
+// (promote/demote, step-down) stay correctly ordered in the members listing.
+clubMembershipSchema.pre("save", function (next) {
+   if (this.isModified("role")) this.roleWeight = ROLE_WEIGHT[this.role] ?? 0;
+   next();
+});
+
 // One membership per (user, club). Other indexes power "my clubs" and per-club leaderboards.
 clubMembershipSchema.index({ userId: 1, clubId: 1 }, { unique: true });
 clubMembershipSchema.index({ userId: 1, status: 1 });

@@ -308,7 +308,9 @@ async function deleteClub(req, res) {
    const isSuperAdmin = req.user.role === ROLES.SUPER_ADMIN;
    const isCreator = String(club.createdBy) === String(req.user._id);
    if (!isSuperAdmin && !isCreator) {
-      throw new ForbiddenError("Only the club's creator or a super admin can delete it");
+      throw new ForbiddenError(
+         "Only the club's creator or a super admin can delete it",
+      );
    }
 
    // Cascade: drop memberships and events before the club itself.
@@ -514,9 +516,16 @@ function publicMemberRow(m) {
    };
 }
 
+// Sort options for the approved members list.
+const MEMBER_SORT = {
+   role: { roleWeight: -1, engagementScore: -1, joinedAt: 1 },
+   new: { joinedAt: -1 },
+   active: { engagementScore: -1, joinedAt: 1 },
+};
+
 // GET /api/clubs/:slug/members — paginated, filterable by role/status. Pending list is admin-only.
 async function listMembers(req, res) {
-   const { q, role, status, page, limit } = req.validatedQuery;
+   const { q, role, status, sort: sortKey, page, limit } = req.validatedQuery;
    const club = await findClubBySlugFor(req.user, req.params.slug);
 
    // Non-approved listings (pending/rejected/left) require a coordinator.
@@ -535,10 +544,10 @@ async function listMembers(req, res) {
    const filter = { clubId: club._id, status, ...(role ? { role } : {}) };
 
    const skip = (page - 1) * limit;
-   // Approved → sort by role weight then engagement; pending → oldest first (queue).
+   // Approved → user-chosen sort (default: role then engagement); pending → oldest first (queue).
    const sort =
       status === "approved"
-         ? { roleWeight: -1, engagementScore: -1, joinedAt: 1 }
+         ? MEMBER_SORT[sortKey] || MEMBER_SORT.role
          : { createdAt: 1 };
 
    let userMatch = null;
@@ -663,18 +672,22 @@ async function setMemberRole(req, res) {
       );
    }
 
-   // Only platform `faculty` accounts may hold the club coordinator role —
-   // never a student or superAdmin. (Members reach this list by joining, i.e. students.)
-   if (role === "coordinator") {
-      const target = await User.findById(m.userId).select("role").lean();
-      if (target?.role !== ROLES.FACULTY) {
-         throw new ConflictError(
-            "Only faculty accounts can be made a club coordinator",
-         );
-      }
+   // A faculty's club role is locked to coordinator: only faculty may be coordinators,
+   // and a faculty can never be demoted to a plain member. (Members are students.)
+   const target = await User.findById(m.userId).select("role").lean();
+   if (role === "coordinator" && target?.role !== ROLES.FACULTY) {
+      throw new ConflictError(
+         "Only faculty accounts can be made a club coordinator",
+      );
+   }
+   if (role === "member" && target?.role === ROLES.FACULTY) {
+      throw new ConflictError(
+         "A faculty must stay a coordinator — remove them from the club instead",
+      );
    }
 
-   m.role = role; // roleWeight kept in sync by the pre-save hook
+   m.role = role;
+   m.roleWeight = ROLE_WEIGHT[role] ?? ROLE_WEIGHT.member; // keep the sort weight in step with the role
    await m.save();
 
    return successResponse(res, 200, "Member role updated", { role: m.role });
@@ -745,12 +758,15 @@ async function addCoordinator(req, res) {
       throw new ConflictError("That faculty account is deactivated");
    }
 
+   // Advisory pre-check for a friendly error; correctness rides on the before-image below.
    const existing = await ClubMembership.findOne({ userId, clubId: club._id });
    if (existing?.status === "approved" && existing.role === "coordinator") {
       throw new ConflictError("Already a coordinator of this club");
    }
 
-   await ClubMembership.findOneAndUpdate(
+   // returnDocument: "before" lets us count off the atomic prior state, so a concurrent
+   // double-add increments memberCount at most once (mirrors joinClub/removeCoordinator).
+   const prev = await ClubMembership.findOneAndUpdate(
       { userId, clubId: club._id },
       {
          role: "coordinator",
@@ -760,11 +776,11 @@ async function addCoordinator(req, res) {
          leftAt: null,
          removedBy: null,
       },
-      { upsert: true, setDefaultsOnInsert: true },
+      { upsert: true, setDefaultsOnInsert: true, returnDocument: "before" },
    );
 
    // Count them only if they weren't already an approved member of the club.
-   if (existing?.status !== "approved") {
+   if (prev?.status !== "approved") {
       await Club.updateOne(
          { _id: club._id },
          { $inc: { "stats.memberCount": 1 } },
@@ -774,35 +790,47 @@ async function addCoordinator(req, res) {
    return successResponse(res, 200, "Coordinator added", { userId });
 }
 
-// DELETE /api/clubs/:slug/coordinators/:userId — superAdmin steps a coordinator down to member.
+// DELETE /api/clubs/:slug/coordinators/:userId — superAdmin removes a coordinator from the club.
+// A faculty can't hold a non-coordinator role, so this removes their membership outright.
 async function removeCoordinator(req, res) {
    const club = await findClubBySlugFor(req.user, req.params.slug);
    const { userId } = req.params;
 
-   const m = await ClubMembership.findOne({
-      userId,
-      clubId: club._id,
-      status: "approved",
-      role: "coordinator",
-   });
-   if (!m) throw new NotFoundError("Not a coordinator of this club");
+   // Atomically flip the approved coordinator row to "removed" — a faculty is never a
+   // plain member, so we remove rather than demote. Matching only an approved row means a
+   // concurrent double-remove flips it at most once (same pattern as removeMember).
+   const prev = await ClubMembership.findOneAndUpdate(
+      { userId, clubId: club._id, status: "approved", role: "coordinator" },
+      { status: "removed", leftAt: new Date(), removedBy: req.user._id },
+      { returnDocument: "before" },
+   );
+   if (!prev) throw new NotFoundError("Not a coordinator of this club");
 
-   // Refuses to remove the last coordinator (add the replacement first — add-before-remove swap).
-   const coordinatorCount = await ClubMembership.countDocuments({
+   // Enforce "a club must keep ≥1 coordinator" *after* removing, then roll back if this
+   // was the last one. A count-then-remove guard would race: two simultaneous removes
+   // could both see 2 and both delete. Remove-then-verify can't drop the club to zero —
+   // whichever remove leaves none undoes itself (no transaction needed).
+   const remaining = await ClubMembership.countDocuments({
       clubId: club._id,
       status: "approved",
       role: "coordinator",
    });
-   if (coordinatorCount <= 1) {
+   if (remaining === 0) {
+      await ClubMembership.updateOne(
+         { _id: prev._id },
+         { $set: { status: "approved", leftAt: null, removedBy: null } },
+      );
       throw new ConflictError(
          "A club must keep at least one coordinator — add another before removing this one",
       );
    }
 
-   m.role = "member"; // roleWeight resynced by the pre-save hook
-   await m.save();
+   await Club.updateOne(
+      { _id: club._id, "stats.memberCount": { $gt: 0 } },
+      { $inc: { "stats.memberCount": -1 } },
+   );
 
-   return successResponse(res, 200, "Coordinator stepped down", { userId });
+   return successResponse(res, 200, "Coordinator removed", { userId });
 }
 
 module.exports = {

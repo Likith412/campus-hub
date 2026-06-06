@@ -37,7 +37,7 @@ export async function addCoordinator(slug, userId) {
    return data;
 }
 
-// superAdmin: step a coordinator down to member.
+// superAdmin: remove a coordinator from the club (a faculty can't stay on as a member).
 export async function removeCoordinator(slug, userId) {
    const { data } = await apiClient.delete(
       `/clubs/${encodeURIComponent(slug)}/coordinators/${encodeURIComponent(userId)}`,
@@ -86,11 +86,15 @@ export async function getClub(slug) {
    return data;
 }
 
-export async function listMembers(slug, { q, role, status, page, limit } = {}) {
+export async function listMembers(
+   slug,
+   { q, role, status, sort, page, limit } = {},
+) {
    const params = new URLSearchParams();
    if (q) params.set("q", q);
    if (role) params.set("role", role);
    if (status) params.set("status", status);
+   if (sort) params.set("sort", sort);
    if (page) params.set("page", String(page));
    if (limit) params.set("limit", String(limit));
    const qs = params.toString();

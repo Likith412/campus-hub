@@ -326,18 +326,18 @@ export default function ClubControls() {
 
    async function removeCoord(c) {
       const ok = await confirm({
-         title: `Step ${c.name} down?`,
+         title: `Remove ${c.name}?`,
          message:
             coords.length === 1
                ? "This is the only coordinator. Removing leaves the club unmanaged — add another first if possible."
-               : "They'll be demoted to a regular member and lose coordinator access to this club.",
-         confirmLabel: "Step down",
+               : "They'll be removed from the club and lose coordinator access. (Faculty can't stay on as a regular member.)",
+         confirmLabel: "Remove",
          danger: true,
       });
       if (!ok) return;
       try {
          await clubsApi.removeCoordinator(slug, c.userId);
-         toast.success(`${c.name} stepped down · logged`);
+         toast.success(`${c.name} removed · logged`);
          reloadCoords();
       } catch (err) {
          toast.error(
@@ -419,7 +419,7 @@ export default function ClubControls() {
                      {club.name}
                      {club.verified && (
                         <span className="verified-tick" title="Verified">
-                           <Icon size={11} strokeWidth={4}>
+                           <Icon size={9} strokeWidth={4}>
                               <polyline points="20 6 9 17 4 12" />
                            </Icon>
                         </span>
@@ -583,8 +583,8 @@ export default function ClubControls() {
                            <button
                               type="button"
                               className="cctl-coord-remove"
-                              title="Step down"
-                              aria-label={`Step ${c.name} down`}
+                              title="Remove coordinator"
+                              aria-label={`Remove ${c.name}`}
                               onClick={() => removeCoord(c)}
                            >
                               <Icon size={15} strokeWidth={2.2}>

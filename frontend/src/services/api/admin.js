@@ -20,7 +20,14 @@ export async function getFacultyStats() {
 }
 
 // Every club across the institute (any status) — superAdmin "All Clubs" view.
-export async function listClubs({ q, category, status, sort, page, limit } = {}) {
+export async function listClubs({
+   q,
+   category,
+   status,
+   sort,
+   page,
+   limit,
+} = {}) {
    const params = new URLSearchParams();
    if (q) params.set("q", q);
    if (category) params.set("category", category);

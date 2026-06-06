@@ -109,6 +109,7 @@ export default function ClubDetail() {
    const [search, setSearch] = useState("");
    const [debounced, setDebounced] = useState("");
    const [roleFilter, setRoleFilter] = useState("");
+   const [sort, setSort] = useState("role");
    const [page, setPage] = useState(1);
    const [members, setMembers] = useState(null);
    const [membersLoadedKey, setMembersLoadedKey] = useState(null);
@@ -116,7 +117,7 @@ export default function ClubDetail() {
 
    // Loading derived from key mismatch — avoids setState-in-effect.
    const clubLoading = clubLoadedSlug !== slug;
-   const membersKey = `${slug}|${debounced}|${roleFilter}|${page}`;
+   const membersKey = `${slug}|${debounced}|${roleFilter}|${sort}|${page}`;
    const membersLoading = membersLoadedKey !== membersKey;
 
    useEffect(() => {
@@ -143,11 +144,12 @@ export default function ClubDetail() {
 
    const fetchMembers = useCallback(() => {
       const myId = ++reqIdRef.current;
-      const myKey = `${slug}|${debounced}|${roleFilter}|${page}`;
+      const myKey = `${slug}|${debounced}|${roleFilter}|${sort}|${page}`;
       clubsApi
          .listMembers(slug, {
             q: debounced || undefined,
             role: roleFilter || undefined,
+            sort,
             status: "approved",
             page,
             limit: PAGE_SIZE,
@@ -169,16 +171,20 @@ export default function ClubDetail() {
          .finally(() => {
             if (myId === reqIdRef.current) setMembersLoadedKey(myKey);
          });
-   }, [slug, debounced, roleFilter, page, toast]);
+   }, [slug, debounced, roleFilter, sort, page, toast]);
 
    useEffect(() => {
       fetchMembers();
    }, [fetchMembers]);
 
    // Reset to page 1 when filters change
-   const [prev, setPrev] = useState({ debounced, roleFilter });
-   if (prev.debounced !== debounced || prev.roleFilter !== roleFilter) {
-      setPrev({ debounced, roleFilter });
+   const [prev, setPrev] = useState({ debounced, roleFilter, sort });
+   if (
+      prev.debounced !== debounced ||
+      prev.roleFilter !== roleFilter ||
+      prev.sort !== sort
+   ) {
+      setPrev({ debounced, roleFilter, sort });
       setPage(1);
    }
 
@@ -286,6 +292,23 @@ export default function ClubDetail() {
       );
    }
 
+   // Faculty may only open the detail page for a club they actually coordinate.
+   const isFaculty = user?.role === "faculty";
+   const isClubCoordinator =
+      club.membership?.role === "coordinator" &&
+      club.membership?.status === "approved";
+   if (isFaculty && !isClubCoordinator) {
+      return (
+         <AppShell title="Club">
+            <div className="main">
+               <div className="profile-empty">
+                  You can only view clubs you coordinate.
+               </div>
+            </div>
+         </AppShell>
+      );
+   }
+
    const memberStatus = club.membership?.status;
    let joinLabel = "Join";
    let joinCls = "";
@@ -357,8 +380,7 @@ export default function ClubDetail() {
                            className="verified-tick"
                            title="Verified by institute"
                         >
-                           in
-                           <Icon size={10} strokeWidth={4}>
+                           <Icon size={9} strokeWidth={4}>
                               <polyline points="20 6 9 17 4 12" />
                            </Icon>
                         </span>
@@ -455,6 +477,15 @@ export default function ClubDetail() {
                               <option value="">All roles</option>
                               <option value="coordinator">Coordinators</option>
                               <option value="member">Members</option>
+                           </select>
+                           <select
+                              value={sort}
+                              onChange={(e) => setSort(e.target.value)}
+                              aria-label="Sort members"
+                           >
+                              <option value="role">Role</option>
+                              <option value="new">Recently joined</option>
+                              <option value="active">Most active</option>
                            </select>
                         </div>
                      </div>
