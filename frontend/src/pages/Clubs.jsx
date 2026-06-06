@@ -182,15 +182,11 @@ function ClubCard({ club, onJoin, onLeave, busy }) {
          <div className="club-body">
             <div className="club-head-row">
                <div className="club-name">{club.name}</div>
-               {club.verified ? (
+               {club.verified && (
                   <span className="verified-tick" title="Verified by institute">
                      <Icon size={9} strokeWidth={4}>
                         <polyline points="20 6 9 17 4 12" />
                      </Icon>
-                  </span>
-               ) : (
-                  <span className="unverified-pill" title="Not yet verified">
-                     Unverified
                   </span>
                )}
             </div>
@@ -266,15 +262,11 @@ function ClubRow({ club, onJoin, onLeave, busy }) {
             <div className="cr-name-row">
                <div className="cr-name">{club.name}</div>
                <div className="cr-domain">{cat.label}</div>
-               {club.verified ? (
+               {club.verified && (
                   <span className="verified-tick" title="Verified">
                      <Icon size={9} strokeWidth={4}>
                         <polyline points="20 6 9 17 4 12" />
                      </Icon>
-                  </span>
-               ) : (
-                  <span className="unverified-pill" title="Not yet verified">
-                     Unverified
                   </span>
                )}
                {club.isPrivate && (

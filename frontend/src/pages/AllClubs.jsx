@@ -352,7 +352,7 @@ export default function AllClubs() {
                               <tr
                                  key={c.id}
                                  className={`ac-row${c.status !== "active" ? " dim" : ""}`}
-                                 onClick={() => navigate(`/clubs/${c.slug}`)}
+                                 onClick={() => navigate(`/admin/clubs/${c.slug}`)}
                               >
                                  <td>
                                     <div className="fac-cell">

@@ -192,7 +192,9 @@ export default function ClubDetail() {
       if (!club) return;
       const isRequest = club.joinPolicy === "request";
       const ok = await confirm({
-         title: isRequest ? `Request to join ${club.name}?` : `Join ${club.name}?`,
+         title: isRequest
+            ? `Request to join ${club.name}?`
+            : `Join ${club.name}?`,
          message: isRequest
             ? "A club coordinator will review your request before you're added."
             : "You'll be added to the club immediately.",
@@ -206,8 +208,15 @@ export default function ClubDetail() {
             c
                ? {
                     ...c,
-                    membership: { ...(c.membership || {}), status: res.status, role: "member" },
-                    memberCount: res.status === "approved" ? c.memberCount + 1 : c.memberCount,
+                    membership: {
+                       ...(c.membership || {}),
+                       status: res.status,
+                       role: "member",
+                    },
+                    memberCount:
+                       res.status === "approved"
+                          ? c.memberCount + 1
+                          : c.memberCount,
                  }
                : c,
          );
@@ -313,7 +322,7 @@ export default function ClubDetail() {
       <AppShell title={`Club · ${club.name}`}>
          <div className="main">
             <div className="breadcrumb">
-               <Link to="/clubs">Clubs</Link>
+               {isStudent ? <Link to="/clubs">Clubs</Link> : <span>Clubs</span>}
                <span className="sep">›</span>
                <span className="now">{club.name}</span>
             </div>
@@ -330,7 +339,10 @@ export default function ClubDetail() {
 
             {/* IDENTITY */}
             <div className="club-id">
-               <div className="club-id-logo" style={{ background: gradient(club) }}>
+               <div
+                  className="club-id-logo"
+                  style={{ background: gradient(club) }}
+               >
                   {club.logoUrl ? (
                      <img src={club.logoUrl} alt="" />
                   ) : (
@@ -340,15 +352,15 @@ export default function ClubDetail() {
                <div className="club-id-text">
                   <div className="club-name">
                      {club.name}
-                     {club.verified ? (
-                        <span className="verified-tick" title="Verified by institute">
+                     {club.verified && (
+                        <span
+                           className="verified-tick"
+                           title="Verified by institute"
+                        >
+                           in
                            <Icon size={10} strokeWidth={4}>
                               <polyline points="20 6 9 17 4 12" />
                            </Icon>
-                        </span>
-                     ) : (
-                        <span className="unverified-pill" title="Not yet verified">
-                           Unverified
                         </span>
                      )}
                      {club.status && club.status !== "active" && (
@@ -420,7 +432,9 @@ export default function ClubDetail() {
                      <div className="ml-head">
                         <div style={{ fontWeight: 600, fontSize: 13.5 }}>
                            {pagination?.total ?? 0}{" "}
-                           {status === "pending" ? "pending requests" : "members"}
+                           {status === "pending"
+                              ? "pending requests"
+                              : "members"}
                         </div>
                         <div className="ml-search">
                            <Icon size={13} strokeWidth={2.2}>

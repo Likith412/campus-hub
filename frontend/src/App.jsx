@@ -13,6 +13,7 @@ import ClubDetail from "./pages/ClubDetail";
 import CreateClub from "./pages/CreateClub";
 import Faculty from "./pages/Faculty";
 import AllClubs from "./pages/AllClubs";
+import ClubControls from "./pages/ClubControls";
 
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ToastProvider } from "./contexts/ToastProvider";
@@ -79,6 +80,10 @@ function App() {
                      />
                      <Route path="/admin/faculty" element={<Faculty />} />
                      <Route path="/admin/clubs" element={<AllClubs />} />
+                     <Route
+                        path="/admin/clubs/:slug"
+                        element={<ClubControls />}
+                     />
                   </Route>
 
                   {/* Catch-all: any unmatched URL renders the 404 page. */}

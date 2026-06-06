@@ -985,7 +985,7 @@ export default function CreateClub() {
                               <div className="club-name">
                                  {name.trim() || "Your club name"}
                               </div>
-                              {isSuperAdmin ? (
+                              {isSuperAdmin && (
                                  <span
                                     className="verified-tick"
                                     title="Verified by institute"
@@ -993,13 +993,6 @@ export default function CreateClub() {
                                     <Icon size={9} strokeWidth={4}>
                                        <polyline points="20 6 9 17 4 12" />
                                     </Icon>
-                                 </span>
-                              ) : (
-                                 <span
-                                    className="unverified-pill"
-                                    title="Not yet verified"
-                                 >
-                                    Unverified
                                  </span>
                               )}
                            </div>
