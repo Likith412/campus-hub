@@ -6,6 +6,7 @@ import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import EditClubModal from "../components/EditClubModal";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 
@@ -103,6 +104,7 @@ export default function ClubDetail() {
    const [club, setClub] = useState(null);
    const [clubLoadedSlug, setClubLoadedSlug] = useState(null);
    const [joinBusy, setJoinBusy] = useState(false);
+   const [editing, setEditing] = useState(false);
    const [tab, setTab] = useState("members");
 
    // Members tab state
@@ -412,6 +414,32 @@ export default function ClubDetail() {
                   )}
                </div>
                <div className="club-actions">
+                  {(user?.role === "superAdmin" || isClubCoordinator) && (
+                     <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => setEditing(true)}
+                     >
+                        <Icon size={14} strokeWidth={2.2}>
+                           <path d="M12 20h9" />
+                           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                        </Icon>
+                        Edit club
+                     </button>
+                  )}
+                  {(user?.role === "superAdmin" || isClubCoordinator) && (
+                     <Link
+                        className="btn btn-secondary"
+                        to={`/clubs/${slug}/members`}
+                     >
+                        <Icon size={14} strokeWidth={2.2}>
+                           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                           <circle cx="9" cy="7" r="4" />
+                           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        </Icon>
+                        Manage members
+                     </Link>
+                  )}
                   {showJoinButton && (
                      <button
                         type="button"
@@ -478,15 +506,23 @@ export default function ClubDetail() {
                               <option value="coordinator">Coordinators</option>
                               <option value="member">Members</option>
                            </select>
-                           <select
-                              value={sort}
-                              onChange={(e) => setSort(e.target.value)}
-                              aria-label="Sort members"
-                           >
-                              <option value="role">Role</option>
-                              <option value="new">Recently joined</option>
-                              <option value="active">Most active</option>
-                           </select>
+                           <div className="ac-sort">
+                              <Icon size={13} strokeWidth={2.2}>
+                                 <line x1="3" y1="6" x2="13" y2="6" />
+                                 <line x1="3" y1="12" x2="10" y2="12" />
+                                 <line x1="3" y1="18" x2="7" y2="18" />
+                              </Icon>
+                              <span>Sort</span>
+                              <select
+                                 value={sort}
+                                 onChange={(e) => setSort(e.target.value)}
+                                 aria-label="Sort members"
+                              >
+                                 <option value="role">Role</option>
+                                 <option value="new">Recently joined</option>
+                                 <option value="active">Most active</option>
+                              </select>
+                           </div>
                         </div>
                      </div>
 
@@ -522,6 +558,18 @@ export default function ClubDetail() {
                </div>
             )}
          </div>
+
+         {editing && (
+            <EditClubModal
+               club={club}
+               slug={slug}
+               onClose={() => setEditing(false)}
+               onChanged={() => {
+                  setEditing(false);
+                  refetchClub();
+               }}
+            />
+         )}
       </AppShell>
    );
 }

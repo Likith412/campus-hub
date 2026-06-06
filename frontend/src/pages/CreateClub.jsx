@@ -4,6 +4,7 @@ import { clubsApi, adminApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { useAuth } from "../contexts/AuthContext";
+import { useActiveClub } from "../contexts/ActiveClubContext";
 import { useToast } from "../contexts/ToastContext";
 
 // Monogram colour palette (each = a cover gradient).
@@ -123,6 +124,7 @@ export default function CreateClub() {
    const navigate = useNavigate();
    const toast = useToast();
    const { user } = useAuth();
+   const { refresh: refreshActiveClub } = useActiveClub();
    const isSuperAdmin = user?.role === "superAdmin";
 
    // SuperAdmin assigns coordinators; faculty self-assign on create.
@@ -266,6 +268,8 @@ export default function CreateClub() {
             coverTo: color.to,
          });
          setCreated(res);
+         // Surface the new club in the faculty switcher and focus it (no-op for superAdmin).
+         if (!isSuperAdmin) refreshActiveClub(res.slug);
       } catch (err) {
          toast.error(
             err instanceof ApiError ? err.message : "Couldn't create club",

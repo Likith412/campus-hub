@@ -1,7 +1,9 @@
 import { Link, useLocation } from "react-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useActiveClub } from "../../contexts/ActiveClubContext";
 import Icon from "../Icon";
-import { NAV_BY_ROLE } from "./navConfig";
+import ClubSwitcher from "./ClubSwitcher";
+import { NAV_BY_ROLE, getFacultyNav } from "./navConfig";
 
 // Two-letter initials for the avatar (e.g. "Arjun Sharma" → "AS").
 function initials(name = "") {
@@ -20,8 +22,12 @@ function userMeta(user) {
 
 export default function Sidebar() {
    const { user, logout } = useAuth();
+   const { activeClub } = useActiveClub();
    const { pathname } = useLocation();
-   const items = NAV_BY_ROLE[user?.role] || NAV_BY_ROLE.student;
+   const isFaculty = user?.role === "faculty";
+   const items = isFaculty
+      ? getFacultyNav(activeClub?.slug)
+      : NAV_BY_ROLE[user?.role] || NAV_BY_ROLE.student;
 
    return (
       <aside className="sidebar">
@@ -31,6 +37,8 @@ export default function Sidebar() {
                CampusHub <span>AI</span>
             </div>
          </div>
+
+         {isFaculty && <ClubSwitcher />}
 
          {items.map((item, i) =>
             item.section ? (

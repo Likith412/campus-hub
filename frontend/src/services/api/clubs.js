@@ -86,6 +86,14 @@ export async function getClub(slug) {
    return data;
 }
 
+// Headline member counts for the manage-members page (coordinator/superAdmin only).
+export async function getMemberStats(slug) {
+   const { data } = await apiClient.get(
+      `/clubs/${encodeURIComponent(slug)}/members/stats`,
+   );
+   return data;
+}
+
 export async function listMembers(
    slug,
    { q, role, status, sort, page, limit } = {},

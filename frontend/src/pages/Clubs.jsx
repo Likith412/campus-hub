@@ -588,17 +588,24 @@ export default function Clubs() {
                   );
                })}
                <div className="sort-wrap">
-                  <span>Sort by</span>
-                  <select
-                     value={sort}
-                     onChange={(e) => setSort(e.target.value)}
-                  >
-                     {SORTS.map((s) => (
-                        <option key={s.id} value={s.id}>
-                           {s.label}
-                        </option>
-                     ))}
-                  </select>
+                  <div className="ac-sort">
+                     <Icon size={13} strokeWidth={2.2}>
+                        <line x1="3" y1="6" x2="13" y2="6" />
+                        <line x1="3" y1="12" x2="10" y2="12" />
+                        <line x1="3" y1="18" x2="7" y2="18" />
+                     </Icon>
+                     <span>Sort</span>
+                     <select
+                        value={sort}
+                        onChange={(e) => setSort(e.target.value)}
+                     >
+                        {SORTS.map((s) => (
+                           <option key={s.id} value={s.id}>
+                              {s.label}
+                           </option>
+                        ))}
+                     </select>
+                  </div>
                   <div className="view-toggle">
                      <button
                         type="button"

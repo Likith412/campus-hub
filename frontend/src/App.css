@@ -5,6 +5,142 @@
    min-height: 100vh;
 }
 
+/* BOOT SPLASH — branded full-screen loader during session bootstrap */
+.boot-screen {
+   position: fixed;
+   inset: 0;
+   z-index: 1000;
+   display: grid;
+   place-items: center;
+   background:
+      radial-gradient(
+         60% 60% at 50% 38%,
+         var(--accent-purple-light) 0%,
+         transparent 70%
+      ),
+      var(--bg-base);
+   animation: boot-fade 0.25s ease-out;
+}
+.boot-inner {
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+   gap: 16px;
+}
+.boot-mark {
+   position: relative;
+   width: 68px;
+   height: 68px;
+   border-radius: 17px;
+   background-color: #0e1018;
+   display: grid;
+   place-items: center;
+   box-shadow:
+      0 10px 28px rgba(108, 99, 255, 0.18),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+/* Rotating accent ring hugging the tile — the "loading" motion, no bobbing. */
+.boot-mark::before {
+   content: "";
+   position: absolute;
+   inset: -5px;
+   border-radius: 21px;
+   padding: 2px;
+   background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      var(--accent-purple) 110deg,
+      transparent 240deg
+   );
+   -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+   -webkit-mask-composite: xor;
+   mask-composite: exclude;
+   animation: boot-spin 1.2s linear infinite;
+}
+.boot-dot {
+   transform-origin: 17.8px 12px;
+   animation: boot-pulse 1.4s ease-in-out infinite;
+}
+.boot-name {
+   font-family: var(--font-display);
+   font-weight: 700;
+   font-size: 17px;
+   letter-spacing: -0.01em;
+   color: var(--text-primary);
+}
+.boot-name span {
+   color: var(--accent-purple);
+   font-weight: 800;
+}
+.boot-bar {
+   position: relative;
+   width: 150px;
+   height: 3px;
+   border-radius: 9999px;
+   background: var(--accent-purple-light);
+   overflow: hidden;
+}
+.boot-bar span {
+   position: absolute;
+   top: 0;
+   left: 0;
+   width: 40%;
+   height: 100%;
+   border-radius: 9999px;
+   background: linear-gradient(
+      90deg,
+      transparent,
+      var(--accent-purple),
+      transparent
+   );
+   animation: boot-slide 1.15s ease-in-out infinite;
+}
+.boot-label {
+   font-family: var(--font-mono);
+   font-size: 11px;
+   letter-spacing: 0.2px;
+   color: var(--text-tertiary);
+}
+@keyframes boot-fade {
+   from {
+      opacity: 0;
+   }
+   to {
+      opacity: 1;
+   }
+}
+@keyframes boot-spin {
+   to {
+      transform: rotate(360deg);
+   }
+}
+@keyframes boot-pulse {
+   0%,
+   100% {
+      opacity: 1;
+   }
+   50% {
+      opacity: 0.3;
+   }
+}
+@keyframes boot-slide {
+   0% {
+      transform: translateX(-120%);
+   }
+   100% {
+      transform: translateX(350%);
+   }
+}
+@media (prefers-reduced-motion: reduce) {
+   .boot-mark::before,
+   .boot-dot,
+   .boot-bar span {
+      animation: none;
+   }
+}
+
 /* SIDEBAR */
 .sidebar {
    background: var(--bg-surface);
@@ -13,6 +149,8 @@
    height: 100vh;
    position: sticky;
    top: 0;
+   /* above the main column so the club-switcher dropdown can overflow onto it */
+   z-index: 20;
    display: flex;
    flex-direction: column;
    gap: 4px;
@@ -161,6 +299,287 @@
    font-size: 10.5px;
    line-height: 1.4;
    color: var(--text-tertiary);
+}
+
+/* CLUB SWITCHER (faculty sidebar) */
+.cs-wrap {
+   position: relative;
+   margin-bottom: 8px;
+}
+.cs-trigger {
+   width: 100%;
+   display: flex;
+   align-items: center;
+   gap: 10px;
+   padding: 8px;
+   border-radius: 10px;
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   cursor: pointer;
+   text-align: left;
+   transition: all var(--transition-base);
+}
+.cs-trigger:hover {
+   border-color: var(--accent-purple);
+   box-shadow: var(--shadow-xs);
+}
+.cs-trigger.open {
+   border-color: var(--accent-purple);
+   box-shadow: 0 0 0 3px var(--accent-purple-light);
+}
+.cs-badge {
+   flex-shrink: 0;
+   border-radius: 8px;
+   display: grid;
+   place-items: center;
+   color: #fff;
+   font-size: 11px;
+   font-weight: 700;
+   letter-spacing: -0.02em;
+   overflow: hidden;
+   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.cs-badge img {
+   width: 100%;
+   height: 100%;
+   object-fit: cover;
+}
+.cs-trigger-text {
+   min-width: 0;
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   gap: 1px;
+}
+.cs-eyebrow {
+   font-size: 9px;
+   font-weight: 700;
+   letter-spacing: 0.6px;
+   text-transform: uppercase;
+   color: var(--text-tertiary);
+}
+.cs-name {
+   display: flex;
+   align-items: center;
+   gap: 5px;
+   font-size: 13px;
+   font-weight: 650;
+   color: var(--text-primary);
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+}
+.cs-tick {
+   flex-shrink: 0;
+   display: grid;
+   place-items: center;
+   width: 14px;
+   height: 14px;
+   border-radius: 9999px;
+   background: var(--accent-purple);
+   color: #fff;
+}
+.cs-chevron {
+   flex-shrink: 0;
+   display: grid;
+   place-items: center;
+   color: var(--text-tertiary);
+   transition: transform var(--transition-base);
+}
+.cs-trigger.open .cs-chevron {
+   transform: rotate(180deg);
+}
+
+/* Loading placeholder */
+.cs-skeleton {
+   height: 48px;
+   border-style: dashed;
+   animation: cs-pulse 1.2s ease-in-out infinite;
+}
+@keyframes cs-pulse {
+   0%,
+   100% {
+      opacity: 0.5;
+   }
+   50% {
+      opacity: 0.9;
+   }
+}
+
+/* Dropdown */
+.cs-menu {
+   position: absolute;
+   top: calc(100% + 8px);
+   left: 0;
+   /* Break out of the narrow sidebar so long club names aren't clipped —
+      floats over the main content to the right. */
+   width: 270px;
+   max-width: calc(100vw - 24px);
+   z-index: 120;
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 14px;
+   box-shadow: var(--shadow-xl);
+   padding: 8px;
+   animation: cs-drop 0.14s ease-out;
+}
+@keyframes cs-drop {
+   from {
+      opacity: 0;
+      transform: translateY(-4px);
+   }
+   to {
+      opacity: 1;
+      transform: translateY(0);
+   }
+}
+.cs-menu-head {
+   font-size: 9.5px;
+   font-weight: 700;
+   letter-spacing: 0.7px;
+   text-transform: uppercase;
+   color: var(--text-tertiary);
+   padding: 6px 10px 8px;
+}
+.cs-menu-list {
+   display: flex;
+   flex-direction: column;
+   gap: 3px;
+   max-height: 200px;
+   overflow-y: auto;
+   /* a hair of inset so the scrollbar doesn't crowd the rows */
+   padding-right: 2px;
+   /* slim scrollbar */
+   scrollbar-width: thin;
+   scrollbar-color: var(--border-default, #d4d4d4) transparent;
+}
+.cs-menu-list::-webkit-scrollbar {
+   width: 5px;
+}
+.cs-menu-list::-webkit-scrollbar-track {
+   background: transparent;
+}
+.cs-menu-list::-webkit-scrollbar-thumb {
+   background: var(--border-default, #d4d4d4);
+   border-radius: 9999px;
+}
+.cs-menu-list::-webkit-scrollbar-thumb:hover {
+   background: var(--text-tertiary);
+}
+.cs-item {
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   padding: 9px 10px;
+   border-radius: 10px;
+   cursor: pointer;
+   text-align: left;
+   transition: background var(--transition-base);
+}
+.cs-item:hover {
+   background: var(--bg-hover);
+}
+.cs-item.active {
+   background: var(--accent-purple-light);
+}
+.cs-item-text {
+   min-width: 0;
+   flex: 1;
+   display: flex;
+   flex-direction: column;
+   gap: 2px;
+}
+.cs-item-name {
+   display: flex;
+   align-items: center;
+   gap: 5px;
+   font-size: 13px;
+   font-weight: 600;
+   letter-spacing: -0.01em;
+   color: var(--text-primary);
+   white-space: nowrap;
+   overflow: hidden;
+   text-overflow: ellipsis;
+}
+.cs-item.active .cs-item-name {
+   color: var(--accent-purple);
+}
+.cs-item-meta {
+   font-size: 10.5px;
+   color: var(--text-tertiary);
+}
+.cs-check {
+   flex-shrink: 0;
+   display: grid;
+   place-items: center;
+   color: var(--accent-purple);
+}
+.cs-create {
+   width: 100%;
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   margin-top: 8px;
+   padding: 10px;
+   border-top: 1px solid var(--border-light);
+   border-radius: 0 0 10px 10px;
+   color: var(--accent-purple);
+   font-size: 12.5px;
+   font-weight: 600;
+   cursor: pointer;
+   transition: background var(--transition-base);
+}
+.cs-create:hover {
+   background: var(--accent-purple-light);
+}
+.cs-create-ic {
+   width: 26px;
+   height: 26px;
+   flex-shrink: 0;
+   display: grid;
+   place-items: center;
+   border-radius: 8px;
+   border: 1px dashed var(--accent-purple);
+}
+
+/* Empty state — faculty with no clubs yet */
+.cs-empty {
+   width: 100%;
+   display: flex;
+   align-items: center;
+   gap: 10px;
+   margin-bottom: 8px;
+   padding: 10px 8px;
+   border-radius: 10px;
+   border: 1px dashed var(--accent-purple);
+   background: var(--accent-purple-light);
+   cursor: pointer;
+   text-align: left;
+   transition: all var(--transition-base);
+}
+.cs-empty:hover {
+   box-shadow: var(--shadow-xs);
+}
+.cs-empty-ic {
+   width: 30px;
+   height: 30px;
+   flex-shrink: 0;
+   display: grid;
+   place-items: center;
+   border-radius: 8px;
+   background: var(--accent-purple);
+   color: #fff;
+}
+.cs-empty b {
+   display: block;
+   font-size: 13px;
+   font-weight: 650;
+   color: var(--text-primary);
+}
+.cs-empty small {
+   display: block;
+   font-size: 10.5px;
+   color: var(--text-secondary);
 }
 
 /* TOPBAR */
@@ -3408,15 +3827,37 @@ body {
    display: flex;
    gap: 8px;
 }
-.ml-filters select {
-   height: 32px;
-   padding: 0 10px;
-   background: var(--bg-base);
+/* Role filter: a standalone styled pill. Direct-child selector so it doesn't
+   bleed into the .ac-sort pill's borderless <select> sitting alongside it. */
+.ml-filters > select {
+   appearance: none;
+   -webkit-appearance: none;
+   width: 140px;
+   height: 38px;
+   padding: 0 32px 0 13px;
+   background-color: var(--bg-base);
+   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666666' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+   background-repeat: no-repeat;
+   background-position: right 11px center;
    border: 1px solid var(--border-light);
-   border-radius: 6px;
+   border-radius: 8px;
    font-size: 12.5px;
+   font-weight: 600;
    font-family: inherit;
+   color: var(--text-secondary);
+   cursor: pointer;
+   box-shadow: var(--shadow-xs);
+   transition: all var(--transition-base);
+}
+.ml-filters > select:hover {
+   border-color: var(--accent-purple);
    color: var(--text-primary);
+}
+.ml-filters > select:focus {
+   outline: none;
+   border-color: var(--accent-purple);
+   color: var(--text-primary);
+   box-shadow: 0 0 0 3px var(--accent-purple-light);
 }
 .ml-row {
    display: grid;
@@ -5101,215 +5542,6 @@ body {
    margin-top: 16px;
 }
 
-/* ── Coordinator club switcher (sidebar) ──────────────────────────── */
-.club-switcher {
-   margin: 0 0 14px;
-   position: relative;
-}
-.cs-label {
-   font-size: 9.5px;
-   font-weight: 700;
-   letter-spacing: 0.6px;
-   color: var(--text-tertiary);
-   text-transform: uppercase;
-   margin-bottom: 6px;
-   display: flex;
-   align-items: center;
-   gap: 5px;
-}
-.cs-label::after {
-   content: "";
-   flex: 1;
-   height: 1px;
-   background: var(--border-light);
-}
-.cs-trigger {
-   width: 100%;
-   display: flex;
-   align-items: center;
-   gap: 10px;
-   padding: 9px 10px;
-   border-radius: 11px;
-   background: linear-gradient(
-      135deg,
-      rgba(108, 99, 255, 0.06),
-      rgba(52, 211, 153, 0.05)
-   );
-   border: 1px solid var(--border-light);
-   cursor: pointer;
-   transition: all 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
-   text-align: left;
-}
-.cs-trigger:hover {
-   border-color: var(--accent-purple);
-   box-shadow: 0 2px 8px rgba(108, 99, 255, 0.14);
-}
-.club-switcher.open .cs-trigger {
-   border-color: var(--accent-purple);
-   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.12);
-}
-.cs-logo {
-   width: 32px;
-   height: 32px;
-   border-radius: 9px;
-   display: grid;
-   place-items: center;
-   color: #fff;
-   font-weight: 800;
-   font-size: 11.5px;
-   flex-shrink: 0;
-   box-shadow: 0 2px 6px rgba(14, 16, 24, 0.18);
-}
-.cs-logo.sm {
-   width: 30px;
-   height: 30px;
-   border-radius: 8px;
-   font-size: 10.5px;
-}
-.cs-meta,
-.cs-item-meta {
-   min-width: 0;
-   flex: 1;
-   display: flex;
-   flex-direction: column;
-   gap: 1px;
-}
-.cs-name,
-.cs-item-name {
-   font-size: 12.5px;
-   font-weight: 600;
-   color: var(--text-primary);
-   white-space: nowrap;
-   overflow: hidden;
-   text-overflow: ellipsis;
-   display: flex;
-   align-items: center;
-   gap: 4px;
-   letter-spacing: -0.01em;
-}
-.cs-sub,
-.cs-item-sub {
-   font-size: 10.5px;
-   color: var(--text-tertiary);
-   white-space: nowrap;
-   overflow: hidden;
-   text-overflow: ellipsis;
-   font-family: var(--font-mono);
-}
-.cs-tick {
-   width: 13px;
-   height: 13px;
-   border-radius: var(--radius-full);
-   background: var(--accent-purple);
-   color: #fff;
-   display: inline-grid;
-   place-items: center;
-   flex-shrink: 0;
-}
-.cs-unverified {
-   color: var(--accent-orange);
-   font-size: 10px;
-   line-height: 1;
-}
-.cs-chevron {
-   color: var(--text-tertiary);
-   flex-shrink: 0;
-   transition: transform 180ms ease;
-}
-.club-switcher.open .cs-chevron {
-   transform: rotate(180deg);
-   color: var(--accent-purple);
-}
-.cs-menu {
-   position: absolute;
-   top: calc(100% + 6px);
-   left: 0;
-   right: 0;
-   z-index: 200;
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 13px;
-   box-shadow: var(--shadow-xl);
-   padding: 6px;
-   animation: csIn 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.cs-menu-head {
-   font-size: 9.5px;
-   font-weight: 700;
-   letter-spacing: 0.6px;
-   color: var(--text-tertiary);
-   text-transform: uppercase;
-   padding: 8px 8px 6px;
-}
-@keyframes csIn {
-   from {
-      opacity: 0;
-      transform: translateY(-6px) scale(0.98);
-   }
-   to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-   }
-}
-.cs-item {
-   width: 100%;
-   display: flex;
-   align-items: center;
-   gap: 10px;
-   padding: 8px;
-   border-radius: 9px;
-   background: transparent;
-   border: none;
-   cursor: pointer;
-   transition: background 120ms ease;
-   text-align: left;
-}
-.cs-item:hover {
-   background: var(--bg-hover);
-}
-.cs-item.active {
-   background: var(--accent-purple-light);
-}
-.cs-add,
-.cs-empty {
-   width: 100%;
-   display: flex;
-   align-items: center;
-   gap: 9px;
-   padding: 9px 8px;
-   color: var(--accent-purple);
-   font-size: 12.5px;
-   font-weight: 600;
-   cursor: pointer;
-   background: transparent;
-   border: none;
-   text-align: left;
-}
-.cs-add {
-   margin-top: 5px;
-   border-top: 1px solid var(--border-light);
-   border-radius: 0 0 9px 9px;
-}
-.cs-empty {
-   margin-bottom: 14px;
-   border: 1px dashed var(--border-default);
-   border-radius: 11px;
-}
-.cs-add:hover,
-.cs-empty:hover {
-   background: var(--accent-purple-light);
-   border-radius: 9px;
-}
-.cs-add-ic {
-   width: 30px;
-   height: 30px;
-   border-radius: 8px;
-   background: var(--accent-purple-light);
-   display: grid;
-   place-items: center;
-   flex-shrink: 0;
-}
-
 /* ── Create club wizard (ported from .design/Create Club.html) ─────── */
 @keyframes ccFadeUp {
    from {
@@ -6198,5 +6430,523 @@ body {
    }
    .create-club .side {
       position: static;
+   }
+}
+
+/* ── Manage Members (coordinator + superAdmin, per-club) ───────────── */
+.mm-main {
+   max-width: 1400px;
+}
+.mm-title {
+   font-family: var(--font-display);
+   font-weight: 800;
+   font-size: 28px;
+   line-height: 36px;
+   letter-spacing: -0.02em;
+   color: var(--text-primary);
+}
+.mm-club-chip {
+   display: inline-flex;
+   align-items: center;
+   gap: 7px;
+   font-size: 13px;
+   font-weight: 600;
+   color: var(--text-secondary);
+   background: var(--bg-elevated);
+   padding: 4px 12px 4px 6px;
+   border-radius: var(--radius-full);
+   vertical-align: middle;
+   margin-left: 10px;
+}
+.mm-club-lg {
+   width: 22px;
+   height: 22px;
+   border-radius: 6px;
+   display: grid;
+   place-items: center;
+   color: #fff;
+   font-size: 9px;
+   font-weight: 800;
+}
+.mm-sub {
+   color: var(--text-secondary);
+   margin-top: 6px;
+   font-size: 13.5px;
+}
+
+/* stat strip */
+.mm-stat-row {
+   display: grid;
+   grid-template-columns: repeat(4, 1fr);
+   gap: 14px;
+   margin: 22px 0;
+}
+.mm-stat {
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 12px;
+   padding: 15px 18px;
+   box-shadow: var(--shadow-sm);
+   display: flex;
+   align-items: center;
+   gap: 13px;
+}
+.mm-stat-ic {
+   width: 40px;
+   height: 40px;
+   border-radius: 10px;
+   display: grid;
+   place-items: center;
+   flex-shrink: 0;
+}
+.mm-stat-ic.purple {
+   background: var(--accent-purple-light);
+   color: var(--accent-purple);
+}
+.mm-stat-ic.green {
+   background: var(--accent-green-light);
+   color: var(--accent-green);
+}
+.mm-stat-ic.orange {
+   background: var(--accent-orange-light);
+   color: var(--accent-orange);
+}
+.mm-stat-ic.gray {
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
+}
+.mm-stat-label {
+   font-size: 11.5px;
+   color: var(--text-secondary);
+   font-weight: 500;
+}
+.mm-stat-value {
+   font-family: var(--font-display);
+   font-weight: 700;
+   font-size: 23px;
+   line-height: 28px;
+   letter-spacing: -0.02em;
+   margin-top: 1px;
+   color: var(--text-primary);
+}
+.mm-stat-skel {
+   display: inline-block;
+   width: 40px;
+   height: 20px;
+   margin: 4px 0;
+   vertical-align: middle;
+}
+
+/* tabs */
+.mm-tabs {
+   display: flex;
+   gap: 4px;
+   border-bottom: 1px solid var(--border-light);
+   margin-bottom: 18px;
+}
+.mm-tab {
+   padding: 11px 16px;
+   font-size: 13.5px;
+   font-weight: 600;
+   color: var(--text-secondary);
+   border-bottom: 2px solid transparent;
+   margin-bottom: -1px;
+   cursor: pointer;
+   transition: all var(--transition-base);
+   display: inline-flex;
+   align-items: center;
+   gap: 8px;
+   background: none;
+   border-top: none;
+   border-left: none;
+   border-right: none;
+}
+.mm-tab:hover {
+   color: var(--text-primary);
+}
+.mm-tab.active {
+   color: var(--accent-purple);
+   border-bottom-color: var(--accent-purple);
+}
+.mm-badge {
+   font-family: var(--font-mono);
+   font-size: 10.5px;
+   font-weight: 700;
+   padding: 1px 7px;
+   border-radius: var(--radius-full);
+   background: var(--bg-elevated);
+   color: var(--text-tertiary);
+}
+.mm-tab.active .mm-badge {
+   background: var(--accent-purple-light);
+   color: var(--accent-purple);
+}
+.mm-badge.alert {
+   background: var(--accent-red);
+   color: #fff;
+}
+
+/* toolbar */
+.mm-toolbar {
+   display: flex;
+   align-items: center;
+   gap: 10px;
+   margin-bottom: 14px;
+   flex-wrap: wrap;
+}
+.mm-search {
+   position: relative;
+   flex: 1;
+   max-width: 340px;
+}
+.mm-search svg {
+   position: absolute;
+   left: 12px;
+   top: 50%;
+   transform: translateY(-50%);
+   color: var(--text-tertiary);
+}
+.mm-search input {
+   width: 100%;
+   height: 38px;
+   padding: 0 12px 0 36px;
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 8px;
+   font-size: 13px;
+   color: var(--text-primary);
+   transition: all var(--transition-base);
+}
+.mm-search input:focus {
+   outline: none;
+   border-color: var(--accent-purple);
+   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.1);
+}
+.mm-seg {
+   display: inline-flex;
+   padding: 3px;
+   background: var(--bg-elevated);
+   border-radius: 8px;
+   gap: 2px;
+}
+.mm-seg button {
+   padding: 6px 12px;
+   border-radius: 5px;
+   font-size: 12.5px;
+   font-weight: 600;
+   color: var(--text-secondary);
+   transition: all var(--transition-base);
+   border: none;
+   background: none;
+   cursor: pointer;
+}
+.mm-seg button.active {
+   background: var(--bg-base);
+   color: var(--text-primary);
+   box-shadow: var(--shadow-sm);
+}
+
+/* bulk bar */
+.mm-bulk {
+   display: flex;
+   align-items: center;
+   gap: 14px;
+   padding: 10px 16px;
+   background: var(--accent-purple);
+   color: #fff;
+   border-radius: 10px;
+   margin-bottom: 12px;
+   box-shadow: var(--shadow-md);
+   animation: cm-pop 180ms ease;
+}
+.mm-bulk .count {
+   font-weight: 700;
+   font-size: 13.5px;
+}
+.mm-bulk .spacer {
+   flex: 1;
+}
+.mm-bulk button {
+   height: 32px;
+   padding: 0 14px;
+   border-radius: 7px;
+   font-size: 12.5px;
+   font-weight: 600;
+   transition: all var(--transition-base);
+   border: none;
+   cursor: pointer;
+}
+.mm-bulk .b-approve {
+   background: #fff;
+   color: var(--accent-purple);
+}
+.mm-bulk .b-reject {
+   background: rgba(255, 255, 255, 0.15);
+   color: #fff;
+}
+.mm-bulk .b-clear {
+   color: rgba(255, 255, 255, 0.8);
+   background: none;
+}
+
+/* table */
+.mm-card {
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 12px;
+   overflow: hidden;
+   box-shadow: var(--shadow-sm);
+}
+.mm-dt {
+   width: 100%;
+   border-collapse: collapse;
+   font-size: 13px;
+   transition: opacity var(--transition-base);
+}
+.mm-dt.is-loading {
+   opacity: 0.6;
+}
+.mm-dt thead th {
+   text-align: left;
+   font-weight: 600;
+   font-size: 11px;
+   letter-spacing: 0.4px;
+   text-transform: uppercase;
+   color: var(--text-tertiary);
+   padding: 11px 16px;
+   background: var(--bg-surface);
+   border-bottom: 1px solid var(--border-light);
+}
+.mm-dt thead th.ta-right {
+   text-align: right;
+}
+.mm-dt thead th.mm-check {
+   width: 20px;
+}
+.mm-dt tbody td {
+   padding: 13px 16px;
+   border-bottom: 1px solid var(--border-light);
+   vertical-align: middle;
+}
+.mm-dt tbody tr:last-child td {
+   border-bottom: none;
+}
+.mm-dt tbody tr:hover {
+   background: var(--bg-surface);
+}
+.mm-check {
+   width: 20px;
+}
+.mm-ckbox {
+   width: 17px;
+   height: 17px;
+   border-radius: 5px;
+   border: 1.5px solid var(--border-default);
+   background: var(--bg-base);
+   display: grid;
+   place-items: center;
+   cursor: pointer;
+   transition: all 150ms ease;
+   color: #fff;
+   padding: 0;
+}
+.mm-ckbox svg {
+   opacity: 0;
+}
+.mm-ckbox.checked {
+   background: var(--accent-purple);
+   border-color: var(--accent-purple);
+}
+.mm-ckbox.checked svg {
+   opacity: 1;
+}
+.mm-cell {
+   display: flex;
+   align-items: center;
+   gap: 11px;
+}
+.mm-avatar {
+   width: 36px;
+   height: 36px;
+   border-radius: var(--radius-full);
+   display: grid;
+   place-items: center;
+   color: #fff;
+   font-weight: 700;
+   font-size: 12px;
+   flex-shrink: 0;
+   overflow: hidden;
+}
+.mm-avatar img {
+   width: 100%;
+   height: 100%;
+   object-fit: cover;
+}
+.mm-name {
+   font-weight: 600;
+   font-size: 13.5px;
+   color: var(--text-primary);
+}
+.mm-email {
+   font-family: var(--font-mono);
+   font-size: 11px;
+   color: var(--text-tertiary);
+   margin-top: 1px;
+}
+.mm-dept {
+   font-size: 12px;
+   color: var(--text-secondary);
+}
+.mm-date {
+   font-family: var(--font-mono);
+   font-size: 12px;
+   color: var(--text-secondary);
+}
+.mm-eng {
+   font-family: var(--font-mono);
+   font-weight: 600;
+}
+.mm-by {
+   font-size: 12.5px;
+   font-weight: 600;
+   color: var(--text-primary);
+}
+.mm-by.muted {
+   font-weight: 400;
+   color: var(--text-tertiary);
+}
+.mm-pill {
+   display: inline-flex;
+   align-items: center;
+   gap: 5px;
+   font-size: 11px;
+   font-weight: 600;
+   padding: 3px 9px;
+   border-radius: var(--radius-full);
+}
+.mm-pill .dot {
+   width: 6px;
+   height: 6px;
+   border-radius: var(--radius-full);
+}
+.mm-pill.coordinator {
+   background: var(--accent-purple-light);
+   color: var(--accent-purple);
+}
+.mm-pill.coordinator .dot {
+   background: var(--accent-purple);
+}
+.mm-pill.member {
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
+}
+.mm-pill.member .dot {
+   background: var(--text-tertiary);
+}
+.mm-pill.left {
+   background: var(--bg-elevated);
+   color: var(--text-tertiary);
+}
+.mm-pill.left .dot {
+   background: var(--text-tertiary);
+}
+.mm-pill.removed {
+   background: var(--accent-red-light);
+   color: #b91c1c;
+}
+.mm-pill.removed .dot {
+   background: var(--accent-red);
+}
+.mm-pill.rejected {
+   background: var(--accent-orange-light);
+   color: #b45309;
+}
+.mm-pill.rejected .dot {
+   background: var(--accent-orange);
+}
+
+/* row actions */
+.mm-actions {
+   display: flex;
+   gap: 6px;
+   justify-content: flex-end;
+   align-items: center;
+   min-height: 30px;
+}
+.mm-locked {
+   color: var(--text-tertiary);
+}
+.mm-btn {
+   height: 30px;
+   padding: 0 11px;
+   border-radius: 7px;
+   font-size: 12px;
+   font-weight: 600;
+   transition: all var(--transition-base);
+   display: inline-flex;
+   align-items: center;
+   gap: 5px;
+   border: none;
+   cursor: pointer;
+}
+.mm-btn.approve {
+   background: var(--accent-purple);
+   color: #fff;
+}
+.mm-btn.approve:hover {
+   background: #5a52d5;
+}
+.mm-btn.reject {
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
+}
+.mm-btn.reject:hover {
+   background: var(--accent-red-light);
+   color: var(--accent-red);
+}
+.mm-icon {
+   width: 30px;
+   height: 30px;
+   border-radius: 7px;
+   color: var(--text-tertiary);
+   display: grid;
+   place-items: center;
+   transition: all var(--transition-base);
+   border: none;
+   background: none;
+   cursor: pointer;
+}
+.mm-icon:hover {
+   background: var(--bg-hover);
+   color: var(--text-primary);
+}
+.mm-icon.danger:hover {
+   background: var(--accent-red-light);
+   color: var(--accent-red);
+}
+
+.mm-empty {
+   text-align: center;
+   padding: 44px 20px;
+}
+.mm-empty .t {
+   font-weight: 600;
+   font-size: 14px;
+   color: var(--text-secondary);
+}
+.mm-empty .s {
+   font-size: 12.5px;
+   margin-top: 4px;
+   color: var(--text-tertiary);
+}
+.mm-foot {
+   padding: 10px 16px;
+   border-top: 1px solid var(--border-light);
+   background: var(--bg-surface);
+}
+
+@media (max-width: 860px) {
+   .mm-stat-row {
+      grid-template-columns: 1fr 1fr;
    }
 }

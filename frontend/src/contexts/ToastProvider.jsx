@@ -9,7 +9,7 @@ const nextId = () => {
 };
 
 const DEFAULT_DURATION = 4000;
-const MAX_VISIBLE = 2;
+const MAX_VISIBLE = 1;
 
 function ToastIcon({ variant }) {
    if (variant === "success") {
@@ -77,7 +77,12 @@ function ToastCard({ toast, onDismiss }) {
             {toast.title && <div className="toast-title">{toast.title}</div>}
             <div className="toast-msg">{toast.message}</div>
          </div>
-         <button type="button" className="toast-close" onClick={close} aria-label="Dismiss">
+         <button
+            type="button"
+            className="toast-close"
+            onClick={close}
+            aria-label="Dismiss"
+         >
             <Icon size={14}>
                <line x1="18" y1="6" x2="6" y2="18" />
                <line x1="6" y1="6" x2="18" y2="18" />

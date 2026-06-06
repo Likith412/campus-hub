@@ -153,12 +153,13 @@ async function getClubs(req, res) {
       .populate({
          path: "clubId",
          model: Club,
-         select: "name slug logoUrl stats.memberCount category coverFrom coverTo verified",
+         select: "name slug logoUrl stats.memberCount category coverFrom coverTo verified status",
       })
       .lean();
 
    const items = memberships
-      .filter((m) => m.clubId) // Skip orphaned rows where the club was deleted.
+      // Skip orphaned rows (club deleted) and clubs that aren't active (suspended/archived).
+      .filter((m) => m.clubId && m.clubId.status === "active")
       .map((m) => ({
          clubId: m.clubId._id,
          name: m.clubId.name,

@@ -82,6 +82,11 @@ router.delete(
 );
 
 router.get(
+   "/:slug/members/stats",
+   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
+   clubs.getMemberStats,
+);
+router.get(
    "/:slug/members",
    validateQuery(listMembersQuerySchema),
    clubs.listMembers,

@@ -503,6 +503,7 @@ function publicMemberRow(m) {
    return {
       userId: u._id || null,
       name: u.name || "Unknown",
+      email: u.email || null,
       avatarUrl: u.avatarUrl || null,
       department: u.profile?.department || null,
       year: u.profile?.year || null,
@@ -541,14 +542,19 @@ async function listMembers(req, res) {
       throw new ForbiddenError("Coordinator access required");
    }
 
-   const filter = { clubId: club._id, status, ...(role ? { role } : {}) };
+   // "past" is a convenience bucket for the audit tab = anyone who left or was removed.
+   const statusFilter = status === "past" ? { $in: ["left", "removed"] } : status;
+   const filter = { clubId: club._id, status: statusFilter, ...(role ? { role } : {}) };
 
    const skip = (page - 1) * limit;
-   // Approved → user-chosen sort (default: role then engagement); pending → oldest first (queue).
+   // Approved → user-chosen sort (default: role then engagement); past → most-recent exit;
+   // pending → oldest first (queue).
    const sort =
       status === "approved"
          ? MEMBER_SORT[sortKey] || MEMBER_SORT.role
-         : { createdAt: 1 };
+         : status === "past"
+           ? { leftAt: -1 }
+           : { createdAt: 1 };
 
    let userMatch = null;
    if (q) {
@@ -576,7 +582,7 @@ async function listMembers(req, res) {
          .populate([
             {
                path: "userId",
-               select: "name avatarUrl profile.department profile.year",
+               select: "name email avatarUrl profile.department profile.year",
             },
             // Populate the acting admin so each removed row carries id + name.
             { path: "removedBy", select: "name" },
@@ -590,6 +596,31 @@ async function listMembers(req, res) {
       viewerIsCoordinator,
       pagination: { page, limit, total, hasMore: skip + rows.length < total },
    });
+}
+
+// GET /api/clubs/:slug/members/stats — headline counts for the manage-members page.
+async function getMemberStats(req, res) {
+   const club = await findClubBySlugFor(req.user, req.params.slug);
+   await assertCoordinator(req.user, club._id);
+
+   const agg = await ClubMembership.aggregate([
+      { $match: { clubId: club._id } },
+      { $group: { _id: { status: "$status", role: "$role" }, n: { $sum: 1 } } },
+   ]);
+
+   const stats = { active: 0, pending: 0, coordinators: 0, past: 0 };
+   for (const row of agg) {
+      const { status, role } = row._id;
+      if (status === "approved") {
+         stats.active += row.n;
+         if (role === "coordinator") stats.coordinators += row.n;
+      } else if (status === "pending") {
+         stats.pending += row.n;
+      } else if (status === "left" || status === "removed") {
+         stats.past += row.n;
+      }
+   }
+   return successResponse(res, 200, "Member stats", stats);
 }
 
 // PATCH /api/clubs/:slug/members/:userId/status — coordinator accepts/rejects a join request.
@@ -622,7 +653,7 @@ async function moderateMember(req, res) {
               leftAt: null,
               removedBy: null,
            }
-         : { status: "rejected" };
+         : { status: "rejected", leftAt: new Date(), removedBy: req.user._id };
 
    // Guard on the pre-transition status so a concurrent approve counts at most once.
    const guard = {
@@ -844,6 +875,7 @@ module.exports = {
    joinClub,
    leaveClub,
    listMembers,
+   getMemberStats,
    moderateMember,
    setMemberRole,
    removeMember,

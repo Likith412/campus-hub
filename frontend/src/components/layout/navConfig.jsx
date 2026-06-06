@@ -117,32 +117,8 @@ export const NAV_BY_ROLE = {
          icon: I.user,
       },
    ],
-   faculty: [
-      { section: "Manage" },
-      { id: "admin", label: "Club Overview", to: "/", icon: I.admin },
-      { id: "wizard", label: "Create Event", to: "/events/new", icon: I.plus },
-      {
-         id: "workshop",
-         label: "Workshops",
-         to: "/workshops",
-         icon: I.workshop,
-      },
-      {
-         id: "analytics",
-         label: "Analytics",
-         to: "/analytics",
-         icon: I.analytics,
-      },
-      { section: "Engage" },
-      {
-         id: "messages",
-         label: "Messages",
-         to: "/messages",
-         icon: I.chat,
-      },
-      { id: "certs", label: "Certificates", to: "/certificates", icon: I.cert },
-      { id: "profile", label: "Settings", to: "/profile", icon: I.user },
-   ],
+   // faculty nav is built per active club — see getFacultyNav() below.
+   faculty: [],
    superAdmin: [
       { section: "Institute" },
       { id: "super", label: "Overview", to: "/", icon: I.shield },
@@ -160,3 +136,29 @@ export const NAV_BY_ROLE = {
       { id: "audit", label: "Audit Log", to: "/audit", icon: I.log },
    ],
 };
+
+// Faculty sidebar is scoped to the club currently in focus (the switcher's selection).
+// Without a focused club the club-specific links are hidden — only the personal items remain.
+export function getFacultyNav(slug) {
+   const clubItems = slug
+      ? [
+           { section: "This Club" },
+           { id: "home", label: "Club Home", to: `/clubs/${slug}`, icon: I.dashboard },
+           {
+              id: "members",
+              label: "Members",
+              to: `/clubs/${slug}/members`,
+              icon: I.admin,
+           },
+           { id: "wizard", label: "Create Event", to: "/events/new", icon: I.plus },
+           { id: "analytics", label: "Analytics", to: "/analytics", icon: I.analytics },
+        ]
+      : [];
+   return [
+      ...clubItems,
+      { section: "Engage" },
+      { id: "messages", label: "Messages", to: "/messages", icon: I.chat },
+      { id: "certs", label: "Certificates", to: "/certificates", icon: I.cert },
+      { id: "profile", label: "Settings", to: "/profile", icon: I.user },
+   ];
+}

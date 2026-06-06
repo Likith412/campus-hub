@@ -443,6 +443,17 @@ export default function ClubControls() {
                   </div>
                </div>
                <div className="cctl-head-actions">
+                  <Link
+                     className="btn btn-secondary"
+                     to={`/clubs/${club.slug}/members`}
+                  >
+                     <Icon size={13} strokeWidth={2.2}>
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                     </Icon>
+                     Manage members
+                  </Link>
                   <button
                      type="button"
                      className="btn btn-secondary"
