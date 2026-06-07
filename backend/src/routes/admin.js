@@ -17,7 +17,9 @@ const {
 const router = express.Router();
 router.use(authenticate, requireRole(ROLES.SUPER_ADMIN));
 
-router.get("/clubs", validateQuery(listAllClubsQuerySchema), admin.listAllClubs);
+// ============================================================================
+//  USERS  (controllers/admin/users.controller)
+// ============================================================================
 router.get("/users", validateQuery(listUsersQuerySchema), admin.listUsers);
 router.get("/faculty/stats", admin.getFacultyStats);
 router.post("/users", validate(createFacultyBodySchema), admin.createFaculty);
@@ -25,6 +27,15 @@ router.patch(
    "/users/:id/active",
    validate(setUserActiveBodySchema),
    admin.setUserActive,
+);
+
+// ============================================================================
+//  CLUBS  (controllers/admin/clubs.controller)
+// ============================================================================
+router.get(
+   "/clubs",
+   validateQuery(listAllClubsQuerySchema),
+   admin.listAllClubs,
 );
 
 module.exports = router;
