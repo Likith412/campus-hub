@@ -130,6 +130,32 @@ async function seed() {
       console.log(`  ✓ ${club.slug}: ${memberCount} members (incl. 1 coordinator)`);
    }
 
+   // A demo faculty who coordinates several clubs — exercises the sidebar club switcher.
+   const MULTI = clubs.slice(0, Math.min(4, clubs.length));
+   if (MULTI.length) {
+      const priya = await upsertUser({
+         email: "priya.nair@college.edu",
+         name: "Dr. Priya Nair",
+         role: ROLES.FACULTY,
+         dept: "CSE",
+         passwordHash,
+      });
+      for (const club of MULTI) {
+         await upsertMembership(priya._id, club._id, "coordinator", "approved");
+         const memberCount = await ClubMembership.countDocuments({
+            clubId: club._id,
+            status: "approved",
+         });
+         await Club.updateOne(
+            { _id: club._id },
+            { $set: { "stats.memberCount": memberCount } },
+         );
+      }
+      console.log(
+         `  ✓ Dr. Priya Nair coordinates ${MULTI.length} clubs: ${MULTI.map((c) => c.slug).join(", ")}`,
+      );
+   }
+
    console.log("→ Disconnecting");
    await disconnectDatabase();
    console.log(`✅ users seed complete — login with any seeded email / "${PASSWORD}"`);

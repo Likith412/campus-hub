@@ -186,11 +186,19 @@ async function seed() {
       );
    }
 
+   // Leave a few unverified so the "unverified" state is visible in the UI.
+   const UNVERIFIED = new Set([
+      "quantum-computing",
+      "film-makers",
+      "photography-club",
+   ]);
+
    console.log(`→ Seeding ${CLUBS.length} clubs (owner: ${email})`);
    for (const c of CLUBS) {
       const doc = {
          ...c,
          status: "active",
+         verified: !UNVERIFIED.has(c.slug),
          createdBy: owner._id,
       };
       await Club.findOneAndUpdate({ slug: c.slug }, doc, {
