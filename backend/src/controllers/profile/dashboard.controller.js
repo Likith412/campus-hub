@@ -35,6 +35,7 @@ async function getClubs(req, res) {
          model: Club,
          select: "name slug logoUrl stats.memberCount category coverFrom coverTo verified status",
       })
+      .populate({ path: "roleId", select: "slug" })
       .lean();
 
    const items = memberships
@@ -50,7 +51,7 @@ async function getClubs(req, res) {
          coverTo: m.clubId.coverTo,
          verified: !!m.clubId.verified,
          memberCount: m.clubId.stats?.memberCount || 0,
-         role: m.role,
+         role: m.roleId?.slug || null,
          engagementScore: m.engagementScore,
          joinedAt: m.joinedAt,
       }));

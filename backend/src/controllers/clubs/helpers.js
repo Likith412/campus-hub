@@ -2,7 +2,7 @@
 const { Club, ClubMembership, ClubRole } = require("../../models");
 const { systemRoleDocs } = require("../../models/ClubRole");
 const { ROLES } = require("../../constants/roles");
-const { NotFoundError, ForbiddenError } = require("../../utils/errors");
+const { NotFoundError } = require("../../utils/errors");
 
 // Make sure a club has its two system roles (coordinator/member). Cheap idempotent upsert —
 // covers clubs created before Phase 6 the first time anyone reads or edits their roles.
@@ -42,6 +42,18 @@ function slugify(s) {
       .replace(/^-+|-+$/g, "");
 }
 
+// Resolve a club's ClubRole _id by slug, ensuring the system roles exist first. Membership
+// writes/filters that key off the "coordinator"/"member" system roles use this now that
+// ClubMembership references ClubRole by id.
+async function systemRoleId(clubId, slug) {
+   let role = await ClubRole.findOne({ clubId, slug }).select("_id").lean();
+   if (!role) {
+      await ensureSystemRoles(clubId);
+      role = await ClubRole.findOne({ clubId, slug }).select("_id").lean();
+   }
+   return role?._id ?? null;
+}
+
 // === Per-club authorization ===
 // Used by the controllers for inline gates and for building the "what can this viewer do" parts
 // of responses. (The requireClubPermission route middleware enforces the same rules inline.)
@@ -63,12 +75,11 @@ async function resolveClubContext(user, clubId) {
    }).lean();
    if (!membership) return null;
 
-   const role = await ClubRole.findOne({ clubId, slug: membership.role }).lean();
+   const role = await ClubRole.findById(membership.roleId).lean();
    return {
       isSuperAdmin: false,
-      roleSlug: membership.role,
-      // Prefer the live ClubRole weight; fall back to the denormalized membership weight.
-      weight: role?.roleWeight ?? membership.roleWeight ?? 0,
+      roleSlug: role?.slug ?? null,
+      weight: role?.roleWeight ?? 0,
       role,
       membership,
    };
@@ -81,21 +92,12 @@ function contextCan(ctx, perm) {
    return (ctx.role?.permissions || []).includes(perm);
 }
 
-// Throw 403 unless the caller holds `perm` in the club. Returns the resolved context on success.
-async function assertPermission(user, clubId, perm) {
-   const ctx = await resolveClubContext(user, clubId);
-   if (!contextCan(ctx, perm)) {
-      throw new ForbiddenError("You don't have permission to do that in this club");
-   }
-   return ctx;
-}
-
 module.exports = {
    ensureSystemRoles,
    escapeRegex,
    findClubBySlugFor,
    slugify,
+   systemRoleId,
    resolveClubContext,
    contextCan,
-   assertPermission,
 };

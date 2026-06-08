@@ -1,0 +1,461 @@
+// Club members controller — roster, moderation, role assignment, coordinator lifecycle.
+const { successResponse } = require("../../utils/response");
+const {
+   NotFoundError,
+   ForbiddenError,
+   ConflictError,
+} = require("../../utils/errors");
+const { Club, ClubMembership, ClubRole, User } = require("../../models");
+const { ROLES } = require("../../constants/roles");
+const {
+   escapeRegex,
+   findClubBySlugFor,
+   ensureSystemRoles,
+   systemRoleId,
+   resolveClubContext,
+   contextCan,
+} = require("./helpers");
+
+// Shape an aggregation row (user joined as `user`, role as `role`, admin as `removedByUser`).
+function publicMemberRow(m) {
+   const u = m.user || {};
+   const rb = m.removedByUser;
+   const removedBy = rb?._id
+      ? { userId: rb._id, name: rb.name || "Unknown" }
+      : null;
+   return {
+      userId: u._id || null,
+      name: u.name || "Unknown",
+      email: u.email || null,
+      avatarUrl: u.avatarUrl || null,
+      department: u.profile?.department || null,
+      year: u.profile?.year || null,
+      role: m.role?.slug || null,
+      status: m.status,
+      engagementScore: m.engagementScore || 0,
+      joinedAt: m.joinedAt || null,
+      leftAt: m.leftAt || null,
+      removedBy,
+      createdAt: m.createdAt,
+   };
+}
+
+// GET /api/clubs/:slug/members — paginated, filterable by role/status. Pending list is admin-only.
+// Aggregation-based: role rank lives on ClubRole now, so we $lookup it to sort/filter by role.
+async function listMembers(req, res) {
+   const { q, role, status, sort: sortKey, page, limit } = req.validatedQuery;
+   const club = await findClubBySlugFor(req.user, req.params.slug);
+
+   const viewerCtx = await resolveClubContext(req.user, club._id);
+
+   // Private clubs hide their roster — viewing requires members:view (coordinator/superAdmin implicit).
+   if (club.settings?.isPrivate && !contextCan(viewerCtx, "members:view")) {
+      throw new ForbiddenError("This club's member list is private");
+   }
+
+   // Non-approved listings (pending/rejected/left) require members:moderate.
+   const viewerIsCoordinator = contextCan(viewerCtx, "members:moderate");
+   if (status !== "approved" && !viewerIsCoordinator) {
+      throw new ForbiddenError("You don't have permission to view this list");
+   }
+
+   // "past" is a convenience bucket for the audit tab = anyone who left or was removed.
+   const statusFilter =
+      status === "past" ? { $in: ["left", "removed"] } : status;
+   const match = { clubId: club._id, status: statusFilter };
+
+   if (q) {
+      const matched = await User.find({
+         name: { $regex: escapeRegex(q), $options: "i" },
+      })
+         .select("_id")
+         .lean();
+      if (matched.length === 0) {
+         return successResponse(res, 200, "Members", {
+            items: [],
+            viewerIsCoordinator,
+            pagination: { page, limit, total: 0, hasMore: false },
+         });
+      }
+      match.userId = { $in: matched.map((u) => u._id) };
+   }
+
+   // Approved → user-chosen sort (default: role rank then engagement); past → most-recent exit;
+   // pending → oldest first (queue).
+   const sort =
+      status === "approved"
+         ? sortKey === "new"
+            ? { joinedAt: -1 }
+            : sortKey === "active"
+              ? { engagementScore: -1, joinedAt: 1 }
+              : { "role.roleWeight": -1, engagementScore: -1, joinedAt: 1 }
+         : status === "past"
+           ? { leftAt: -1 }
+           : { createdAt: 1 };
+
+   const skip = (page - 1) * limit;
+
+   const [agg] = await ClubMembership.aggregate([
+      { $match: match },
+      // Join the ClubRole so we can filter by role slug and sort by role rank.
+      {
+         $lookup: {
+            from: "clubroles",
+            localField: "roleId",
+            foreignField: "_id",
+            as: "role",
+         },
+      },
+      { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
+      ...(role ? [{ $match: { "role.slug": role } }] : []),
+      {
+         $facet: {
+            rows: [
+               { $sort: sort },
+               { $skip: skip },
+               { $limit: limit },
+               {
+                  $lookup: {
+                     from: "users",
+                     localField: "userId",
+                     foreignField: "_id",
+                     as: "user",
+                  },
+               },
+               { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+               // Join the acting admin so each removed row carries id + name.
+               {
+                  $lookup: {
+                     from: "users",
+                     localField: "removedBy",
+                     foreignField: "_id",
+                     as: "removedByUser",
+                  },
+               },
+               {
+                  $unwind: {
+                     path: "$removedByUser",
+                     preserveNullAndEmptyArrays: true,
+                  },
+               },
+            ],
+            total: [{ $count: "n" }],
+         },
+      },
+   ]);
+
+   const total = agg.total[0]?.n || 0;
+
+   return successResponse(res, 200, "Members", {
+      items: agg.rows.map(publicMemberRow),
+      viewerIsCoordinator,
+      pagination: { page, limit, total, hasMore: skip + agg.rows.length < total },
+   });
+}
+
+// GET /api/clubs/:slug/members/stats — headline counts for the manage-members page.
+async function getMemberStats(req, res) {
+   const club = req.club; // resolved + gated by requireClubPermission
+
+   const coordinatorRoleId = await systemRoleId(club._id, "coordinator");
+   const agg = await ClubMembership.aggregate([
+      { $match: { clubId: club._id } },
+      {
+         $group: {
+            _id: {
+               status: "$status",
+               isCoordinator: { $eq: ["$roleId", coordinatorRoleId] },
+            },
+            n: { $sum: 1 },
+         },
+      },
+   ]);
+
+   const stats = { active: 0, pending: 0, coordinators: 0, past: 0 };
+   for (const row of agg) {
+      const { status, isCoordinator } = row._id;
+      if (status === "approved") {
+         stats.active += row.n;
+         if (isCoordinator) stats.coordinators += row.n;
+      } else if (status === "pending") {
+         stats.pending += row.n;
+      } else if (status === "left" || status === "removed") {
+         stats.past += row.n;
+      }
+   }
+   return successResponse(res, 200, "Member stats", stats);
+}
+
+// PATCH /api/clubs/:slug/members/:userId/status — coordinator accepts/rejects a join request.
+async function moderateMember(req, res) {
+   const { status } = req.body; // "approved" | "rejected"
+   const club = req.club; // resolved + gated by requireClubPermission
+
+   const m = await ClubMembership.findOne({
+      clubId: club._id,
+      userId: req.params.userId,
+   }).lean();
+   if (!m) throw new NotFoundError("Membership not found");
+
+   if (status === "approved") {
+      // Approving accepts a pending request OR re-invites an admin-removed member.
+      if (m.status !== "pending" && m.status !== "removed") {
+         throw new ConflictError("Membership is not pending or removed");
+      }
+   } else if (m.status !== "pending") {
+      // rejecting only applies to a pending request
+      throw new ConflictError("Membership is not pending");
+   }
+
+   const set =
+      status === "approved"
+         ? {
+              status: "approved",
+              joinedAt: new Date(),
+              leftAt: null,
+              removedBy: null,
+           }
+         : { status: "rejected", leftAt: new Date(), removedBy: req.user._id };
+
+   // Guard on the pre-transition status so a concurrent approve counts at most once.
+   const guard = {
+      clubId: club._id,
+      userId: req.params.userId,
+      status:
+         status === "approved" ? { $in: ["pending", "removed"] } : "pending",
+   };
+   const prev = await ClubMembership.findOneAndUpdate(guard, set, {
+      returnDocument: "before",
+   });
+   if (!prev)
+      throw new ConflictError("Membership was just updated; please retry");
+
+   if (status === "approved") {
+      await Club.updateOne(
+         { _id: club._id },
+         { $inc: { "stats.memberCount": 1 } },
+      );
+   }
+
+   return successResponse(res, 200, "Member updated", { status });
+}
+
+// PATCH /api/clubs/:slug/members/:userId/role — change an approved member's role.
+// Assigning OR removing the `coordinator` role is superAdmin-only; a per-club coordinator
+// can't mint new coordinators or demote an existing one.
+async function setMemberRole(req, res) {
+   const { role: roleSlug } = req.body; // a ClubRole.slug in this club
+   const club = req.club; // resolved + gated by requireClubPermission
+   await ensureSystemRoles(club._id);
+   const callerCtx = req.clubContext;
+
+   // Target role must exist in this club.
+   const targetRole = await ClubRole.findOne({
+      clubId: club._id,
+      slug: roleSlug,
+   }).lean();
+   if (!targetRole) throw new NotFoundError("No such role in this club");
+
+   const m = await ClubMembership.findOne({
+      clubId: club._id,
+      userId: req.params.userId,
+   });
+   if (!m) throw new NotFoundError("Membership not found");
+   if (m.status !== "approved") {
+      throw new ConflictError("Can only set role on approved members");
+   }
+
+   // The member's current role (slug) drives the coordinator guard below.
+   const currentRole = await ClubRole.findById(m.roleId).select("slug").lean();
+
+   // Assigning OR removing the `coordinator` system role stays superAdmin-only.
+   const touchesCoordinator =
+      roleSlug === "coordinator" || currentRole?.slug === "coordinator";
+   if (touchesCoordinator && req.user.role !== ROLES.SUPER_ADMIN) {
+      throw new ForbiddenError(
+         "Only a super admin can assign or remove the coordinator role",
+      );
+   }
+
+   // Hierarchy: a non-superAdmin can only assign roles ranked below their own.
+   if (!callerCtx.isSuperAdmin && targetRole.roleWeight >= callerCtx.weight) {
+      throw new ForbiddenError("You can only assign roles below your own");
+   }
+
+   // Faculty are coordinators only: only a faculty may be coordinator, and a faculty
+   // can never drop to a non-coordinator role — remove them from the club instead.
+   const target = await User.findById(m.userId).select("role").lean();
+   if (roleSlug === "coordinator" && target?.role !== ROLES.FACULTY) {
+      throw new ConflictError(
+         "Only faculty accounts can be made a club coordinator",
+      );
+   }
+   if (roleSlug !== "coordinator" && target?.role === ROLES.FACULTY) {
+      throw new ConflictError(
+         "A faculty must stay a coordinator — remove them from the club instead",
+      );
+   }
+
+   m.roleId = targetRole._id;
+   await m.save();
+
+   return successResponse(res, 200, "Member role updated", {
+      role: targetRole.slug,
+   });
+}
+
+// DELETE /api/clubs/:slug/members/:userId — coordinator removes a member (terminal state: "removed").
+async function removeMember(req, res) {
+   const club = req.club; // resolved + gated by requireClubPermission
+
+   // Don't let a coordinator remove themselves via this endpoint — they should use leaveClub.
+   if (String(req.user._id) === String(req.params.userId)) {
+      throw new ConflictError("Use leave to remove your own membership");
+   }
+
+   const coordinatorRoleId = await systemRoleId(club._id, "coordinator");
+
+   // Coordinators are managed only via the superAdmin coordinators endpoint — never kicked
+   // here. This keeps the whole coordinator lifecycle (assign / step-down) superAdmin-owned.
+   const target = await ClubMembership.findOne({
+      clubId: club._id,
+      userId: req.params.userId,
+   })
+      .select("roleId status")
+      .lean();
+   if (
+      target &&
+      ["approved", "pending"].includes(target.status) &&
+      String(target.roleId) === String(coordinatorRoleId)
+   ) {
+      throw new ForbiddenError(
+         "Use the coordinators endpoint to step a coordinator down first",
+      );
+   }
+
+   // Atomically flip an active member row to "removed"; the filter excludes coordinators and
+   // only matches an active row, so a concurrent double-remove decrements the count at most once.
+   const prev = await ClubMembership.findOneAndUpdate(
+      {
+         clubId: club._id,
+         userId: req.params.userId,
+         status: { $in: ["approved", "pending"] },
+         roleId: { $ne: coordinatorRoleId },
+      },
+      { status: "removed", leftAt: new Date(), removedBy: req.user._id },
+      { returnDocument: "before" },
+   );
+   if (!prev) throw new NotFoundError("No active membership");
+
+   if (prev.status === "approved") {
+      await Club.updateOne(
+         { _id: club._id, "stats.memberCount": { $gt: 0 } },
+         { $inc: { "stats.memberCount": -1 } },
+      );
+   }
+
+   return successResponse(res, 200, "Member removed", { status: "removed" });
+}
+
+// POST /api/clubs/:slug/coordinators — superAdmin assigns another faculty as a club coordinator.
+async function addCoordinator(req, res) {
+   const club = await findClubBySlugFor(req.user, req.params.slug);
+   const { userId } = req.body;
+
+   const user = await User.findOne({ _id: userId, role: ROLES.FACULTY })
+      .select("isActive")
+      .lean();
+   if (!user) throw new NotFoundError("No faculty account with that id");
+   if (!user.isActive) {
+      throw new ConflictError("That faculty account is deactivated");
+   }
+
+   const coordinatorRoleId = await systemRoleId(club._id, "coordinator");
+
+   // Advisory pre-check for a friendly error; correctness rides on the before-image below.
+   const existing = await ClubMembership.findOne({ userId, clubId: club._id });
+   if (
+      existing?.status === "approved" &&
+      String(existing.roleId) === String(coordinatorRoleId)
+   ) {
+      throw new ConflictError("Already a coordinator of this club");
+   }
+
+   // returnDocument: "before" lets us count off the atomic prior state, so a concurrent
+   // double-add increments memberCount at most once (mirrors joinClub/removeCoordinator).
+   const prev = await ClubMembership.findOneAndUpdate(
+      { userId, clubId: club._id },
+      {
+         roleId: coordinatorRoleId,
+         status: "approved",
+         joinedAt: new Date(),
+         leftAt: null,
+         removedBy: null,
+      },
+      { upsert: true, setDefaultsOnInsert: true, returnDocument: "before" },
+   );
+
+   // Count them only if they weren't already an approved member of the club.
+   if (prev?.status !== "approved") {
+      await Club.updateOne(
+         { _id: club._id },
+         { $inc: { "stats.memberCount": 1 } },
+      );
+   }
+
+   return successResponse(res, 200, "Coordinator added", { userId });
+}
+
+// DELETE /api/clubs/:slug/coordinators/:userId — superAdmin removes a coordinator from the club.
+// A faculty can't hold a non-coordinator role, so this removes their membership outright.
+async function removeCoordinator(req, res) {
+   const club = await findClubBySlugFor(req.user, req.params.slug);
+   const { userId } = req.params;
+   const coordinatorRoleId = await systemRoleId(club._id, "coordinator");
+
+   // Atomically flip the approved coordinator row to "removed" — a faculty is never a
+   // plain member, so we remove rather than demote. Matching only an approved row means a
+   // concurrent double-remove flips it at most once (same pattern as removeMember).
+   const prev = await ClubMembership.findOneAndUpdate(
+      { userId, clubId: club._id, status: "approved", roleId: coordinatorRoleId },
+      { status: "removed", leftAt: new Date(), removedBy: req.user._id },
+      { returnDocument: "before" },
+   );
+   if (!prev) throw new NotFoundError("Not a coordinator of this club");
+
+   // Enforce "a club must keep ≥1 coordinator" *after* removing, then roll back if this
+   // was the last one. A count-then-remove guard would race: two simultaneous removes
+   // could both see 2 and both delete. Remove-then-verify can't drop the club to zero —
+   // whichever remove leaves none undoes itself (no transaction needed).
+   const remaining = await ClubMembership.countDocuments({
+      clubId: club._id,
+      status: "approved",
+      roleId: coordinatorRoleId,
+   });
+   if (remaining === 0) {
+      await ClubMembership.updateOne(
+         { _id: prev._id },
+         { $set: { status: "approved", leftAt: null, removedBy: null } },
+      );
+      throw new ConflictError(
+         "A club must keep at least one coordinator — add another before removing this one",
+      );
+   }
+
+   await Club.updateOne(
+      { _id: club._id, "stats.memberCount": { $gt: 0 } },
+      { $inc: { "stats.memberCount": -1 } },
+   );
+
+   return successResponse(res, 200, "Coordinator removed", { userId });
+}
+
+module.exports = {
+   listMembers,
+   getMemberStats,
+   moderateMember,
+   setMemberRole,
+   removeMember,
+   addCoordinator,
+   removeCoordinator,
+};

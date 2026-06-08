@@ -4,6 +4,7 @@ const { Student, Faculty, SuperAdmin } = User; // role discriminators
 const Role = require("./Role");
 const Club = require("./Club");
 const ClubMembership = require("./ClubMembership");
+const ClubRole = require("./ClubRole");
 const Event = require("./Event");
 const AuthSession = require("./AuthSession");
 const EmailVerification = require("./EmailVerification");
@@ -17,6 +18,7 @@ module.exports = {
    Role,
    Club,
    ClubMembership,
+   ClubRole,
    Event,
    AuthSession,
    EmailVerification,

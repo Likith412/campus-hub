@@ -1,14 +1,20 @@
 // Zod schemas for /api/clubs endpoints.
 const { z } = require("zod");
 const { CLUB_CATEGORIES } = require("../models/Club");
-const {
-   MEMBERSHIP_ROLES,
-   MEMBERSHIP_STATUSES,
-} = require("../models/ClubMembership");
+const { MEMBERSHIP_STATUSES } = require("../models/ClubMembership");
+const { CLUB_PERMISSION_KEYS } = require("../constants/clubPermissions");
 
 const SORTS = ["popular", "new", "active", "name"];
 const JOIN_POLICIES = ["open", "request", "invite-only"];
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+// A ClubRole.slug: lowercase letters, digits, hyphens (custom roles are free-form now).
+const roleSlug = z
+   .string()
+   .trim()
+   .toLowerCase()
+   .min(1)
+   .max(60)
+   .regex(/^[a-z0-9-]+$/, "Invalid role");
 
 // Accept a valid URL or an empty string (→ undefined). Used for optional link fields.
 const urlOrEmpty = z
@@ -79,7 +85,7 @@ const listClubsQuerySchema = z
 const listMembersQuerySchema = z
    .object({
       q: z.string().trim().max(100).optional(),
-      role: z.enum(MEMBERSHIP_ROLES).optional(),
+      role: roleSlug.optional(),
       // "past" is a convenience bucket (left + removed) used by the manage-members audit tab.
       status: z.enum([...MEMBERSHIP_STATUSES, "past"]).default("approved"),
       sort: z.enum(["role", "new", "active"]).default("role"),
@@ -93,10 +99,32 @@ const memberStatusBodySchema = z
    .object({ status: z.enum(["approved", "rejected"]) })
    .strict();
 
-// PATCH .../members/:userId/role — change an approved member's role.
-const memberRoleBodySchema = z
-   .object({ role: z.enum(MEMBERSHIP_ROLES) })
+// PATCH .../members/:userId/role — assign a ClubRole slug (system or custom).
+const memberRoleBodySchema = z.object({ role: roleSlug }).strict();
+
+// POST /api/clubs/:slug/roles — create a custom role (weight 1..99).
+const createRoleBodySchema = z
+   .object({
+      name: z.string().trim().min(2).max(40),
+      roleWeight: z.coerce.number().int().min(1).max(99),
+      permissions: z.array(z.enum(CLUB_PERMISSION_KEYS)).max(20).optional(),
+      color: z.string().regex(HEX_COLOR).optional(),
+   })
    .strict();
+
+// PATCH /api/clubs/:slug/roles/:roleSlug — edit a custom role (every field optional).
+const updateRoleBodySchema = z
+   .object({
+      name: z.string().trim().min(2).max(40),
+      roleWeight: z.coerce.number().int().min(1).max(99),
+      permissions: z.array(z.enum(CLUB_PERMISSION_KEYS)).max(20),
+      color: z.string().regex(HEX_COLOR),
+   })
+   .partial()
+   .strict()
+   .refine((b) => Object.keys(b).length > 0, {
+      message: "Provide at least one field to update",
+   });
 
 // PATCH /api/clubs/:slug — edit a club. Every field optional; at least one required.
 const updateClubBodySchema = z
@@ -150,5 +178,6 @@ module.exports = {
    addCoordinatorBodySchema,
    verificationBodySchema,
    statusBodySchema,
-   SORTS,
+   createRoleBodySchema,
+   updateRoleBodySchema,
 };

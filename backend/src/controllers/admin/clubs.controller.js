@@ -37,24 +37,42 @@ async function listAllClubs(req, res) {
       Club.aggregate([{ $group: { _id: "$status", n: { $sum: 1 } } }]),
    ]);
 
-   // Coordinator name(s) per club for the page.
+   // Coordinator name(s) per club for the page. "coordinator" is a per-club ClubRole, so
+   // join clubroles (match slug) and users to collect each club's coordinator names.
    const coordsByClub = new Map();
    if (items.length) {
-      const rows = await ClubMembership.find({
-         clubId: { $in: items.map((c) => c._id) },
-         role: "coordinator",
-         status: "approved",
-      })
-         .populate({ path: "userId", select: "name" })
-         .select("clubId userId")
-         .lean();
+      const rows = await ClubMembership.aggregate([
+         {
+            $match: {
+               clubId: { $in: items.map((c) => c._id) },
+               status: "approved",
+            },
+         },
+         {
+            $lookup: {
+               from: "clubroles",
+               localField: "roleId",
+               foreignField: "_id",
+               as: "r",
+            },
+         },
+         { $unwind: "$r" },
+         { $match: { "r.slug": "coordinator" } },
+         {
+            $lookup: {
+               from: "users",
+               localField: "userId",
+               foreignField: "_id",
+               as: "u",
+            },
+         },
+         { $unwind: "$u" },
+         { $project: { clubId: 1, name: "$u.name" } },
+      ]);
       for (const r of rows) {
-         if (!r.userId?.name) continue;
+         if (!r.name) continue;
          const key = String(r.clubId);
-         coordsByClub.set(key, [
-            ...(coordsByClub.get(key) || []),
-            r.userId.name,
-         ]);
+         coordsByClub.set(key, [...(coordsByClub.get(key) || []), r.name]);
       }
    }
 

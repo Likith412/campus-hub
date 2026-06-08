@@ -105,12 +105,22 @@ async function listUsers(req, res) {
                         $expr: {
                            $and: [
                               { $eq: ["$userId", "$$uid"] },
-                              { $eq: ["$role", "coordinator"] },
                               { $eq: ["$status", "approved"] },
                            ],
                         },
                      },
                   },
+                  // Coordinator is a per-club ClubRole — join it and match the slug.
+                  {
+                     $lookup: {
+                        from: "clubroles",
+                        localField: "roleId",
+                        foreignField: "_id",
+                        as: "r",
+                     },
+                  },
+                  { $unwind: "$r" },
+                  { $match: { "r.slug": "coordinator" } },
                   { $count: "n" },
                ],
                as: "cc",
@@ -156,10 +166,23 @@ async function getFacultyStats(req, res) {
          lastLoginAt: { $ne: null },
       }),
       User.countDocuments({ ...faculty, isActive: true, lastLoginAt: null }),
-      ClubMembership.distinct("clubId", {
-         role: "coordinator",
-         status: "approved",
-      }).then((ids) => ids.length),
+      // Clubs with ≥1 approved coordinator. "coordinator" is a per-club ClubRole now, so
+      // join clubroles and match the slug rather than a denormalized role string.
+      ClubMembership.aggregate([
+         { $match: { status: "approved" } },
+         {
+            $lookup: {
+               from: "clubroles",
+               localField: "roleId",
+               foreignField: "_id",
+               as: "r",
+            },
+         },
+         { $unwind: "$r" },
+         { $match: { "r.slug": "coordinator" } },
+         { $group: { _id: "$clubId" } },
+         { $count: "n" },
+      ]).then((rows) => rows[0]?.n || 0),
    ]);
 
    return successResponse(res, 200, "Faculty stats", {
@@ -188,20 +211,35 @@ async function setUserActive(req, res) {
    // Deactivating a faculty who is the sole coordinator of a club would leave it
    // unmanaged — block until another coordinator is assigned to those clubs.
    if (!isActive && user.role === ROLES.FACULTY) {
-      const coordClubIds = await ClubMembership.find({
-         userId: user._id,
-         role: "coordinator",
-         status: "approved",
-      }).distinct("clubId");
+      // Clubs this faculty coordinates. "coordinator" is a per-club ClubRole — join it.
+      const coordRows = await ClubMembership.aggregate([
+         { $match: { userId: user._id, status: "approved" } },
+         {
+            $lookup: {
+               from: "clubroles",
+               localField: "roleId",
+               foreignField: "_id",
+               as: "r",
+            },
+         },
+         { $unwind: "$r" },
+         { $match: { "r.slug": "coordinator" } },
+         { $project: { clubId: 1 } },
+      ]);
+      const coordClubIds = coordRows.map((r) => r.clubId);
       if (coordClubIds.length) {
          const sole = await ClubMembership.aggregate([
+            { $match: { clubId: { $in: coordClubIds }, status: "approved" } },
             {
-               $match: {
-                  clubId: { $in: coordClubIds },
-                  role: "coordinator",
-                  status: "approved",
+               $lookup: {
+                  from: "clubroles",
+                  localField: "roleId",
+                  foreignField: "_id",
+                  as: "r",
                },
             },
+            { $unwind: "$r" },
+            { $match: { "r.slug": "coordinator" } },
             { $group: { _id: "$clubId", n: { $sum: 1 } } },
             { $match: { n: { $lte: 1 } } },
          ]);

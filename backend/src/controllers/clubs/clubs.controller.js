@@ -9,13 +9,12 @@ const {
 } = require("../../utils/errors");
 const { Club, ClubMembership, ClubRole, User, Event } = require("../../models");
 const { systemRoleDocs } = require("../../models/ClubRole");
-const { ROLE_WEIGHT } = require("../../models/ClubMembership");
 const { ROLES } = require("../../constants/roles");
 const {
    escapeRegex,
    findClubBySlugFor,
    slugify,
-   assertPermission,
+   systemRoleId,
 } = require("./helpers");
 
 const SORT_MAP = {
@@ -49,7 +48,7 @@ function publicClubCard(c, membershipByClubId) {
       isPrivate: !!c.settings?.isPrivate,
       // membership state for the current user (drives the join button)
       membershipStatus: m?.status || null, // approved | pending | rejected | left | null
-      membershipRole: m?.role || null,
+      membershipRole: m?.roleId?.slug || null,
    };
 }
 
@@ -100,7 +99,8 @@ async function listClubs(req, res) {
          userId,
          clubId: { $in: items.map((i) => i._id) },
       })
-         .select("clubId status role")
+         .select("clubId status roleId")
+         .populate({ path: "roleId", select: "slug" })
          .lean();
       membershipByClubId = new Map(
          memberships.map((m) => [String(m.clubId), m]),
@@ -201,7 +201,8 @@ async function createClub(req, res) {
    });
 
    // Seed the two system roles (coordinator / member) this club's memberships key off.
-   await ClubRole.insertMany(systemRoleDocs(club._id));
+   const roles = await ClubRole.insertMany(systemRoleDocs(club._id));
+   const coordinatorRoleId = roles.find((r) => r.slug === "coordinator")._id;
 
    // Issue an approved coordinator membership for each assigned coordinator.
    const now = new Date();
@@ -209,8 +210,7 @@ async function createClub(req, res) {
       coordinatorIds.map((userId) => ({
          userId,
          clubId: club._id,
-         role: "coordinator",
-         roleWeight: ROLE_WEIGHT.coordinator,
+         roleId: coordinatorRoleId,
          status: "approved",
          joinedAt: now,
       })),
@@ -225,8 +225,7 @@ async function createClub(req, res) {
 // PATCH /api/clubs/:slug — a club's coordinator (or superAdmin) edits its profile.
 // Only the fields present in the body are touched; slug and verification are not editable here.
 async function updateClub(req, res) {
-   const club = await findClubBySlugFor(req.user, req.params.slug);
-   await assertPermission(req.user, club._id, "club:edit");
+   const club = req.club; // resolved + club:edit asserted by requireClubPermission
 
    const b = req.body;
    // Dotted $set so nested settings/socialLinks don't clobber sibling keys (e.g. allowGuests).
@@ -347,11 +346,11 @@ async function joinClub(req, res) {
    }
 
    const nextStatus = policy === "open" ? "approved" : "pending";
+   const memberRoleId = await systemRoleId(club._id, "member");
    const update = {
       userId,
       clubId: club._id,
-      role: "member",
-      roleWeight: ROLE_WEIGHT.member,
+      roleId: memberRoleId,
       status: nextStatus,
       // Clear any stale terminal-state fields from a prior membership on re-join.
       leftAt: null,
@@ -378,17 +377,21 @@ async function joinClub(req, res) {
    return successResponse(res, 200, "Join processed", { status: nextStatus });
 }
 
-// == TODO: coordinator can't leave. only superadmin can remove them.
 // DELETE /api/clubs/:slug/membership — leave the club (or cancel a pending request).
+// Coordinators can't leave on their own — a superAdmin must step them down first.
 async function leaveClub(req, res) {
    const userId = req.user._id;
    const club = await findClubBySlugFor(req.user, req.params.slug);
+   const coordinatorRoleId = await systemRoleId(club._id, "coordinator");
 
    // A coordinator can't walk away from a club they run — only a superAdmin can remove them or step them down.
    const current = await ClubMembership.findOne({ userId, clubId: club._id })
-      .select("role status")
+      .select("roleId status")
       .lean();
-   if (current?.status === "approved" && current.role === "coordinator") {
+   if (
+      current?.status === "approved" &&
+      String(current.roleId) === String(coordinatorRoleId)
+   ) {
       throw new ForbiddenError(
          "Coordinators can't leave a club — a super admin must step you down first",
       );
@@ -400,7 +403,7 @@ async function leaveClub(req, res) {
          userId,
          clubId: club._id,
          status: { $in: ["approved", "pending"] },
-         role: { $ne: "coordinator" },
+         roleId: { $ne: coordinatorRoleId },
       },
       // Voluntary leave — clear any stale admin-action audit pointer.
       { status: "left", leftAt: new Date(), removedBy: null },
@@ -431,7 +434,8 @@ async function getClub(req, res) {
    let membership = null;
    if (userId) {
       membership = await ClubMembership.findOne({ userId, clubId: club._id })
-         .select("status role joinedAt engagementScore")
+         .select("status roleId joinedAt engagementScore")
+         .populate({ path: "roleId", select: "slug" })
          .lean();
    }
 
@@ -460,7 +464,7 @@ async function getClub(req, res) {
       membership: membership
          ? {
               status: membership.status,
-              role: membership.role,
+              role: membership.roleId?.slug || null,
               joinedAt: membership.joinedAt,
               engagementScore: membership.engagementScore,
            }

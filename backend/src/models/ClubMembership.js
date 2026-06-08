@@ -1,9 +1,6 @@
 // Join table linking a User to a Club, with their per-club role and engagement score.
 const mongoose = require("mongoose");
 
-// Role within a single club. Two system roles today; custom roles (1c.5) will widen this.
-// When 1c.5 lands, the enum constraint is dropped — role becomes any slug from the per-club ClubRole collection.
-const MEMBERSHIP_ROLES = ["coordinator", "member"];
 // Lifecycle of a join request.
 const MEMBERSHIP_STATUSES = [
    "pending",
@@ -12,10 +9,6 @@ const MEMBERSHIP_STATUSES = [
    "left",
    "removed",
 ];
-
-// Mirrors the role's rank (1–100). Doubles as the sort weight for the members listing.
-// Custom roles from 1c.5 will land in 1..99; coordinator stays at 100, member at 0.
-const ROLE_WEIGHT = { coordinator: 100, member: 0 };
 
 const clubMembershipSchema = new mongoose.Schema(
    {
@@ -30,13 +23,13 @@ const clubMembershipSchema = new mongoose.Schema(
          required: true,
       },
 
-      role: {
-         type: String,
-         enum: MEMBERSHIP_ROLES,
-         default: "member",
+      // The member's role in this club — a foreign key to a per-club ClubRole.
+      // Rank/permissions live on the ClubRole (no denormalized weight here).
+      roleId: {
+         type: mongoose.Schema.Types.ObjectId,
+         ref: "ClubRole",
+         required: true,
       },
-      // Mirror of role for fast sort: coordinator=100, member=0. Kept in sync via pre-save hook.
-      roleWeight: { type: Number, default: 0 },
       status: {
          type: String,
          enum: MEMBERSHIP_STATUSES,
@@ -58,28 +51,19 @@ const clubMembershipSchema = new mongoose.Schema(
    { timestamps: true, versionKey: false },
 );
 
-// Keep roleWeight mirrored to role on every save, so save-based role changes
-// (promote/demote, step-down) stay correctly ordered in the members listing.
-clubMembershipSchema.pre("save", function (next) {
-   if (this.isModified("role")) this.roleWeight = ROLE_WEIGHT[this.role] ?? 0;
-   next();
-});
-
 // One membership per (user, club). Other indexes power "my clubs" and per-club leaderboards.
 clubMembershipSchema.index({ userId: 1, clubId: 1 }, { unique: true });
 clubMembershipSchema.index({ userId: 1, status: 1 });
-clubMembershipSchema.index({ clubId: 1, role: 1 });
+clubMembershipSchema.index({ clubId: 1, roleId: 1 });
 clubMembershipSchema.index({ clubId: 1, engagementScore: -1 });
-// Powers the members listing sort (status filter + role-weight, engagement, join time).
+// Powers the members listing (status filter, then engagement / join time). Sorting by role
+// rank is done via a $lookup to ClubRole.roleWeight, so it can't be indexed here.
 clubMembershipSchema.index({
    clubId: 1,
    status: 1,
-   roleWeight: -1,
    engagementScore: -1,
    joinedAt: 1,
 });
 
 module.exports = mongoose.model("ClubMembership", clubMembershipSchema);
-module.exports.MEMBERSHIP_ROLES = MEMBERSHIP_ROLES;
 module.exports.MEMBERSHIP_STATUSES = MEMBERSHIP_STATUSES;
-module.exports.ROLE_WEIGHT = ROLE_WEIGHT;

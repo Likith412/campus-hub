@@ -1,0 +1,154 @@
+// Club roles + permission catalog controller (Phase 6).
+const { successResponse } = require("../../utils/response");
+const {
+   NotFoundError,
+   ForbiddenError,
+   ConflictError,
+} = require("../../utils/errors");
+const { ClubMembership, ClubRole } = require("../../models");
+const { CLUB_PERMISSIONS } = require("../../constants/clubPermissions");
+const {
+   findClubBySlugFor,
+   ensureSystemRoles,
+   slugify,
+   resolveClubContext,
+   contextCan,
+} = require("./helpers");
+
+// GET /api/permissions/catalog — static list of grantable permissions for the picker.
+async function getPermissionCatalog(req, res) {
+   return successResponse(res, 200, "Permission catalog", {
+      permissions: CLUB_PERMISSIONS,
+   });
+}
+
+function publicRole(r) {
+   return {
+      name: r.name,
+      slug: r.slug,
+      color: r.color,
+      permissions: r.permissions || [],
+      isSystem: !!r.isSystem,
+      roleWeight: r.roleWeight,
+   };
+}
+
+// De-duplicate a role slug within one club (slug-2, slug-3, …).
+async function uniqueRoleSlug(clubId, base) {
+   const root = slugify(base) || "role";
+   let slug = root;
+   let n = 2;
+   while (await ClubRole.exists({ clubId, slug })) slug = `${root}-${n++}`;
+   return slug;
+}
+
+// GET /api/clubs/:slug/roles — system + custom roles (with holder counts), plus
+// what the viewer may do.
+async function listRoles(req, res) {
+   const club = await findClubBySlugFor(req.user, req.params.slug);
+   await ensureSystemRoles(club._id);
+
+   const [roles, counts] = await Promise.all([
+      ClubRole.find({ clubId: club._id }).sort({ roleWeight: -1, name: 1 }).lean(),
+      ClubMembership.aggregate([
+         { $match: { clubId: club._id, status: "approved" } },
+         { $group: { _id: "$roleId", n: { $sum: 1 } } },
+      ]),
+   ]);
+   const countByRoleId = new Map(counts.map((c) => [String(c._id), c.n]));
+
+   const ctx = await resolveClubContext(req.user, club._id);
+   const viewer = {
+      isSuperAdmin: !!ctx?.isSuperAdmin,
+      weight: ctx?.isSuperAdmin ? 100 : (ctx?.weight ?? 0),
+      canManageRoles: contextCan(ctx, "roles:manage"),
+      canAssignRole: contextCan(ctx, "members:assign-role"),
+   };
+
+   return successResponse(res, 200, "Roles", {
+      items: roles.map((r) => ({
+         ...publicRole(r),
+         memberCount: countByRoleId.get(String(r._id)) || 0,
+      })),
+      viewer,
+   });
+}
+
+// POST /api/clubs/:slug/roles — create a custom role (weight 1..99).
+async function createRole(req, res) {
+   const club = req.club; // resolved + roles:manage asserted by requireClubPermission
+   await ensureSystemRoles(club._id);
+
+   const { name, roleWeight, permissions, color } = req.body;
+   const slug = await uniqueRoleSlug(club._id, name);
+
+   const role = await ClubRole.create({
+      clubId: club._id,
+      name: name.trim(),
+      slug,
+      color: color || "#6c63ff",
+      permissions: permissions || [],
+      roleWeight,
+      isSystem: false,
+   });
+
+   return successResponse(res, 201, "Role created", { role: publicRole(role) });
+}
+
+// PATCH /api/clubs/:slug/roles/:roleSlug — edit a custom role. System rows immutable.
+async function updateRole(req, res) {
+   const club = req.club; // resolved + roles:manage asserted by requireClubPermission
+
+   const role = await ClubRole.findOne({
+      clubId: club._id,
+      slug: req.params.roleSlug,
+   });
+   if (!role) throw new NotFoundError("Role not found");
+   if (role.isSystem) throw new ForbiddenError("System roles can't be edited");
+
+   const { name, roleWeight, permissions, color } = req.body;
+   if (name !== undefined) role.name = name.trim();
+   if (roleWeight !== undefined) role.roleWeight = roleWeight;
+   if (permissions !== undefined) role.permissions = permissions;
+   if (color !== undefined) role.color = color;
+   await role.save();
+
+   // Rank lives only on the ClubRole now (memberships reference it by id), so there's
+   // nothing to sync onto memberships when the weight changes.
+
+   return successResponse(res, 200, "Role updated", { role: publicRole(role) });
+}
+
+// DELETE /api/clubs/:slug/roles/:roleSlug — only if no live membership still holds it.
+async function deleteRole(req, res) {
+   const club = req.club; // resolved + roles:manage asserted by requireClubPermission
+
+   const role = await ClubRole.findOne({
+      clubId: club._id,
+      slug: req.params.roleSlug,
+   });
+   if (!role) throw new NotFoundError("Role not found");
+   if (role.isSystem) throw new ForbiddenError("System roles can't be deleted");
+
+   const inUse = await ClubMembership.exists({
+      clubId: club._id,
+      roleId: role._id,
+      status: { $in: ["approved", "pending"] },
+   });
+   if (inUse) {
+      throw new ConflictError(
+         "Reassign members off this role before deleting it",
+      );
+   }
+
+   await ClubRole.deleteOne({ _id: role._id });
+   return successResponse(res, 200, "Role deleted", { slug: role.slug });
+}
+
+module.exports = {
+   getPermissionCatalog,
+   listRoles,
+   createRole,
+   updateRole,
+   deleteRole,
+};
