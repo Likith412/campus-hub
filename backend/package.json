@@ -9,7 +9,10 @@
       "db:init": "node src/scripts/dbInit.js",
       "db:seed:clubs": "node src/scripts/seedClubs.js",
       "db:seed:users": "node src/scripts/seedUsers.js",
-      "db:seed": "npm run db:seed:clubs && npm run db:seed:users"
+      "db:seed:roles": "node src/scripts/seedRoles.js",
+      "db:seed": "npm run db:seed:clubs && npm run db:seed:users && npm run db:seed:roles",
+      "db:drop": "node src/scripts/dbReset.js",
+      "db:reset": "npm run db:drop && npm run db:init && npm run db:seed"
    },
    "keywords": [],
    "author": "",

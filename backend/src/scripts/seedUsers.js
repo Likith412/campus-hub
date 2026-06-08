@@ -5,9 +5,9 @@ const dotenv = require("dotenv");
 dotenv.config();
 
 const { connectDatabase, disconnectDatabase } = require("../config/database");
-const { Student, Faculty, Club, ClubMembership } = require("../models");
+const { Student, Faculty, Club, ClubMembership, ClubRole } = require("../models");
+const { systemRoleDocs } = require("../models/ClubRole");
 const { ROLES } = require("../constants/roles");
-const { ROLE_WEIGHT } = require("../models/ClubMembership");
 const { hashPassword } = require("../utils/password");
 
 // Shared password for every seeded user — dev login convenience.
@@ -40,15 +40,32 @@ async function upsertUser({ email, name, role, dept, year, passwordHash }) {
    return doc;
 }
 
+// Ensure a club's system roles exist and return their ids keyed by slug.
+async function systemRoleIds(clubId) {
+   for (const doc of systemRoleDocs(clubId)) {
+      await ClubRole.findOneAndUpdate(
+         { clubId, slug: doc.slug },
+         { $setOnInsert: doc },
+         { upsert: true, setDefaultsOnInsert: true },
+      );
+   }
+   const roles = await ClubRole.find({
+      clubId,
+      slug: { $in: ["coordinator", "member"] },
+   })
+      .select("_id slug")
+      .lean();
+   return Object.fromEntries(roles.map((r) => [r.slug, r._id]));
+}
+
 // Upsert a membership by (user, club). Approved rows get joinedAt + cleared terminal fields.
-async function upsertMembership(userId, clubId, role, status) {
+async function upsertMembership(userId, clubId, roleId, status) {
    await ClubMembership.findOneAndUpdate(
       { userId, clubId },
       {
          userId,
          clubId,
-         role,
-         roleWeight: ROLE_WEIGHT[role] ?? 0,
+         roleId,
          status,
          ...(status === "approved"
             ? { joinedAt: new Date(), leftAt: null, removedBy: null }
@@ -90,6 +107,7 @@ async function seed() {
    console.log(`→ Seeding coordinators + memberships for ${clubs.length} clubs`);
    for (let ci = 0; ci < clubs.length; ci++) {
       const club = clubs[ci];
+      const sys = await systemRoleIds(club._id);
 
       // One dedicated faculty user per club (faculty system role + approved coordinator membership).
       const coordinator = await upsertUser({
@@ -100,12 +118,12 @@ async function seed() {
          year: "4",
          passwordHash,
       });
-      await upsertMembership(coordinator._id, club._id, "coordinator", "approved");
+      await upsertMembership(coordinator._id, club._id, sys.coordinator, "approved");
 
       // Roughly a third of students join each club as approved members (deterministic).
       for (let si = 0; si < students.length; si++) {
          if ((si + ci) % 3 === 0) {
-            await upsertMembership(students[si]._id, club._id, "member", "approved");
+            await upsertMembership(students[si]._id, club._id, sys.member, "approved");
          }
       }
 
@@ -113,7 +131,7 @@ async function seed() {
       if (club.settings?.joinPolicy === "request") {
          for (let si = 0; si < students.length; si++) {
             if ((si + ci) % 3 !== 0 && (si + ci) % 7 === 1) {
-               await upsertMembership(students[si]._id, club._id, "member", "pending");
+               await upsertMembership(students[si]._id, club._id, sys.member, "pending");
             }
          }
       }
@@ -141,7 +159,8 @@ async function seed() {
          passwordHash,
       });
       for (const club of MULTI) {
-         await upsertMembership(priya._id, club._id, "coordinator", "approved");
+         const sys = await systemRoleIds(club._id);
+         await upsertMembership(priya._id, club._id, sys.coordinator, "approved");
          const memberCount = await ClubMembership.countDocuments({
             clubId: club._id,
             status: "approved",

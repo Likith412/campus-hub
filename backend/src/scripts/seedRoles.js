@@ -89,11 +89,17 @@ async function seed() {
          );
       }
 
-      // Assign approved student members (role still "member") into the custom roles.
+      // Map each role slug → its ClubRole _id for this club (membership.roleId targets).
+      const roleDocs = await ClubRole.find({ clubId: club._id })
+         .select("_id slug")
+         .lean();
+      const idBySlug = Object.fromEntries(roleDocs.map((r) => [r.slug, r._id]));
+
+      // Assign approved student members (still in the "member" role) into the custom roles.
       const members = await ClubMembership.find({
          clubId: club._id,
          status: "approved",
-         role: "member",
+         roleId: idBySlug.member,
       })
          .limit(12)
          .lean();
@@ -101,11 +107,10 @@ async function seed() {
       let idx = 0;
       let assigned = 0;
       for (const plan of ASSIGN_PLAN) {
-         const role = CUSTOM_ROLES.find((r) => r.slug === plan.slug);
          for (let k = 0; k < plan.count && idx < members.length; k++, idx++) {
             await ClubMembership.updateOne(
                { _id: members[idx]._id },
-               { $set: { role: role.slug, roleWeight: role.roleWeight } },
+               { $set: { roleId: idBySlug[plan.slug] } },
             );
             assigned++;
          }

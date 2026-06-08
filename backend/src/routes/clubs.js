@@ -1,9 +1,10 @@
-// Clubs routes mounted at /api/clubs.
+// Clubs routes mounted at /api/clubs. All routes are authenticated.
 const express = require("express");
 
 const clubs = require("../controllers/clubs");
 const authenticate = require("../middlewares/authenticate");
 const requireRole = require("../middlewares/requireRole");
+const requireClubPermission = require("../middlewares/requireClubPermission");
 const validate = require("../middlewares/validate");
 const { validateQuery } = require("../middlewares/validate");
 const { ROLES } = require("../constants/roles");
@@ -17,11 +18,16 @@ const {
    addCoordinatorBodySchema,
    verificationBodySchema,
    statusBodySchema,
+   createRoleBodySchema,
+   updateRoleBodySchema,
 } = require("../validators/clubs");
 
 const router = express.Router();
 router.use(authenticate);
 
+// ============================================================================
+//  CLUBS — browse + lifecycle  (controllers/clubs/clubs.controller)
+// ============================================================================
 // Browse/join is a student feature — superAdmins use GET /api/admin/clubs instead.
 router.get(
    "/",
@@ -36,7 +42,6 @@ router.post(
    validate(createClubBodySchema),
    clubs.createClub,
 );
-
 // SuperAdmin-only club governance.
 router.patch(
    "/:slug/verification",
@@ -50,12 +55,11 @@ router.patch(
    validate(statusBodySchema),
    clubs.setStatus,
 );
-
 router.get("/:slug", clubs.getClub);
-// Edit a club — gated per-club (coordinator of this club or superAdmin) inside the controller.
+// Edit a club — gated per-club on `club:edit` by requireClubPermission (coordinator/superAdmin implicit).
 router.patch(
    "/:slug",
-   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
+   requireClubPermission("club", "edit"),
    validate(updateClubBodySchema),
    clubs.updateClub,
 );
@@ -68,6 +72,9 @@ router.delete(
 router.post("/:slug/join", clubs.joinClub);
 router.delete("/:slug/membership", clubs.leaveClub);
 
+// ============================================================================
+//  MEMBERS + COORDINATORS  (controllers/clubs/members.controller)
+// ============================================================================
 // SuperAdmin-only faculty assignment.
 router.post(
    "/:slug/coordinators",
@@ -80,10 +87,9 @@ router.delete(
    requireRole(ROLES.SUPER_ADMIN),
    clubs.removeCoordinator,
 );
-
 router.get(
    "/:slug/members/stats",
-   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
+   requireClubPermission("members", "moderate"),
    clubs.getMemberStats,
 );
 router.get(
@@ -94,20 +100,44 @@ router.get(
 // Member admin: status (approve/reject) and role (promote/demote) are separate operations.
 router.patch(
    "/:slug/members/:userId/status",
-   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
+   requireClubPermission("members", "moderate"),
    validate(memberStatusBodySchema),
    clubs.moderateMember,
 );
 router.patch(
    "/:slug/members/:userId/role",
-   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
+   requireClubPermission("members", "assign-role"),
    validate(memberRoleBodySchema),
    clubs.setMemberRole,
 );
 router.delete(
    "/:slug/members/:userId",
-   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
+   requireClubPermission("members", "moderate"),
    clubs.removeMember,
+);
+
+// ============================================================================
+//  ROLES  (controllers/clubs/roles.controller)
+// ============================================================================
+// Listing is open to any viewer (drives badges + filters); create/edit/delete are gated
+// per-club on `roles:manage` by requireClubPermission.
+router.get("/:slug/roles", clubs.listRoles);
+router.post(
+   "/:slug/roles",
+   requireClubPermission("roles", "manage"),
+   validate(createRoleBodySchema),
+   clubs.createRole,
+);
+router.patch(
+   "/:slug/roles/:roleSlug",
+   requireClubPermission("roles", "manage"),
+   validate(updateRoleBodySchema),
+   clubs.updateRole,
+);
+router.delete(
+   "/:slug/roles/:roleSlug",
+   requireClubPermission("roles", "manage"),
+   clubs.deleteRole,
 );
 
 module.exports = router;
