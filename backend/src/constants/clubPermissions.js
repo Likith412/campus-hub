@@ -4,7 +4,6 @@
 // Format: "resource:action". The `coordinator` system role implicitly holds all of them.
 const CLUB_PERMISSIONS = [
    { key: "club:edit", label: "Edit club profile", group: "Club", desc: "Name, logo, description, tags, join policy" },
-   { key: "members:view", label: "View member directory", group: "Members", desc: "See the full roster & member profiles" },
    { key: "members:moderate", label: "Approve & remove members", group: "Members", desc: "Accept or reject requests, remove members" },
    { key: "members:assign-role", label: "Assign member roles", group: "Members", desc: "Assign roles below their own weight" },
    { key: "roles:manage", label: "Manage roles", group: "Governance", desc: "Create, edit & delete custom roles" },

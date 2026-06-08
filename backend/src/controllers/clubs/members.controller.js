@@ -40,20 +40,28 @@ function publicMemberRow(m) {
    };
 }
 
+// A non-superAdmin may only moderate members ranked strictly below their own role —
+// mirrors the weight hierarchy enforced on role assignment. coordinator weight is 100.
+async function assertOutranks(callerCtx, targetRoleId) {
+   if (callerCtx.isSuperAdmin) return;
+   const targetRole = await ClubRole.findById(targetRoleId)
+      .select("roleWeight")
+      .lean();
+   if ((targetRole?.roleWeight ?? 0) >= callerCtx.weight) {
+      throw new ForbiddenError(
+         "You can only manage members ranked below your own role",
+      );
+   }
+}
+
 // GET /api/clubs/:slug/members — paginated, filterable by role/status. Pending list is admin-only.
 // Aggregation-based: role rank lives on ClubRole now, so we $lookup it to sort/filter by role.
 async function listMembers(req, res) {
    const { q, role, status, sort: sortKey, page, limit } = req.validatedQuery;
    const club = await findClubBySlugFor(req.user, req.params.slug);
 
+   // The approved roster is public to any logged-in user; non-approved listings need moderation.
    const viewerCtx = await resolveClubContext(req.user, club._id);
-
-   // Private clubs hide their roster — viewing requires members:view (coordinator/superAdmin implicit).
-   if (club.settings?.isPrivate && !contextCan(viewerCtx, "members:view")) {
-      throw new ForbiddenError("This club's member list is private");
-   }
-
-   // Non-approved listings (pending/rejected/left) require members:moderate.
    const viewerIsCoordinator = contextCan(viewerCtx, "members:moderate");
    if (status !== "approved" && !viewerIsCoordinator) {
       throw new ForbiddenError("You don't have permission to view this list");
@@ -149,7 +157,12 @@ async function listMembers(req, res) {
    return successResponse(res, 200, "Members", {
       items: agg.rows.map(publicMemberRow),
       viewerIsCoordinator,
-      pagination: { page, limit, total, hasMore: skip + agg.rows.length < total },
+      pagination: {
+         page,
+         limit,
+         total,
+         hasMore: skip + agg.rows.length < total,
+      },
    });
 }
 
@@ -196,6 +209,18 @@ async function moderateMember(req, res) {
       userId: req.params.userId,
    }).lean();
    if (!m) throw new NotFoundError("Membership not found");
+
+   // Coordinators are managed only via the superAdmin /coordinators endpoint — never
+   // approved/rejected/re-instated here (mirrors the guard in removeMember).
+   const coordinatorRoleId = await systemRoleId(club._id, "coordinator");
+   if (String(m.roleId) === String(coordinatorRoleId)) {
+      throw new ForbiddenError(
+         "Coordinators are managed via the coordinators endpoint",
+      );
+   }
+
+   // Weight bound — matters most when re-inviting a removed member who kept a high-weight role.
+   await assertOutranks(req.clubContext, m.roleId);
 
    if (status === "approved") {
       // Approving accepts a pending request OR re-invites an admin-removed member.
@@ -265,8 +290,10 @@ async function setMemberRole(req, res) {
       throw new ConflictError("Can only set role on approved members");
    }
 
-   // The member's current role (slug) drives the coordinator guard below.
-   const currentRole = await ClubRole.findById(m.roleId).select("slug").lean();
+   // The member's current role (slug + weight) drives the coordinator + hierarchy guards below.
+   const currentRole = await ClubRole.findById(m.roleId)
+      .select("slug roleWeight")
+      .lean();
 
    // Assigning OR removing the `coordinator` system role stays superAdmin-only.
    const touchesCoordinator =
@@ -277,9 +304,17 @@ async function setMemberRole(req, res) {
       );
    }
 
-   // Hierarchy: a non-superAdmin can only assign roles ranked below their own.
-   if (!callerCtx.isSuperAdmin && targetRole.roleWeight >= callerCtx.weight) {
-      throw new ForbiddenError("You can only assign roles below your own");
+   // Hierarchy (both ends): a non-superAdmin can only re-role members ranked below their own
+   // role, and only into a role ranked below their own — can't touch someone who outranks them.
+   if (!callerCtx.isSuperAdmin) {
+      if ((currentRole?.roleWeight ?? 0) >= callerCtx.weight) {
+         throw new ForbiddenError(
+            "You can only change roles of members ranked below your own",
+         );
+      }
+      if (targetRole.roleWeight >= callerCtx.weight) {
+         throw new ForbiddenError("You can only assign roles below your own");
+      }
    }
 
    // Faculty are coordinators only: only a faculty may be coordinator, and a faculty
@@ -332,6 +367,9 @@ async function removeMember(req, res) {
          "Use the coordinators endpoint to step a coordinator down first",
       );
    }
+
+   // Weight bound — a non-superAdmin can only remove members ranked below their own role.
+   if (target) await assertOutranks(req.clubContext, target.roleId);
 
    // Atomically flip an active member row to "removed"; the filter excludes coordinators and
    // only matches an active row, so a concurrent double-remove decrements the count at most once.
@@ -417,7 +455,12 @@ async function removeCoordinator(req, res) {
    // plain member, so we remove rather than demote. Matching only an approved row means a
    // concurrent double-remove flips it at most once (same pattern as removeMember).
    const prev = await ClubMembership.findOneAndUpdate(
-      { userId, clubId: club._id, status: "approved", roleId: coordinatorRoleId },
+      {
+         userId,
+         clubId: club._id,
+         status: "approved",
+         roleId: coordinatorRoleId,
+      },
       { status: "removed", leftAt: new Date(), removedBy: req.user._id },
       { returnDocument: "before" },
    );

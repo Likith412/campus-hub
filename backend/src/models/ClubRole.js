@@ -26,7 +26,8 @@ const clubRoleSchema = new mongoose.Schema(
 );
 
 clubRoleSchema.index({ clubId: 1, slug: 1 }, { unique: true });
-clubRoleSchema.index({ clubId: 1, roleWeight: -1 });
+// Weight is unique within a club — the hierarchy is a strict total order (no two roles tied).
+clubRoleSchema.index({ clubId: 1, roleWeight: 1 }, { unique: true });
 
 // The two system roles every club is born with. coordinator holds every permission.
 function systemRoleDocs(clubId) {

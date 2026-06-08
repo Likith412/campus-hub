@@ -63,6 +63,7 @@ async function listRoles(req, res) {
       weight: ctx?.isSuperAdmin ? 100 : (ctx?.weight ?? 0),
       canManageRoles: contextCan(ctx, "roles:manage"),
       canAssignRole: contextCan(ctx, "members:assign-role"),
+      canModerate: contextCan(ctx, "members:moderate"),
    };
 
    return successResponse(res, 200, "Roles", {
@@ -80,6 +81,14 @@ async function createRole(req, res) {
    await ensureSystemRoles(club._id);
 
    const { name, roleWeight, permissions, color } = req.body;
+
+   // Weight is unique per club — reject a collision up front with a clear message.
+   if (await ClubRole.exists({ clubId: club._id, roleWeight })) {
+      throw new ConflictError(
+         `Weight ${roleWeight} is already taken by another role`,
+      );
+   }
+
    const slug = await uniqueRoleSlug(club._id, name);
 
    const role = await ClubRole.create({
@@ -107,6 +116,22 @@ async function updateRole(req, res) {
    if (role.isSystem) throw new ForbiddenError("System roles can't be edited");
 
    const { name, roleWeight, permissions, color } = req.body;
+
+   // Weight is unique per club — block a move onto a weight another role already holds.
+   if (roleWeight !== undefined && roleWeight !== role.roleWeight) {
+      if (
+         await ClubRole.exists({
+            clubId: club._id,
+            roleWeight,
+            _id: { $ne: role._id },
+         })
+      ) {
+         throw new ConflictError(
+            `Weight ${roleWeight} is already taken by another role`,
+         );
+      }
+   }
+
    if (name !== undefined) role.name = name.trim();
    if (roleWeight !== undefined) role.roleWeight = roleWeight;
    if (permissions !== undefined) role.permissions = permissions;

@@ -19,7 +19,6 @@ const CUSTOM_ROLES = [
       color: "#a855f7",
       permissions: [
          "club:edit",
-         "members:view",
          "members:moderate",
          "members:assign-role",
          "announcements:create",
@@ -34,7 +33,6 @@ const CUSTOM_ROLES = [
       roleWeight: 60,
       color: "#3b82f6",
       permissions: [
-         "members:view",
          "events:create",
          "events:edit",
          "announcements:create",
@@ -45,7 +43,7 @@ const CUSTOM_ROLES = [
       slug: "volunteer",
       roleWeight: 30,
       color: "#34d399",
-      permissions: ["members:view", "events:edit"],
+      permissions: ["events:edit"],
    },
 ];
 
