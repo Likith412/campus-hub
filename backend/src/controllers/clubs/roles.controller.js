@@ -64,6 +64,7 @@ async function listRoles(req, res) {
       canManageRoles: contextCan(ctx, "roles:manage"),
       canAssignRole: contextCan(ctx, "members:assign-role"),
       canModerate: contextCan(ctx, "members:moderate"),
+      canEditClub: contextCan(ctx, "club:edit"),
    };
 
    return successResponse(res, 200, "Roles", {

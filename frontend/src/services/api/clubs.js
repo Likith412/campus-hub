@@ -112,6 +112,23 @@ export async function listMembers(
    return data;
 }
 
+// Search active students a moderator can add (excludes current approved/pending members).
+export async function searchAddableStudents(slug, q) {
+   const { data } = await apiClient.get(
+      `/clubs/${encodeURIComponent(slug)}/members/search?q=${encodeURIComponent(q)}`,
+   );
+   return data;
+}
+
+// Directly add a student as an approved member (no join request needed).
+export async function addMember(slug, userId) {
+   const { data } = await apiClient.post(
+      `/clubs/${encodeURIComponent(slug)}/members`,
+      { userId },
+   );
+   return data;
+}
+
 // Accept or reject a join request (status: "approved" | "rejected").
 export async function setMemberStatus(slug, userId, status) {
    const { data } = await apiClient.patch(
@@ -121,7 +138,7 @@ export async function setMemberStatus(slug, userId, status) {
    return data;
 }
 
-// Change an approved member's role (role: "coordinator" | "member").
+// Change an approved member's role (role: any ClubRole slug below the caller's weight).
 export async function setMemberRole(slug, userId, role) {
    const { data } = await apiClient.patch(
       `/clubs/${encodeURIComponent(slug)}/members/${encodeURIComponent(userId)}/role`,
@@ -133,6 +150,45 @@ export async function setMemberRole(slug, userId, role) {
 export async function removeMember(slug, userId) {
    const { data } = await apiClient.delete(
       `/clubs/${encodeURIComponent(slug)}/members/${encodeURIComponent(userId)}`,
+   );
+   return data;
+}
+
+// ── Roles (Phase 6) ──────────────────────────────────────────────────
+
+// Static list of grantable per-club permissions for the role picker.
+export async function getPermissionCatalog() {
+   const { data } = await apiClient.get("/permissions/catalog");
+   return data;
+}
+
+// System + custom roles for a club, plus what the viewer may do (canManageRoles, weight…).
+export async function listRoles(slug) {
+   const { data } = await apiClient.get(
+      `/clubs/${encodeURIComponent(slug)}/roles`,
+   );
+   return data;
+}
+
+export async function createRole(slug, body) {
+   const { data } = await apiClient.post(
+      `/clubs/${encodeURIComponent(slug)}/roles`,
+      body,
+   );
+   return data;
+}
+
+export async function updateRole(slug, roleSlug, patch) {
+   const { data } = await apiClient.patch(
+      `/clubs/${encodeURIComponent(slug)}/roles/${encodeURIComponent(roleSlug)}`,
+      patch,
+   );
+   return data;
+}
+
+export async function deleteRole(slug, roleSlug) {
+   const { data } = await apiClient.delete(
+      `/clubs/${encodeURIComponent(slug)}/roles/${encodeURIComponent(roleSlug)}`,
    );
    return data;
 }

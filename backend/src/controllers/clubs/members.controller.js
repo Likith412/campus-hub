@@ -395,6 +395,97 @@ async function removeMember(req, res) {
    return successResponse(res, 200, "Member removed", { status: "removed" });
 }
 
+// GET /api/clubs/:slug/members/search?q= — active students a moderator can add to the club
+// (excludes anyone already approved or pending here). Drives the add-member picker.
+async function searchAddableStudents(req, res) {
+   const club = req.club; // resolved + gated by requireClubPermission(members, moderate)
+   const { q } = req.validatedQuery;
+
+   // Exclude students already in the club (approved or pending) — can't be added again.
+   const inClub = await ClubMembership.find({
+      clubId: club._id,
+      status: { $in: ["approved", "pending"] },
+   })
+      .select("userId")
+      .lean();
+   const excludeIds = inClub.map((m) => m.userId);
+
+   const filter = {
+      role: ROLES.STUDENT,
+      isActive: true,
+      _id: { $nin: excludeIds },
+   };
+   // Empty query → the default opening list; otherwise a name/email regex match.
+   if (q) {
+      const rx = { $regex: escapeRegex(q), $options: "i" };
+      filter.$or = [{ name: rx }, { email: rx }];
+   }
+
+   const students = await User.find(filter)
+      .select("name email avatarUrl profile.department profile.year")
+      .sort({ name: 1 })
+      .limit(20)
+      .lean();
+
+   return successResponse(res, 200, "Students", {
+      items: students.map((u) => ({
+         userId: u._id,
+         name: u.name,
+         email: u.email,
+         avatarUrl: u.avatarUrl || null,
+         department: u.profile?.department || null,
+         year: u.profile?.year || null,
+      })),
+   });
+}
+
+// POST /api/clubs/:slug/members — a moderator directly adds an active student as an approved
+// member (bypasses the join-request flow). Faculty are coordinators only and can't be added here.
+async function addMember(req, res) {
+   const club = req.club; // resolved + gated by requireClubPermission(members, moderate)
+   const { userId } = req.body;
+
+   const user = await User.findOne({ _id: userId, role: ROLES.STUDENT })
+      .select("isActive")
+      .lean();
+   if (!user) throw new NotFoundError("No student account with that id");
+   if (!user.isActive) {
+      throw new ConflictError("That student account is deactivated");
+   }
+
+   const existing = await ClubMembership.findOne({ userId, clubId: club._id })
+      .select("status")
+      .lean();
+   if (existing?.status === "approved") {
+      throw new ConflictError("Already a member of this club");
+   }
+
+   const memberRoleId = await systemRoleId(club._id, "member");
+
+   // Upsert to approved with the member role; count off the atomic prior state so a concurrent
+   // double-add increments memberCount at most once (mirrors joinClub / addCoordinator).
+   const prev = await ClubMembership.findOneAndUpdate(
+      { userId, clubId: club._id },
+      {
+         roleId: memberRoleId,
+         status: "approved",
+         joinedAt: new Date(),
+         leftAt: null,
+         removedBy: null,
+      },
+      { upsert: true, setDefaultsOnInsert: true, returnDocument: "before" },
+   );
+
+   if (prev?.status !== "approved") {
+      await Club.updateOne(
+         { _id: club._id },
+         { $inc: { "stats.memberCount": 1 } },
+      );
+   }
+
+   return successResponse(res, 200, "Member added", { userId });
+}
+
 // POST /api/clubs/:slug/coordinators — superAdmin assigns another faculty as a club coordinator.
 async function addCoordinator(req, res) {
    const club = await findClubBySlugFor(req.user, req.params.slug);
@@ -496,6 +587,8 @@ async function removeCoordinator(req, res) {
 module.exports = {
    listMembers,
    getMemberStats,
+   searchAddableStudents,
+   addMember,
    moderateMember,
    setMemberRole,
    removeMember,

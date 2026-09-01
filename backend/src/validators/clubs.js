@@ -94,6 +94,18 @@ const listMembersQuerySchema = z
    })
    .strict();
 
+// GET /api/clubs/:slug/members/search — find active students to add. Empty q → opening list.
+const searchMembersQuerySchema = z
+   .object({ q: z.string().trim().max(100).optional().default("") })
+   .strict();
+
+// POST /api/clubs/:slug/members — directly add a student by id.
+const addMemberBodySchema = z
+   .object({
+      userId: z.string().regex(/^[0-9a-fA-F]{24}$/, "Invalid user id"),
+   })
+   .strict();
+
 // PATCH .../members/:userId/status — accept or reject a join request.
 const memberStatusBodySchema = z
    .object({ status: z.enum(["approved", "rejected"]) })
@@ -171,6 +183,8 @@ const addCoordinatorBodySchema = z
 module.exports = {
    listClubsQuerySchema,
    listMembersQuerySchema,
+   searchMembersQuerySchema,
+   addMemberBodySchema,
    memberStatusBodySchema,
    memberRoleBodySchema,
    createClubBodySchema,

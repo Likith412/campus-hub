@@ -89,14 +89,33 @@ function FacultyPicker({ slug, clubName, assigned, onClose, onAssigned }) {
    const confirm = useConfirm();
    const [pool, setPool] = useState(null);
    const [query, setQuery] = useState("");
+   const [debounced, setDebounced] = useState("");
    const [busyId, setBusyId] = useState(null);
+   const reqRef = useRef(0);
 
    useEffect(() => {
+      const id = setTimeout(() => setDebounced(query.trim()), 300);
+      return () => clearTimeout(id);
+   }, [query]);
+
+   // Server-side: name/email regex (empty → opening list), ordered by name ascending.
+   useEffect(() => {
+      const myReq = ++reqRef.current;
       adminApi
-         .listUsers({ role: "faculty", status: "active", limit: 50 })
-         .then((d) => setPool(d?.items || []))
-         .catch(() => setPool([]));
-   }, []);
+         .listUsers({
+            role: "faculty",
+            status: "active",
+            q: debounced || undefined,
+            sort: "name",
+            limit: 50,
+         })
+         .then((d) => {
+            if (myReq === reqRef.current) setPool(d?.items || []);
+         })
+         .catch(() => {
+            if (myReq === reqRef.current) setPool([]);
+         });
+   }, [debounced]);
 
    useEffect(() => {
       const onKey = (e) => e.key === "Escape" && onClose();
@@ -113,15 +132,8 @@ function FacultyPicker({ slug, clubName, assigned, onClose, onAssigned }) {
       () => new Set(assigned.map((c) => String(c.userId))),
       [assigned],
    );
-   const list = (pool || []).filter((f) => {
-      if (assignedIds.has(String(f.id))) return false;
-      const q = query.trim().toLowerCase();
-      return (
-         !q ||
-         f.name.toLowerCase().includes(q) ||
-         f.email.toLowerCase().includes(q)
-      );
-   });
+   // Search is server-side now; just hide faculty already assigned to this club.
+   const list = (pool || []).filter((f) => !assignedIds.has(String(f.id)));
 
    async function assign(f) {
       const ok = await confirm({

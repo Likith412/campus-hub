@@ -83,7 +83,7 @@ export default function ClubSwitcher() {
                </Icon>
             </span>
             <span>
-               <b>Create your first club</b>
+               <b>Create club</b>
                <small>Start running a club on campus</small>
             </span>
          </button>
@@ -109,7 +109,8 @@ export default function ClubSwitcher() {
             <span className="cs-trigger-text">
                <span className="cs-eyebrow">Managing</span>
                <span className="cs-name">
-                  {activeClub.name}
+                  {/* Inner span so the ellipsis applies — .cs-name is a flex row. */}
+                  <span className="cs-name-text">{activeClub.name}</span>
                   {activeClub.verified && <VerifiedTick />}
                </span>
             </span>

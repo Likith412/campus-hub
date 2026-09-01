@@ -81,6 +81,204 @@ function StatCard({ tone, label, value, loading, children }) {
    );
 }
 
+// Down-chevron data-URI tinted to the role's colour (mirrors the club status pill).
+function chevronBg(color) {
+   const c = color.replace("#", "%23");
+   return `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='${c}' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>")`;
+}
+
+// Role badge that doubles as a role switcher — a colour-coded <select> like the club
+// status pill. Lists roles the viewer may assign (below their own weight, excluding
+// coordinator). Coordinator rows (and viewers without members:assign-role) render a
+// plain, non-interactive pill.
+function RolePill({ row, roles, viewer, busy, onPick, roleBySlug }) {
+   const r = roleBySlug[row.role];
+   const color = r?.color || "#94a3b8";
+   const name = r?.name || ROLE_LABEL[row.role] || row.role;
+
+   const assignable = roles.filter(
+      (x) =>
+         x.slug !== "coordinator" &&
+         x.slug !== row.role &&
+         (viewer?.isSuperAdmin || x.roleWeight < (viewer?.weight ?? 0)),
+   );
+   // Can't re-role a member who currently outranks (or equals) the viewer's own weight.
+   const outranksRow =
+      viewer?.isSuperAdmin || (r?.roleWeight ?? 0) < (viewer?.weight ?? 0);
+   const interactive =
+      row.role !== "coordinator" &&
+      viewer?.canAssignRole &&
+      outranksRow &&
+      assignable.length > 0;
+
+   if (!interactive) {
+      return (
+         <span className="mm-pill" style={{ color, background: `${color}1f` }}>
+            {name}
+         </span>
+      );
+   }
+
+   return (
+      <select
+         className="mm-role-select"
+         value={row.role}
+         disabled={busy}
+         onChange={(e) => onPick(e.target.value)}
+         aria-label="Change role"
+         style={{
+            color,
+            backgroundColor: `${color}1f`,
+            backgroundImage: chevronBg(color),
+         }}
+      >
+         <option value={row.role}>{name}</option>
+         {assignable.map((x) => (
+            <option key={x.slug} value={x.slug}>
+               {x.name}
+            </option>
+         ))}
+      </select>
+   );
+}
+
+// Add-member modal — search active students by name/email and add them straight to the club.
+// Reuses the faculty-picker modal styling (cctl-*) so no new CSS is needed.
+function AddMemberModal({ slug, onClose, onAdded }) {
+   const toast = useToast();
+   const confirm = useConfirm();
+   const [query, setQuery] = useState("");
+   const [debounced, setDebounced] = useState("");
+   const [results, setResults] = useState(null);
+   const [busyId, setBusyId] = useState(null);
+   const reqRef = useRef(0);
+
+   useEffect(() => {
+      const id = setTimeout(() => setDebounced(query.trim()), 300);
+      return () => clearTimeout(id);
+   }, [query]);
+
+   useEffect(() => {
+      const onKey = (e) => e.key === "Escape" && onClose();
+      document.addEventListener("keydown", onKey);
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+         document.removeEventListener("keydown", onKey);
+         document.body.style.overflow = prev;
+      };
+   }, [onClose]);
+
+   useEffect(() => {
+      // Fetch on open (empty query → ascending opening list) and on each debounced search.
+      const myReq = ++reqRef.current;
+      clubsApi
+         .searchAddableStudents(slug, debounced)
+         .then((d) => {
+            if (myReq === reqRef.current) setResults(d?.items || []);
+         })
+         .catch(() => {
+            if (myReq === reqRef.current) setResults([]);
+         });
+   }, [slug, debounced]);
+
+   async function add(s) {
+      const ok = await confirm({
+         title: `Add ${s.name}?`,
+         message: `${s.name} will be added to the club as an approved member straight away.`,
+         confirmLabel: "Add member",
+      });
+      if (!ok) return;
+      setBusyId(s.userId);
+      try {
+         await clubsApi.addMember(slug, s.userId);
+         toast.success(`${s.name} added to the club`);
+         onAdded();
+         // Drop them from the local list so they can't be added twice.
+         setResults((r) => (r || []).filter((x) => x.userId !== s.userId));
+      } catch (err) {
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't add member",
+         );
+      } finally {
+         setBusyId(null);
+      }
+   }
+
+   return (
+      <div className="fac-overlay" onClick={onClose}>
+         <div className="cctl-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="cctl-modal-head">
+               <div className="cctl-modal-title">Add a member</div>
+               <div className="cctl-modal-sub">
+                  Search active students by name or email and add them straight
+                  to the club — no join request needed.
+               </div>
+            </div>
+            <div className="cctl-modal-search">
+               <Icon size={16} strokeWidth={2.2}>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+               </Icon>
+               <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search students by name or email…"
+                  autoFocus
+               />
+            </div>
+            <div className="cctl-picker">
+               {results === null ? (
+                  <LoadingBlock label="Loading students" size={20} />
+               ) : results.length === 0 ? (
+                  <div className="cctl-picker-empty">
+                     {debounced
+                        ? "No matching students to add."
+                        : "No students available to add."}
+                  </div>
+               ) : (
+                  results.map((s) => (
+                     <div className="cctl-picker-row" key={s.userId}>
+                        <div
+                           className="cctl-av sm"
+                           style={{ background: colorFor(s.name) }}
+                        >
+                           {s.avatarUrl ? (
+                              <img src={s.avatarUrl} alt="" />
+                           ) : (
+                              initials(s.name)
+                           )}
+                        </div>
+                        <div className="cctl-picker-meta">
+                           <div className="cctl-picker-name">{s.name}</div>
+                           <div className="cctl-picker-sub">{s.email}</div>
+                        </div>
+                        <button
+                           type="button"
+                           className="cctl-picker-add"
+                           disabled={busyId === s.userId}
+                           onClick={() => add(s)}
+                        >
+                           {busyId === s.userId ? <Spinner size={13} /> : "Add"}
+                        </button>
+                     </div>
+                  ))
+               )}
+            </div>
+            <div className="cctl-modal-foot">
+               <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={onClose}
+               >
+                  Done
+               </button>
+            </div>
+         </div>
+      </div>
+   );
+}
+
 export default function ManageMembers() {
    const { slug } = useParams();
    const { user } = useAuth();
@@ -104,7 +302,23 @@ export default function ManageMembers() {
    const [loadedKey, setLoadedKey] = useState(null);
    const [busyId, setBusyId] = useState(null);
    const [selected, setSelected] = useState(() => new Set());
+   const [adding, setAdding] = useState(false);
    const reqRef = useRef(0);
+
+   // Roles (Phase 6) — badge colours + the change-role menu.
+   const [roles, setRoles] = useState([]);
+   const [rolesViewer, setRolesViewer] = useState(null);
+   const [rolesLoaded, setRolesLoaded] = useState(false);
+   const roleBySlug = useMemo(
+      () => Object.fromEntries(roles.map((r) => [r.slug, r])),
+      [roles],
+   );
+
+   // Capabilities (coordinator/superAdmin hold all). moderate → approve/reject/remove + stats
+   // + the Requests/Past tabs; assign-role → the role switcher on the Members tab. Either one
+   // grants access; the page shows only the features each capability unlocks.
+   const canModerate = isSuperAdmin || !!rolesViewer?.canModerate;
+   const canAssignRole = isSuperAdmin || !!rolesViewer?.canAssignRole;
 
    useEffect(() => {
       const id = setTimeout(() => setDebounced(search.trim()), 300);
@@ -127,8 +341,23 @@ export default function ManageMembers() {
          .catch(() => setStats(null));
    }, [slug]);
    useEffect(() => {
-      loadStats();
-   }, [loadStats]);
+      // Stats endpoint is members:moderate-gated — only fetch when the viewer can moderate.
+      if (canModerate) loadStats();
+   }, [canModerate, loadStats]);
+
+   const loadRoles = useCallback(() => {
+      clubsApi
+         .listRoles(slug)
+         .then((d) => {
+            setRoles(d.items || []);
+            setRolesViewer(d.viewer || null);
+         })
+         .catch(() => {})
+         .finally(() => setRolesLoaded(true));
+   }, [slug]);
+   useEffect(() => {
+      loadRoles();
+   }, [loadRoles]);
 
    // Reset page + selection when tab or filters change.
    const [prev, setPrev] = useState({ tab, debounced, roleFilter, pastFilter });
@@ -280,6 +509,22 @@ export default function ManageMembers() {
       }
    }
 
+   async function changeRole(row, roleSlug) {
+      if (roleSlug === row.role) return;
+      setBusyId(row.userId);
+      try {
+         await clubsApi.setMemberRole(slug, row.userId, roleSlug);
+         toast.success(`${row.name} is now ${roleBySlug[roleSlug]?.name || roleSlug}`);
+         refresh();
+      } catch (err) {
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't change role",
+         );
+      } finally {
+         setBusyId(null);
+      }
+   }
+
    function toggleSelect(id) {
       setSelected((s) => {
          const next = new Set(s);
@@ -290,7 +535,7 @@ export default function ManageMembers() {
    }
 
    // ---- access ----
-   if (!clubLoaded) {
+   if (!clubLoaded || !rolesLoaded) {
       return (
          <AppShell title="Members">
             <div className="main mm-main">
@@ -308,15 +553,14 @@ export default function ManageMembers() {
          </AppShell>
       );
    }
-   const isClubCoordinator =
-      club.membership?.role === "coordinator" &&
-      club.membership?.status === "approved";
-   if (!isSuperAdmin && !isClubCoordinator) {
+   // Permission-based: members:moderate OR members:assign-role grants access (coordinator/
+   // superAdmin hold both). Moderation-only features are hidden below for assign-role-only users.
+   if (!canModerate && !canAssignRole) {
       return (
          <AppShell title="Members">
             <div className="main mm-main">
                <div className="profile-empty">
-                  You can only manage members of clubs you coordinate.
+                  You don't have permission to manage members of this club.
                </div>
             </div>
          </AppShell>
@@ -335,11 +579,13 @@ export default function ManageMembers() {
             </div>
             <h1 className="mm-title">Manage members</h1>
             <p className="mm-sub">
-               Review join requests, manage current members, and audit who left
-               or was removed.
+               {canModerate
+                  ? "Review join requests, manage current members, and audit who left or was removed."
+                  : "Assign roles to current members."}
             </p>
 
-            {/* STAT STRIP */}
+            {/* STAT STRIP — needs members:moderate (the stats endpoint is moderate-gated). */}
+            {canModerate && (
             <div className="mm-stat-row">
                <StatCard
                   tone="purple"
@@ -389,10 +635,14 @@ export default function ManageMembers() {
                   </Icon>
                </StatCard>
             </div>
+            )}
 
-            {/* TABS */}
+            {/* TABS — Requests/Past are moderation-only; assign-role-only sees just Members. */}
             <div className="mm-tabs">
-               {TABS.map((t) => (
+               {(canModerate
+                  ? TABS
+                  : TABS.filter((t) => t.id === "members")
+               ).map((t) => (
                   <button
                      key={t.id}
                      type="button"
@@ -400,11 +650,13 @@ export default function ManageMembers() {
                      onClick={() => setTab(t.id)}
                   >
                      {t.label}
-                     <span
-                        className={`mm-badge${t.id === "requests" && stats?.pending ? " alert" : ""}`}
-                     >
-                        {stats ? stats[t.statKey] : "—"}
-                     </span>
+                     {canModerate && (
+                        <span
+                           className={`mm-badge${t.id === "requests" && stats?.pending ? " alert" : ""}`}
+                        >
+                           {stats ? stats[t.statKey] : "—"}
+                        </span>
+                     )}
                   </button>
                ))}
             </div>
@@ -464,6 +716,20 @@ export default function ManageMembers() {
                         </button>
                      ))}
                   </div>
+               )}
+               {canModerate && (
+                  <button
+                     type="button"
+                     className="btn btn-primary"
+                     style={{ marginLeft: "auto" }}
+                     onClick={() => setAdding(true)}
+                  >
+                     <Icon size={14} strokeWidth={2.5}>
+                        <line x1="12" y1="5" x2="12" y2="19" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                     </Icon>
+                     Add member
+                  </button>
                )}
             </div>
 
@@ -585,6 +851,14 @@ export default function ManageMembers() {
                                     : eng >= 35
                                       ? "var(--accent-orange)"
                                       : "var(--accent-red)";
+                              // Mirror the backend weight bound: only show remove for members
+                              // ranked below the viewer's role (superAdmin/coordinator unbounded).
+                              const targetWeight =
+                                 roleBySlug[row.role]?.roleWeight ?? 0;
+                              const canRemoveRow =
+                                 rolesViewer?.isSuperAdmin ||
+                                 (rolesViewer?.canModerate &&
+                                    targetWeight < (rolesViewer?.weight ?? 0));
                               return (
                                  <tr key={row.userId}>
                                     <td>{av}</td>
@@ -594,10 +868,14 @@ export default function ManageMembers() {
                                        </span>
                                     </td>
                                     <td>
-                                       <span className={`mm-pill ${row.role}`}>
-                                          <span className="dot" />
-                                          {ROLE_LABEL[row.role] || row.role}
-                                       </span>
+                                       <RolePill
+                                          row={row}
+                                          roles={roles}
+                                          viewer={rolesViewer}
+                                          roleBySlug={roleBySlug}
+                                          busy={busyId === row.userId}
+                                          onPick={(s) => changeRole(row, s)}
+                                       />
                                     </td>
                                     <td>
                                        <span className="mm-date">
@@ -614,10 +892,15 @@ export default function ManageMembers() {
                                     </td>
                                     <td>
                                        <div className="mm-actions">
-                                          {row.role === "coordinator" ? (
+                                          {row.role === "coordinator" ||
+                                          !canRemoveRow ? (
                                              <span
                                                 className="mm-locked"
-                                                title="Coordinators are managed from Club Controls"
+                                                title={
+                                                   row.role === "coordinator"
+                                                      ? "Coordinators are managed from Club Controls"
+                                                      : "You can only remove members ranked below your role"
+                                                }
                                              >
                                                 —
                                              </span>
@@ -763,6 +1046,14 @@ export default function ManageMembers() {
                   </div>
                )}
             </div>
+
+            {adding && (
+               <AddMemberModal
+                  slug={slug}
+                  onClose={() => setAdding(false)}
+                  onAdded={refresh}
+               />
+            )}
          </div>
       </AppShell>
    );

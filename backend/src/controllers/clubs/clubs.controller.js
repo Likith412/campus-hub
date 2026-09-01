@@ -283,21 +283,11 @@ async function setStatus(req, res) {
    return successResponse(res, 200, "Status updated", { status: club.status });
 }
 
-// DELETE /api/clubs/:slug — permanently delete a club + its memberships and events.
-// Allowed for a superAdmin, or the faculty who created the club.
+// DELETE /api/clubs/:slug — permanently delete a club + its memberships, roles, and events.
+// SuperAdmin-only (enforced at the route).
 async function deleteClub(req, res) {
-   const club = await Club.findOne({ slug: req.params.slug }).select(
-      "_id createdBy",
-   );
+   const club = await Club.findOne({ slug: req.params.slug }).select("_id");
    if (!club) throw new NotFoundError("Club not found");
-
-   const isSuperAdmin = req.user.role === ROLES.SUPER_ADMIN;
-   const isCreator = String(club.createdBy) === String(req.user._id);
-   if (!isSuperAdmin && !isCreator) {
-      throw new ForbiddenError(
-         "Only the club's creator or a super admin can delete it",
-      );
-   }
 
    // Cascade: drop memberships, roles, and events before the club itself.
    await Promise.all([

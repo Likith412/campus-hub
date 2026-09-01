@@ -16,6 +16,7 @@ import Faculty from "./pages/Faculty";
 import AllClubs from "./pages/AllClubs";
 import ClubControls from "./pages/ClubControls";
 import ManageMembers from "./pages/ManageMembers";
+import ClubRoles from "./pages/ClubRoles";
 
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ActiveClubProvider } from "./contexts/ActiveClubProvider";
@@ -71,12 +72,23 @@ function App() {
                            element={<ResetPassword />}
                         />
 
-                        {/* Everything below requires a logged-in user (any role). */}
+                        {/* Everything below requires a logged-in user (any role). Club admin
+                            pages are reachable by anyone authenticated — the pages themselves
+                            gate on per-club capabilities (members:moderate / roles:manage), so a
+                            delegated non-coordinator (even a student) can use them. */}
                         <Route element={<ProtectedRoute />}>
                            <Route path="/" element={<Home />} />
                            <Route
                               path="/clubs/:slug"
                               element={<ClubDetail />}
+                           />
+                           <Route
+                              path="/clubs/:slug/members"
+                              element={<ManageMembers />}
+                           />
+                           <Route
+                              path="/clubs/:slug/roles"
+                              element={<ClubRoles />}
                            />
                         </Route>
 
@@ -94,7 +106,7 @@ function App() {
                            <Route path="/profile" element={<Profile />} />
                         </Route>
 
-                        {/* Club creation — faculty + super admins. */}
+                        {/* Club creation — faculty + super admins only. */}
                         <Route
                            element={
                               <ProtectedRoute
@@ -103,10 +115,6 @@ function App() {
                            }
                         >
                            <Route path="/clubs/new" element={<CreateClub />} />
-                           <Route
-                              path="/clubs/:slug/members"
-                              element={<ManageMembers />}
-                           />
                         </Route>
 
                         {/* SuperAdmin-only platform administration, grouped under /admin. */}

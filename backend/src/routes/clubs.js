@@ -11,6 +11,8 @@ const { ROLES } = require("../constants/roles");
 const {
    listClubsQuerySchema,
    listMembersQuerySchema,
+   searchMembersQuerySchema,
+   addMemberBodySchema,
    memberStatusBodySchema,
    memberRoleBodySchema,
    createClubBodySchema,
@@ -63,12 +65,8 @@ router.patch(
    validate(updateClubBodySchema),
    clubs.updateClub,
 );
-// Delete a club — superAdmin or the creating faculty (enforced in the controller).
-router.delete(
-   "/:slug",
-   requireRole(ROLES.FACULTY, ROLES.SUPER_ADMIN),
-   clubs.deleteClub,
-);
+// Delete a club — superAdmin only.
+router.delete("/:slug", requireRole(ROLES.SUPER_ADMIN), clubs.deleteClub);
 router.post("/:slug/join", clubs.joinClub);
 router.delete("/:slug/membership", clubs.leaveClub);
 
@@ -92,10 +90,24 @@ router.get(
    requireClubPermission("members", "moderate"),
    clubs.getMemberStats,
 );
+// Find active students to add (picker) — moderation-gated like the rest.
+router.get(
+   "/:slug/members/search",
+   requireClubPermission("members", "moderate"),
+   validateQuery(searchMembersQuerySchema),
+   clubs.searchAddableStudents,
+);
 router.get(
    "/:slug/members",
    validateQuery(listMembersQuerySchema),
    clubs.listMembers,
+);
+// Directly add a student as an approved member (no join request needed).
+router.post(
+   "/:slug/members",
+   requireClubPermission("members", "moderate"),
+   validate(addMemberBodySchema),
+   clubs.addMember,
 );
 // Member admin: status (approve/reject) and role (promote/demote) are separate operations.
 router.patch(

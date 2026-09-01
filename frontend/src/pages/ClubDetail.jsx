@@ -65,8 +65,24 @@ function HeaderSkeleton() {
    return <LoadingBlock label="Loading club" size={26} />;
 }
 
+// Colour-coded role badge from the per-club ClubRole (name + colour). Falls back to
+// the raw slug for any membership whose role row hasn't loaded yet.
+function RoleBadge({ slug, roleBySlug }) {
+   const role = roleBySlug[slug];
+   const name = role?.name || ROLE_LABEL[slug] || slug;
+   const color = role?.color || "#94a3b8";
+   return (
+      <span
+         className="ml-role"
+         style={{ color, background: `${color}1f` }}
+      >
+         {name}
+      </span>
+   );
+}
+
 // Read-only member row — the members directory is identical for every viewer.
-function MemberRow({ row }) {
+function MemberRow({ row, roleBySlug }) {
    const meta = [
       row.department,
       row.year && YEAR_LABEL[row.year],
@@ -88,7 +104,7 @@ function MemberRow({ row }) {
             <div className="ml-name">{row.name}</div>
             <div className="ml-meta">{meta}</div>
          </div>
-         <span className={`ml-role ${row.role}`}>{ROLE_LABEL[row.role]}</span>
+         <RoleBadge slug={row.role} roleBySlug={roleBySlug} />
          <span className="ml-engage">{row.engagementScore}</span>
          <span />
       </div>
@@ -117,6 +133,14 @@ export default function ClubDetail() {
    const [membersLoadedKey, setMembersLoadedKey] = useState(null);
    const reqIdRef = useRef(0);
 
+   // Roles (Phase 6) — drives the badges, the role filter, and the Roles tab.
+   const [roles, setRoles] = useState([]);
+   const [rolesViewer, setRolesViewer] = useState(null);
+   const roleBySlug = useMemo(
+      () => Object.fromEntries(roles.map((r) => [r.slug, r])),
+      [roles],
+   );
+
    // Loading derived from key mismatch — avoids setState-in-effect.
    const clubLoading = clubLoadedSlug !== slug;
    const membersKey = `${slug}|${debounced}|${roleFilter}|${sort}|${page}`;
@@ -143,6 +167,23 @@ export default function ClubDetail() {
    useEffect(() => {
       refetchClub();
    }, [refetchClub]);
+
+   const refetchRoles = useCallback(() => {
+      clubsApi
+         .listRoles(slug)
+         .then((d) => {
+            setRoles(d.items || []);
+            setRolesViewer(d.viewer || null);
+         })
+         .catch(() => {
+            setRoles([]);
+            setRolesViewer(null);
+         });
+   }, [slug]);
+
+   useEffect(() => {
+      refetchRoles();
+   }, [refetchRoles]);
 
    const fetchMembers = useCallback(() => {
       const myId = ++reqIdRef.current;
@@ -414,7 +455,7 @@ export default function ClubDetail() {
                   )}
                </div>
                <div className="club-actions">
-                  {(user?.role === "superAdmin" || isClubCoordinator) && (
+                  {(user?.role === "superAdmin" || rolesViewer?.canEditClub) && (
                      <button
                         type="button"
                         className="btn btn-secondary"
@@ -427,7 +468,9 @@ export default function ClubDetail() {
                         Edit club
                      </button>
                   )}
-                  {(user?.role === "superAdmin" || isClubCoordinator) && (
+                  {(user?.role === "superAdmin" ||
+                     rolesViewer?.canModerate ||
+                     rolesViewer?.canAssignRole) && (
                      <Link
                         className="btn btn-secondary"
                         to={`/clubs/${slug}/members`}
@@ -438,6 +481,18 @@ export default function ClubDetail() {
                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                         </Icon>
                         Manage members
+                     </Link>
+                  )}
+                  {rolesViewer?.canManageRoles && (
+                     <Link
+                        className="btn btn-secondary"
+                        to={`/clubs/${slug}/roles`}
+                     >
+                        <Icon size={14} strokeWidth={2.2}>
+                           <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+                           <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+                        </Icon>
+                        Roles
                      </Link>
                   )}
                   {showJoinButton && (
@@ -455,24 +510,17 @@ export default function ClubDetail() {
 
             {/* TABS */}
             <div className="club-tabs">
-               {[
-                  { id: "members", label: "Members", count: club.memberCount },
-               ].map((t) => (
-                  <div
-                     key={t.id}
-                     className={`ct-tab${tab === t.id ? " active" : ""}`}
-                     onClick={() => setTab(t.id)}
-                  >
-                     <Icon size={13} strokeWidth={2.2}>
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                     </Icon>
-                     {t.label}
-                     {typeof t.count === "number" && (
-                        <span className="count">{t.count}</span>
-                     )}
-                  </div>
-               ))}
+               <div
+                  className={`ct-tab${tab === "members" ? " active" : ""}`}
+                  onClick={() => setTab("members")}
+               >
+                  <Icon size={13} strokeWidth={2.2}>
+                     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                     <circle cx="9" cy="7" r="4" />
+                  </Icon>
+                  Members
+                  <span className="count">{club.memberCount}</span>
+               </div>
             </div>
 
             {/* MEMBERS TAB */}
@@ -503,8 +551,11 @@ export default function ClubDetail() {
                               onChange={(e) => setRoleFilter(e.target.value)}
                            >
                               <option value="">All roles</option>
-                              <option value="coordinator">Coordinators</option>
-                              <option value="member">Members</option>
+                              {roles.map((r) => (
+                                 <option key={r.slug} value={r.slug}>
+                                    {r.name}
+                                 </option>
+                              ))}
                            </select>
                            <div className="ac-sort">
                               <Icon size={13} strokeWidth={2.2}>
@@ -541,7 +592,11 @@ export default function ClubDetail() {
                         </div>
                      ) : (
                         items.map((row) => (
-                           <MemberRow key={row.userId} row={row} />
+                           <MemberRow
+                              key={row.userId}
+                              row={row}
+                              roleBySlug={roleBySlug}
+                           />
                         ))
                      )}
                   </div>
