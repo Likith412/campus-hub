@@ -6,11 +6,11 @@ const express = require("express");
 const authController = require("../controllers/auth");
 const authenticate = require("../middlewares/authenticate");
 const validate = require("../middlewares/validate");
-// const {
-//    loginLimiter,
-//    registerLimiter,
-//    verificationLimiter,
-// } = require("../middlewares/rateLimit");
+const {
+   loginLimiter,
+   registerLimiter,
+   verificationLimiter,
+} = require("../middlewares/rateLimit");
 const {
    registerSchema,
    loginSchema,
@@ -25,14 +25,14 @@ const router = express.Router();
 // Public — creates a new account; verification email sent.
 router.post(
    "/register",
-   // registerLimiter,
+   registerLimiter,
    validate(registerSchema),
    authController.register,
 );
 // Public — issues access JWT + refresh cookie.
 router.post(
    "/login",
-   // loginLimiter,
+   loginLimiter,
    validate(loginSchema),
    authController.login,
 );
@@ -51,7 +51,7 @@ router.get("/verify-email", authController.verifyEmail);
 // Public — resend verification email if the original expired or got lost.
 router.post(
    "/resend-verification",
-   // verificationLimiter,
+   verificationLimiter,
    validate(resendVerificationSchema),
    authController.resendVerification,
 );

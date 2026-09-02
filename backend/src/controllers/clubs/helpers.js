@@ -5,7 +5,7 @@ const { ROLES } = require("../../constants/roles");
 const { NotFoundError } = require("../../utils/errors");
 
 // Make sure a club has its two system roles (coordinator/member). Cheap idempotent upsert —
-// covers clubs created before Phase 6 the first time anyone reads or edits their roles.
+// covers clubs created before the roles system landed, on first read or edit.
 async function ensureSystemRoles(clubId) {
    await ClubRole.bulkWrite(
       systemRoleDocs(clubId).map((doc) => ({
@@ -18,11 +18,6 @@ async function ensureSystemRoles(clubId) {
    );
 }
 
-// Escape user input before dropping into a RegExp.
-function escapeRegex(s) {
-   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 // Find a club by slug. Non-active (suspended/archived) clubs are visible & manageable only to superAdmin.
 async function findClubBySlugFor(user, slug) {
    const club = await Club.findOne({ slug });
@@ -31,6 +26,22 @@ async function findClubBySlugFor(user, slug) {
       throw new NotFoundError("Club not found");
    }
    return club;
+}
+
+// Sort options shared by the student browse list and the admin table.
+const CLUB_SORT = {
+   popular: { "stats.memberCount": -1, createdAt: -1 },
+   new: { createdAt: -1 },
+   active: { "stats.eventCount": -1, "stats.memberCount": -1 },
+   name: { name: 1 },
+};
+
+// Move a denormalized club counter. Decrements are floored at zero so a double-decrement
+// can never drive a count negative.
+async function bumpClubStat(clubId, field, delta) {
+   const filter =
+      delta < 0 ? { _id: clubId, [`stats.${field}`]: { $gt: 0 } } : { _id: clubId };
+   await Club.updateOne(filter, { $inc: { [`stats.${field}`]: delta } });
 }
 
 // Turn a name into a url-safe slug.
@@ -55,8 +66,8 @@ async function systemRoleId(clubId, slug) {
 }
 
 // === Per-club authorization ===
-// Used by the controllers for inline gates and for building the "what can this viewer do" parts
-// of responses. (The requireClubPermission route middleware enforces the same rules inline.)
+// The single source of these rules: the controllers use them for inline gates and viewer
+// flags, and middlewares/requireClubPermission imports them for its route gate.
 //
 //  - superAdmin short-circuits to full access (platform owner).
 //  - the `coordinator` system role implicitly holds every club permission.
@@ -93,8 +104,9 @@ function contextCan(ctx, perm) {
 }
 
 module.exports = {
+   CLUB_SORT,
+   bumpClubStat,
    ensureSystemRoles,
-   escapeRegex,
    findClubBySlugFor,
    slugify,
    systemRoleId,

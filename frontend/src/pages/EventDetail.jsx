@@ -1,6 +1,5 @@
 // Event detail — /events/:eventId. Hero + two-column body, following the shape of
-// .design/Workshop.html (dark gradient hero, stats panel on the right) and the
-// breadcrumb/block conventions from ClubRoles and ClubDetail.
+// .design/Workshop.html: dark gradient hero, stats panel on the right.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { eventsApi, announcementsApi, ApiError } from "../services";
@@ -14,6 +13,8 @@ import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { clubHref } from "../utils/nav";
 import PersonLink from "../components/PersonLink";
+import { initials } from "../utils/text";
+import useDebounced from "../hooks/useDebounced";
 import {
    EVENT_TYPE_LABEL,
    eventDateParts,
@@ -40,11 +41,6 @@ function relativeDays(iso) {
    if (days === 1) return "tomorrow";
    if (days === -1) return "yesterday";
    return days > 0 ? `in ${days} days` : `${Math.abs(days)} days ago`;
-}
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
 
 function Row({ label, children }) {
@@ -77,7 +73,7 @@ export default function EventDetail() {
    const [editing, setEditing] = useState(false);
    const [siblings, setSiblings] = useState([]);
    const [attSearch, setAttSearch] = useState("");
-   const [attQuery, setAttQuery] = useState("");
+   const attQuery = useDebounced(attSearch.trim());
    const [attPage, setAttPage] = useState(1);
    const [copied, setCopied] = useState(false);
 
@@ -103,10 +99,6 @@ export default function EventDetail() {
       refetch();
    }, [refetch]);
 
-   useEffect(() => {
-      const id = setTimeout(() => setAttQuery(attSearch.trim()), 300);
-      return () => clearTimeout(id);
-   }, [attSearch]);
 
    const [prevAttQuery, setPrevAttQuery] = useState(attQuery);
    if (prevAttQuery !== attQuery) {

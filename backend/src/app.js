@@ -8,6 +8,7 @@ const morgan = require("morgan");
 
 const routes = require("./routes");
 const errorHandler = require("./middlewares/errorHandler");
+const { NotFoundError } = require("./utils/errors");
 
 const app = express();
 
@@ -51,6 +52,11 @@ app.get("/", (_req, res) => {
 
 // All API endpoints live under /api (auth, clubs, events, ...).
 app.use("/api", routes);
+
+// Unknown /api path — answer in the same envelope as every other error.
+app.use("/api", (req, _res, next) => {
+   next(new NotFoundError(`Cannot ${req.method} ${req.baseUrl}${req.path}`));
+});
 
 // Final middleware — converts thrown AppErrors into uniform JSON responses.
 app.use(errorHandler);

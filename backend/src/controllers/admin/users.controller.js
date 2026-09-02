@@ -1,5 +1,5 @@
 // Admin users controller — superAdmin-only faculty account administration.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const {
    ConflictError,
    NotFoundError,
@@ -10,7 +10,7 @@ const { ROLES } = require("../../constants/roles");
 const { hashPassword } = require("../../utils/password");
 const { generateTempPassword } = require("../../utils/tokens");
 const { sendFacultyAccountEmail } = require("../../services/emailService");
-const { escapeRegex } = require("./helpers");
+const { escapeRegex } = require("../../utils/escapeRegex");
 
 function publicUser(u, clubCount = 0) {
    return {
@@ -65,7 +65,7 @@ async function createFaculty(req, res) {
 async function listUsers(req, res) {
    const { role, q, status, sort, page, limit } = req.validatedQuery;
 
-   const filter = {};
+   const filter = { deletedAt: null };
    if (role) filter.role = role;
    // active = has logged in; pending = created but never logged in; inactive = deactivated.
    if (status === "active") {
@@ -158,7 +158,7 @@ async function listUsers(req, res) {
 
    return successResponse(res, 200, "Users", {
       items: items.map((u) => publicUser(u, u.clubCount)),
-      pagination: { page, limit, total, hasMore: skip + items.length < total },
+      pagination: pageMeta(page, limit, total, items.length),
    });
 }
 

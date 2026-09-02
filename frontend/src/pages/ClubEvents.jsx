@@ -13,6 +13,8 @@ import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { eventState } from "../utils/events";
+import useLatestRequest from "../hooks/useLatestRequest";
+import FilterSelect from "../components/FilterSelect";
 
 const EVENT_SORTS = [
    { id: "soonest", label: "Date · soonest" },
@@ -41,11 +43,13 @@ export default function ClubEvents() {
    const [loadedKey, setLoadedKey] = useState(null);
    const [busyId, setBusyId] = useState(null);
    const [editing, setEditing] = useState(null);
+   const startRequest = useLatestRequest();
 
    const key = `${filter}|${sort}`;
    const loading = loadedKey !== key;
 
    const load = useCallback(() => {
+      const isCurrent = startRequest();
       // "Drafts" is a status filter; the rest are date ranges.
       const params =
          filter === "draft"
@@ -56,12 +60,13 @@ export default function ClubEvents() {
          eventsApi.listClubEvents(slug, params).catch(() => null),
       ])
          .then(([c, ev]) => {
+            if (!isCurrent()) return;
             setClub(c);
             setData(ev);
             setViewer(ev?.viewer || null);
          })
-         .finally(() => setLoadedKey(`${filter}|${sort}`));
-   }, [slug, filter, sort]);
+         .finally(() => isCurrent() && setLoadedKey(`${filter}|${sort}`));
+   }, [slug, filter, sort, startRequest]);
 
    useEffect(() => {
       load();
@@ -189,25 +194,14 @@ export default function ClubEvents() {
                      </button>
                   ))}
                </div>
-               <div className="ac-sort">
-                  <Icon size={13} strokeWidth={2.2}>
-                     <line x1="3" y1="6" x2="13" y2="6" />
-                     <line x1="3" y1="12" x2="10" y2="12" />
-                     <line x1="3" y1="18" x2="7" y2="18" />
-                  </Icon>
-                  <span>Sort</span>
-                  <select
-                     value={sort}
-                     onChange={(e) => setSort(e.target.value)}
-                     aria-label="Sort events"
-                  >
-                     {EVENT_SORTS.map((o) => (
-                        <option key={o.id} value={o.id}>
-                           {o.label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
+               <FilterSelect
+                  label="Sort"
+                  value={sort}
+                  onChange={setSort}
+                  options={EVENT_SORTS}
+                  ariaLabel="Sort events"
+                  withIcon
+               />
             </div>
 
             {items.length === 0 ? (
@@ -222,7 +216,8 @@ export default function ClubEvents() {
                   {items.map((e) => {
                      const state = eventState(e);
                      const busy = busyId === e.id;
-                     // A finished event is a record — the server refuses both.
+                     // A finished event is a record: the server refuses edits, publishes
+                     // and cancellations alike.
                      const over = state.cls === "past";
                      return (
                         <EventCard

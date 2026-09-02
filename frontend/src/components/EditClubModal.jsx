@@ -1,15 +1,12 @@
 // Edit-club modal — a club's coordinator (or superAdmin) edits its public profile.
 // Self-contained: calls the API and then onChanged() so the caller can refetch.
-// Kept as a standalone component for reuse on the future club-management surface.
-import { useEffect, useState } from "react";
+// Used from the club's public page and from the admin club controls.
+import { useState } from "react";
 import { clubsApi, ApiError } from "../services";
 import { useToast } from "../contexts/ToastContext";
 import Icon from "./Icon";
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
+import { initials } from "../utils/text";
+import useModalChrome from "../hooks/useModalChrome";
 
 const PALETTE = [
    { from: "#6c63ff", to: "#34d399" },
@@ -109,18 +106,7 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
    const mono = initials(name);
    const policyObj = POLICIES.find((p) => p.id === policy) || POLICIES[1];
 
-   useEffect(() => {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      const onKey = (e) => {
-         if (e.key === "Escape" && !busy) onClose();
-      };
-      window.addEventListener("keydown", onKey);
-      return () => {
-         document.body.style.overflow = prev;
-         window.removeEventListener("keydown", onKey);
-      };
-   }, [busy, onClose]);
+   useModalChrome(onClose, { disabled: busy });
 
    function addTag() {
       const t = tagDraft.trim().slice(0, 40);

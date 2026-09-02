@@ -1,9 +1,8 @@
 // Account-security sessions controller — the Sessions & devices panel.
 const { successResponse } = require("../../utils/response");
 const { NotFoundError, ConflictError } = require("../../utils/errors");
-const { blacklistSessionAccess } = require("../../utils/sessionRevocation");
 const { AuthSession } = require("../../models");
-const { findCurrentSession } = require("./helpers");
+const { findCurrentSession, revokeSessions } = require("./helpers");
 
 // GET /profile/me/sessions — list active sessions for the Sessions & devices panel.
 async function getSessions(req, res) {
@@ -61,9 +60,7 @@ async function revokeSession(req, res) {
       throw new ConflictError("Use logout to end the current session");
    }
 
-   await blacklistSessionAccess([session._id]);
-   session.revokedAt = new Date();
-   await session.save();
+   await revokeSessions({ _id: session._id });
    return successResponse(res, 200, "Session revoked");
 }
 
@@ -75,14 +72,8 @@ async function revokeOtherSessions(req, res) {
       revokedAt: null,
       ...(current ? { _id: { $ne: current._id } } : {}),
    };
-   const others = await AuthSession.find(filter, "_id").lean();
-   await blacklistSessionAccess(others.map((s) => s._id));
-   const result = await AuthSession.updateMany(filter, {
-      revokedAt: new Date(),
-   });
-   return successResponse(res, 200, "Other sessions revoked", {
-      revokedCount: result.modifiedCount,
-   });
+   const revokedCount = await revokeSessions(filter);
+   return successResponse(res, 200, "Other sessions revoked", { revokedCount });
 }
 
 module.exports = {

@@ -7,33 +7,22 @@ import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
+import { initials } from "../utils/text";
+import { CATEGORY_LABEL } from "../utils/clubs";
+import SearchField from "../components/SearchField";
+import FilterSelect from "../components/FilterSelect";
+import { CATEGORY_OPTIONS } from "../utils/clubs";
 
 const TABS = [
    { id: "member", label: "Member" },
    { id: "following", label: "Following" },
 ];
 
-const CATEGORY_LABEL = {
-   tech: "Tech & CS",
-   design: "Design",
-   culture: "Culture",
-   sports: "Sports",
-   business: "Business",
-   media: "Media",
-   social: "Social",
-   other: "Other",
-};
-
 const SORTS = [
    { id: "recent", label: "Recently joined" },
    { id: "name", label: "Name (A–Z)" },
    { id: "members", label: "Most members" },
 ];
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
 
 export default function MyClubs() {
    const toast = useToast();
@@ -161,51 +150,27 @@ export default function MyClubs() {
             </div>
 
             <div className="fac-toolbar">
-               <div className="fac-search">
-                  <Icon size={15}>
-                     <circle cx="11" cy="11" r="8" />
-                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </Icon>
-                  <input
-                     placeholder="Search your clubs…"
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
-               </div>
-               <div className="ac-sort">
-                  <span>Category</span>
-                  <select
-                     value={category}
-                     onChange={(e) => setCategory(e.target.value)}
-                     aria-label="Filter by category"
-                  >
-                     <option value="">All categories</option>
-                     {Object.entries(CATEGORY_LABEL).map(([id, label]) => (
-                        <option key={id} value={id}>
-                           {label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
-               <div className="ac-sort">
-                  <Icon size={13} strokeWidth={2.2}>
-                     <line x1="3" y1="6" x2="13" y2="6" />
-                     <line x1="3" y1="12" x2="10" y2="12" />
-                     <line x1="3" y1="18" x2="7" y2="18" />
-                  </Icon>
-                  <span>Sort</span>
-                  <select
-                     value={sort}
-                     onChange={(e) => setSort(e.target.value)}
-                     aria-label="Sort clubs"
-                  >
-                     {SORTS.map((o) => (
-                        <option key={o.id} value={o.id}>
-                           {o.label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
+               <SearchField
+                  placeholder="Search your clubs…"
+                  value={search}
+                  onChange={setSearch}
+               />
+               <FilterSelect
+                  label="Category"
+                  value={category}
+                  onChange={setCategory}
+                  options={CATEGORY_OPTIONS}
+                  allLabel="All categories"
+                  ariaLabel="Filter by category"
+               />
+               <FilterSelect
+                  label="Sort"
+                  value={sort}
+                  onChange={setSort}
+                  options={SORTS}
+                  ariaLabel="Sort clubs"
+                  withIcon
+               />
             </div>
 
             {loading && !data ? (

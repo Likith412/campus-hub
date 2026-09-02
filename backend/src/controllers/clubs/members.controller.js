@@ -1,5 +1,5 @@
 // Club members controller — roster, moderation, role assignment, coordinator lifecycle.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const {
    NotFoundError,
    ForbiddenError,
@@ -7,8 +7,9 @@ const {
 } = require("../../utils/errors");
 const { Club, ClubMembership, ClubRole, User } = require("../../models");
 const { ROLES } = require("../../constants/roles");
+const { escapeRegex } = require("../../utils/escapeRegex");
 const {
-   escapeRegex,
+   bumpClubStat,
    findClubBySlugFor,
    ensureSystemRoles,
    systemRoleId,
@@ -32,7 +33,6 @@ function publicMemberRow(m) {
       year: u.profile?.year || null,
       role: m.role?.slug || null,
       status: m.status,
-      engagementScore: m.engagementScore || 0,
       joinedAt: m.joinedAt || null,
       leftAt: m.leftAt || null,
       removedBy,
@@ -67,9 +67,10 @@ async function listMembers(req, res) {
       throw new ForbiddenError("You don't have permission to view this list");
    }
 
-   // "past" is a convenience bucket for the audit tab = anyone who left or was removed.
+   // "past" is a convenience bucket for the audit tab = anyone no longer in the club.
+   // It has to cover every sub-filter the tab offers, rejected applicants included.
    const statusFilter =
-      status === "past" ? { $in: ["left", "removed"] } : status;
+      status === "past" ? { $in: ["left", "removed", "rejected"] } : status;
    const match = { clubId: club._id, status: statusFilter };
 
    if (q) {
@@ -94,9 +95,7 @@ async function listMembers(req, res) {
       status === "approved"
          ? sortKey === "new"
             ? { joinedAt: -1 }
-            : sortKey === "active"
-              ? { engagementScore: -1, joinedAt: 1 }
-              : { "role.roleWeight": -1, engagementScore: -1, joinedAt: 1 }
+            : { "role.roleWeight": -1, joinedAt: 1 }
          : status === "past"
            ? { leftAt: -1 }
            : { createdAt: 1 };
@@ -157,12 +156,7 @@ async function listMembers(req, res) {
    return successResponse(res, 200, "Members", {
       items: agg.rows.map(publicMemberRow),
       viewerIsCoordinator,
-      pagination: {
-         page,
-         limit,
-         total,
-         hasMore: skip + agg.rows.length < total,
-      },
+      pagination: pageMeta(page, limit, total, agg.rows.length),
    });
 }
 
@@ -256,10 +250,7 @@ async function moderateMember(req, res) {
       throw new ConflictError("Membership was just updated; please retry");
 
    if (status === "approved") {
-      await Club.updateOne(
-         { _id: club._id },
-         { $inc: { "stats.memberCount": 1 } },
-      );
+      await bumpClubStat(club._id, "memberCount", 1);
    }
 
    return successResponse(res, 200, "Member updated", { status });
@@ -386,10 +377,7 @@ async function removeMember(req, res) {
    if (!prev) throw new NotFoundError("No active membership");
 
    if (prev.status === "approved") {
-      await Club.updateOne(
-         { _id: club._id, "stats.memberCount": { $gt: 0 } },
-         { $inc: { "stats.memberCount": -1 } },
-      );
+      await bumpClubStat(club._id, "memberCount", -1);
    }
 
    return successResponse(res, 200, "Member removed", { status: "removed" });
@@ -477,10 +465,7 @@ async function addMember(req, res) {
    );
 
    if (prev?.status !== "approved") {
-      await Club.updateOne(
-         { _id: club._id },
-         { $inc: { "stats.memberCount": 1 } },
-      );
+      await bumpClubStat(club._id, "memberCount", 1);
    }
 
    return successResponse(res, 200, "Member added", { userId });
@@ -526,10 +511,7 @@ async function addCoordinator(req, res) {
 
    // Count them only if they weren't already an approved member of the club.
    if (prev?.status !== "approved") {
-      await Club.updateOne(
-         { _id: club._id },
-         { $inc: { "stats.memberCount": 1 } },
-      );
+      await bumpClubStat(club._id, "memberCount", 1);
    }
 
    return successResponse(res, 200, "Coordinator added", { userId });
@@ -576,10 +558,7 @@ async function removeCoordinator(req, res) {
       );
    }
 
-   await Club.updateOne(
-      { _id: club._id, "stats.memberCount": { $gt: 0 } },
-      { $inc: { "stats.memberCount": -1 } },
-   );
+   await bumpClubStat(club._id, "memberCount", -1);
 
    return successResponse(res, 200, "Coordinator removed", { userId });
 }

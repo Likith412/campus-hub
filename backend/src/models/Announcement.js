@@ -45,6 +45,8 @@ const announcementSchema = new mongoose.Schema(
 announcementSchema.index({ clubId: 1, pinned: -1, createdAt: -1 });
 // The cross-club dashboard feed pulls the newest across every club you belong to.
 announcementSchema.index({ createdAt: -1 });
+// The notices shown on one event's detail page.
+announcementSchema.index({ eventId: 1, pinned: -1, createdAt: -1 });
 
 module.exports = mongoose.model("Announcement", announcementSchema);
 module.exports.ANNOUNCEMENT_VISIBILITIES = ANNOUNCEMENT_VISIBILITIES;

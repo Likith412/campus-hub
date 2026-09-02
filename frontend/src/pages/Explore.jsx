@@ -1,5 +1,4 @@
 // Explore — /explore. Cross-club event discovery, mirrors .design/Discovery.html.
-// Everything on the page runs on real data from /api/events.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { clubsApi, eventsApi, ApiError } from "../services";
@@ -11,6 +10,9 @@ import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { EVENT_TYPE_LABEL, formatDuration } from "../utils/events";
+import { initials } from "../utils/text";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
 
 const PAGE_SIZE = 9;
 const EVENT_SORTS = [
@@ -28,12 +30,7 @@ const CATEGORIES = [
    { id: "seminar", em: "🎙️", label: "Seminars" },
    { id: "fun", em: "🎉", label: "Fun" },
 ];
-
-// Each pill just seeds the real keyword/type filters below — no hidden magic.
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
+// Each pill just seeds the type filter below.
 
 function daysUntil(iso) {
    return Math.ceil((new Date(iso) - Date.now()) / 86400000);
@@ -78,7 +75,7 @@ export default function Explore() {
    const confirm = useConfirm();
 
    const [query, setQuery] = useState("");
-   const [search, setSearch] = useState("");
+   const search = useDebounced(query.trim());
    const [type, setType] = useState("");
    const [when, setWhen] = useState("upcoming");
    const [sort, setSort] = useState("new");
@@ -89,11 +86,13 @@ export default function Explore() {
    const [pool, setPool] = useState([]);
    const [clubs, setClubs] = useState([]);
    const [busyId, setBusyId] = useState(null);
+   const startRequest = useLatestRequest();
 
    const key = `${search}|${type}|${when}|${sort}|${page}`;
    const loading = feedKey !== key;
 
    const fetchFeed = useCallback(() => {
+      const isCurrent = startRequest();
       eventsApi
          .listEvents({
             q: search || undefined,
@@ -103,27 +102,26 @@ export default function Explore() {
             page,
             limit: PAGE_SIZE,
          })
-         .then(setFeed)
+         .then((d) => isCurrent() && setFeed(d))
          .catch((err) => {
+            if (!isCurrent()) return;
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load events",
             );
             setFeed({ items: [], pagination: { total: 0 } });
          })
-         .finally(() =>
-            setFeedKey(`${search}|${type}|${when}|${sort}|${page}`),
+         .finally(
+            () =>
+               isCurrent() &&
+               setFeedKey(`${search}|${type}|${when}|${sort}|${page}`),
          );
-   }, [search, type, when, sort, page, toast]);
+   }, [search, type, when, sort, page, toast, startRequest]);
 
    useEffect(() => {
       fetchFeed();
    }, [fetchFeed]);
 
    // Typing commits on its own after a beat — same as the Clubs page.
-   useEffect(() => {
-      const id = setTimeout(() => setSearch(query.trim()), 300);
-      return () => clearTimeout(id);
-   }, [query]);
 
    // A wider unfiltered slice feeds the recommendations and the trending rail.
    const fetchAside = useCallback(() => {

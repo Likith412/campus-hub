@@ -21,8 +21,7 @@ export default function Topbar({ title, subtitle, rightSlot }) {
       <div className="topbar">
          <div className="topbar-title">
             {title}
-            {/* Which club you're in. The pages lost their breadcrumbs, so this is
-                the only place that still says it. */}
+            {/* Which club (or record) the page is about — the only place that says it. */}
             {subtitle && (
                <>
                   <span className="topbar-dot">·</span>

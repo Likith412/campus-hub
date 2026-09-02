@@ -9,7 +9,6 @@ dotenv.config();
 const mongoose = require("mongoose");
 const { connectDatabase, disconnectDatabase } = require("../config/database");
 const {
-   Announcement,
    Club,
    ClubMembership,
    ClubRole,

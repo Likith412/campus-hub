@@ -23,8 +23,12 @@ const { User, Student, AuthSession } = require("../../models");
 const { redisClient } = require("../../config/redis");
 const { blacklistSessionAccess } = require("../../utils/sessionRevocation");
 const { buildDeviceInfo } = require("../../utils/deviceInfo");
-const { sendVerificationEmail } = require("../../services/emailService");
-const { FRONTEND_URL, publicUser, issueVerificationToken } = require("./helpers");
+const { publicUser, sendVerificationLink } = require("./helpers");
+
+// Compared against when no account matches, so a miss costs the same bcrypt work as a
+// hit. Any valid cost-12 hash does — nothing ever matches it.
+const DUMMY_HASH =
+   "$2b$12$0000000000000000000000000000000000000000000000000000";
 
 // === Refresh token rotation settings ===
 const REFRESH_TTL_MS =
@@ -82,12 +86,7 @@ async function register(req, res) {
    // Student discriminator — sets role: "student" and the student-only schema.
    const user = await Student.create({ email, passwordHash, name });
 
-   const verifyToken = await issueVerificationToken(user._id);
-   const link = `${FRONTEND_URL}/verify-email?token=${verifyToken}`;
-   if (process.env.NODE_ENV !== "production") {
-      console.log(`[dev] verification link for ${email}: ${link}`);
-   }
-   await sendVerificationEmail(email, link);
+   await sendVerificationLink(user._id, email);
 
    return successResponse(
       res,
@@ -102,13 +101,13 @@ async function login(req, res) {
    const { email, password } = req.body;
 
    const user = await User.findOne({ email });
-   // Same generic message for "user not found" and "wrong password" (no account enumeration).
-   if (!user || !user.isActive) {
+   // Same generic message for "user not found" and "wrong password", and the same work
+   // either way — a bcrypt compare always runs, so response time leaks nothing about
+   // whether the account exists.
+   const ok = await verifyPassword(password, user?.passwordHash || DUMMY_HASH);
+   if (!user || !user.isActive || !ok) {
       throw new UnauthorizedError("Invalid credentials");
    }
-
-   const ok = await verifyPassword(password, user.passwordHash);
-   if (!ok) throw new UnauthorizedError("Invalid credentials");
 
    if (!user.emailVerified) {
       throw new ForbiddenError("Email not verified. Check your inbox.");
@@ -137,7 +136,7 @@ async function refresh(req, res) {
 
    const incomingHash = sha256(token);
    const lockKey = `lock:refresh:${incomingHash}`; // rotation lock key for this token
-   const resultKey = `rot:${incomingHash}`; // rotation result kwy
+   const resultKey = `rot:${incomingHash}`; // where the rotated token is published
 
    // Fast-path: rotation already completed — reuse the published new token.
    let refreshToken = await redisClient.get(resultKey);

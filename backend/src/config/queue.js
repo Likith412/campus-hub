@@ -11,7 +11,6 @@ const defaultJobOptions = {
    removeOnFail: { age: 24 * 3600, count: 5000 }, // 24 hours, max 5000 failed jobs for debugging.
 };
 
-// Create a Bull queue instance connected to Redis with the specified options.
 const redisQueue = new Queue("redisQueue", REDIS_URL, { defaultJobOptions });
 
 const handlers = {
@@ -22,7 +21,6 @@ const handlers = {
    },
 };
 
-// Start processing jobs from the queue with the defined handlers and concurrency.
 function startQueueProcessor() {
    redisQueue.process(QUEUE_CONCURRENCY, async (job) => {
       const { action, payload } = job.data;

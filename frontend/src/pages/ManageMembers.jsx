@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 import { clubsApi, ApiError } from "../services";
 import { useAuth } from "../contexts/AuthContext";
@@ -9,6 +9,10 @@ import Pagination from "../components/Pagination";
 import { useToast } from "../contexts/ToastContext";
 import PersonLink from "../components/PersonLink";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { initials } from "../utils/text";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
+import useModalChrome from "../hooks/useModalChrome";
 
 const PAGE_SIZE = 12;
 const ROLE_LABEL = { coordinator: "Coordinator", member: "Member" };
@@ -34,17 +38,6 @@ function colorFor(s = "") {
    let h = 0;
    for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
    return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-function initials(name = "") {
-   return (
-      name
-         .replace(/^(Dr|Prof|Mr|Ms|Mrs)\.?\s+/i, "")
-         .split(/\s+/)
-         .map((w) => w[0])
-         .slice(0, 2)
-         .join("")
-         .toUpperCase() || "?"
-   );
 }
 function fmtDate(d) {
    if (!d) return "—";
@@ -149,39 +142,26 @@ function AddMemberModal({ slug, onClose, onAdded }) {
    const toast = useToast();
    const confirm = useConfirm();
    const [query, setQuery] = useState("");
-   const [debounced, setDebounced] = useState("");
+   const debounced = useDebounced(query.trim());
    const [results, setResults] = useState(null);
    const [busyId, setBusyId] = useState(null);
-   const reqRef = useRef(0);
+   const startRequest = useLatestRequest();
 
-   useEffect(() => {
-      const id = setTimeout(() => setDebounced(query.trim()), 300);
-      return () => clearTimeout(id);
-   }, [query]);
 
-   useEffect(() => {
-      const onKey = (e) => e.key === "Escape" && onClose();
-      document.addEventListener("keydown", onKey);
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-         document.removeEventListener("keydown", onKey);
-         document.body.style.overflow = prev;
-      };
-   }, [onClose]);
+   useModalChrome(onClose);
 
    useEffect(() => {
       // Fetch on open (empty query → ascending opening list) and on each debounced search.
-      const myReq = ++reqRef.current;
+      const isCurrent = startRequest();
       clubsApi
          .searchAddableStudents(slug, debounced)
          .then((d) => {
-            if (myReq === reqRef.current) setResults(d?.items || []);
+            if (isCurrent()) setResults(d?.items || []);
          })
          .catch(() => {
-            if (myReq === reqRef.current) setResults([]);
+            if (isCurrent()) setResults([]);
          });
-   }, [slug, debounced]);
+   }, [slug, debounced, startRequest]);
 
    async function add(s) {
       const ok = await confirm({
@@ -304,9 +284,9 @@ export default function ManageMembers() {
    const [busyId, setBusyId] = useState(null);
    const [selected, setSelected] = useState(() => new Set());
    const [adding, setAdding] = useState(false);
-   const reqRef = useRef(0);
+   const startRequest = useLatestRequest();
 
-   // Roles (Phase 6) — badge colours + the change-role menu.
+   // Roles — badge colours + the change-role menu.
    const [roles, setRoles] = useState([]);
    const [rolesViewer, setRolesViewer] = useState(null);
    const [rolesLoaded, setRolesLoaded] = useState(false);
@@ -381,7 +361,7 @@ export default function ManageMembers() {
    const loading = loadedKey !== currentKey;
 
    const fetchRows = useCallback(() => {
-      const myReq = ++reqRef.current;
+      const isCurrent = startRequest();
       const myKey = `${tab}|${debounced}|${roleFilter}|${pastFilter}|${page}`;
       clubsApi
          .listMembers(slug, {
@@ -402,12 +382,12 @@ export default function ManageMembers() {
             limit: PAGE_SIZE,
          })
          .then((d) => {
-            if (myReq !== reqRef.current) return;
+            if (!isCurrent()) return;
             setRows(d?.items || []);
             setPagination(d?.pagination || null);
          })
          .catch((err) => {
-            if (myReq !== reqRef.current) return;
+            if (!isCurrent()) return;
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load members",
             );
@@ -415,9 +395,9 @@ export default function ManageMembers() {
             setPagination(null);
          })
          .finally(() => {
-            if (myReq === reqRef.current) setLoadedKey(myKey);
+            if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [slug, tab, debounced, roleFilter, pastFilter, page, toast]);
+   }, [slug, tab, debounced, roleFilter, pastFilter, page, toast, startRequest]);
 
    useEffect(() => {
       fetchRows();
@@ -768,7 +748,6 @@ export default function ManageMembers() {
                            <th>Dept · Year</th>
                            <th>Role</th>
                            <th>Joined</th>
-                           <th>Engagement</th>
                            <th className="ta-right">Actions</th>
                         </tr>
                      )}
@@ -840,13 +819,6 @@ export default function ManageMembers() {
                               </div>
                            );
                            if (tab === "members") {
-                              const eng = row.engagementScore || 0;
-                              const engColor =
-                                 eng >= 60
-                                    ? "var(--accent-green)"
-                                    : eng >= 35
-                                      ? "var(--accent-orange)"
-                                      : "var(--accent-red)";
                               // Mirror the backend weight bound: only show remove for members
                               // ranked below the viewer's role (superAdmin/coordinator unbounded).
                               const targetWeight =
@@ -876,14 +848,6 @@ export default function ManageMembers() {
                                     <td>
                                        <span className="mm-date">
                                           {fmtDate(row.joinedAt)}
-                                       </span>
-                                    </td>
-                                    <td>
-                                       <span
-                                          className="mm-eng"
-                                          style={{ color: engColor }}
-                                       >
-                                          {eng}
                                        </span>
                                     </td>
                                     <td>

@@ -136,7 +136,7 @@ function ResetPassword() {
                </h1>
                <p className="brand-sub">
                   Pick something you'll remember but no one else would guess.
-                  You'll be signed back in on this device once it's saved.
+                  Saving it signs you out everywhere — sign in again with the new one.
                </p>
 
                <ul className="brand-feats">

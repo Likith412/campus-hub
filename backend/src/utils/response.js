@@ -7,4 +7,10 @@ function successResponse(res, status, message, data) {
    });
 }
 
-module.exports = { successResponse };
+// The pagination block every list endpoint returns. `returned` is the size of this page,
+// so the last (short) page reports hasMore: false.
+function pageMeta(page, limit, total, returned) {
+   return { page, limit, total, hasMore: (page - 1) * limit + returned < total };
+}
+
+module.exports = { successResponse, pageMeta };

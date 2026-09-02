@@ -280,11 +280,7 @@
    height: 26px;
    font-size: 10px;
 }
-.avatar.xs {
-   width: 20px;
-   height: 20px;
-   font-size: 9px;
-}
+
 .user-name {
    font-weight: 600;
    font-size: 13px;
@@ -660,27 +656,6 @@
 }
 
 /* Role pill in topbar */
-.role-pill {
-   display: inline-flex;
-   align-items: center;
-   gap: 6px;
-   padding: 4px 10px;
-   border-radius: 9999px;
-   background: var(--accent-purple-light);
-   color: var(--accent-purple);
-   font-size: 11px;
-   font-weight: 700;
-   letter-spacing: 0.4px;
-   text-transform: uppercase;
-}
-.role-pill::before {
-   content: "";
-   width: 6px;
-   height: 6px;
-   border-radius: 9999px;
-   background: var(--accent-purple);
-   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.18);
-}
 
 /* BUTTONS */
 .btn {
@@ -734,10 +709,6 @@
    padding: 6px 10px;
    font-size: 12px;
 }
-.btn-lg {
-   padding: 11px 18px;
-   font-size: 14px;
-}
 
 /* MAIN */
 .main {
@@ -746,17 +717,7 @@
 }
 
 /* PAGE HEADER */
-.page-head {
-   margin-bottom: 24px;
-   display: flex;
-   align-items: flex-end;
-   justify-content: space-between;
-   gap: 16px;
-   flex-wrap: wrap;
-}
-.page-head-l {
-   min-width: 0;
-}
+
 .page-title {
    font-family: var(--font-display);
    font-weight: 800;
@@ -797,108 +758,8 @@
 }
 
 /* CARDS */
-.card {
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 12px;
-   box-shadow: var(--shadow-sm);
-   padding: 18px 20px;
-   transition: all var(--transition-base);
-}
-.card:hover {
-   box-shadow: var(--shadow-md);
-   border-color: var(--border-default);
-}
-.card-flat {
-   background: var(--bg-surface);
-   border-color: var(--border-light);
-   box-shadow: none;
-}
 
 /* STATS */
-.stats-row {
-   display: grid;
-   grid-template-columns: repeat(4, 1fr);
-   gap: 14px;
-   margin-bottom: 28px;
-}
-.stat {
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 12px;
-   padding: 16px 18px;
-   box-shadow: var(--shadow-sm);
-   display: flex;
-   align-items: center;
-   gap: 14px;
-   transition: all var(--transition-base);
-}
-.stat:hover {
-   box-shadow: var(--shadow-md);
-}
-.stat-icon {
-   width: 44px;
-   height: 44px;
-   border-radius: 10px;
-   display: grid;
-   place-items: center;
-   flex-shrink: 0;
-}
-.stat-icon.purple {
-   background: var(--accent-purple-light);
-   color: var(--accent-purple);
-}
-.stat-icon.blue {
-   background: var(--accent-blue-light);
-   color: var(--accent-blue);
-}
-.stat-icon.green {
-   background: var(--accent-green-light);
-   color: var(--accent-green);
-}
-.stat-icon.orange {
-   background: var(--accent-orange-light);
-   color: var(--accent-orange);
-}
-.stat-icon.red {
-   background: var(--accent-red-light);
-   color: var(--accent-red);
-}
-.stat-meta {
-   flex: 1;
-   min-width: 0;
-}
-.stat-label {
-   font-size: 12px;
-   color: var(--text-secondary);
-   font-weight: 500;
-}
-.stat-value {
-   font-family: var(--font-display);
-   font-weight: 700;
-   font-size: 26px;
-   line-height: 32px;
-   letter-spacing: -0.02em;
-   margin-top: 2px;
-}
-.stat-value .unit {
-   font-size: 12px;
-   color: var(--text-tertiary);
-   font-weight: 500;
-   margin-left: 4px;
-}
-.stat-trend {
-   font-family: var(--font-mono);
-   font-size: 11px;
-   font-weight: 600;
-   margin-top: 2px;
-}
-.stat-trend.up {
-   color: var(--accent-green);
-}
-.stat-trend.down {
-   color: var(--accent-red);
-}
 
 /* BADGES */
 .badge {
@@ -936,10 +797,7 @@
    background: var(--accent-red-light);
    color: var(--accent-red);
 }
-.badge.neutral {
-   background: var(--bg-elevated);
-   color: var(--text-secondary);
-}
+
 .badge.purple {
    background: var(--accent-purple-light);
    color: var(--accent-purple);
@@ -964,18 +822,12 @@
    background: var(--accent-blue-light);
    color: var(--accent-blue);
 }
-.badge.cultural {
-   background: var(--accent-purple-light);
-   color: var(--accent-purple);
-}
+
 .badge.sports {
    background: var(--accent-green-light);
    color: var(--accent-green);
 }
-.badge.literary {
-   background: var(--accent-orange-light);
-   color: var(--accent-orange);
-}
+
 .badge.social {
    background: var(--accent-red-light);
    color: var(--accent-red);
@@ -1076,9 +928,6 @@
 }
 .loading-label {
    font-weight: 500;
-}
-.btn-spin {
-   color: currentColor;
 }
 
 /* TOAST — SaaS / Sonner-style */
@@ -1469,14 +1318,11 @@
    align-items: center;
    gap: 10px;
 }
-.verified-tick {
+/* Scoped: the club-card .verified-tick further down is the same specificity, so an
+   unscoped rule here would lose to it wherever both apply. */
+.profile-name .verified-tick {
    width: 20px;
    height: 20px;
-   border-radius: 9999px;
-   background: var(--accent-purple);
-   display: grid;
-   place-items: center;
-   color: white;
 }
 .profile-handle {
    font-family: var(--font-mono);
@@ -1545,79 +1391,12 @@
    align-items: flex-end;
    gap: 6px;
 }
-.profile-share-note {
-   font-size: 11px;
-   color: var(--text-tertiary);
-}
-
-.profile-tabs {
-   display: flex;
-   gap: 4px;
-   border-bottom: 1px solid var(--border-light);
-   margin-bottom: 24px;
-   padding: 0 8px;
-}
-.profile-tab {
-   padding: 12px 16px;
-   font-size: 13px;
-   font-weight: 500;
-   color: var(--text-secondary);
-   border-bottom: 2px solid transparent;
-   margin-bottom: -1px;
-   cursor: pointer;
-   transition: all var(--transition-base);
-   display: inline-flex;
-   align-items: center;
-   gap: 6px;
-   background: none;
-}
-.profile-tab:hover {
-   color: var(--text-primary);
-}
-.profile-tab.active {
-   color: var(--accent-purple);
-   border-bottom-color: var(--accent-purple);
-   font-weight: 600;
-}
 
 .overview-grid {
    display: grid;
    grid-template-columns: 1fr 320px;
    gap: 24px;
    align-items: flex-start;
-}
-.stat-row {
-   display: grid;
-   grid-template-columns: repeat(4, 1fr);
-   gap: 14px;
-   margin-bottom: 24px;
-}
-.pstat {
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 12px;
-   padding: 16px 18px;
-   box-shadow: var(--shadow-sm);
-}
-.pstat-label {
-   font-size: 11px;
-   font-weight: 600;
-   letter-spacing: 0.4px;
-   color: var(--text-tertiary);
-   text-transform: uppercase;
-}
-.pstat-value {
-   font-family: var(--font-display);
-   font-weight: 700;
-   font-size: 28px;
-   line-height: 36px;
-   letter-spacing: -0.02em;
-   margin-top: 6px;
-}
-.pstat-unit {
-   font-size: 14px;
-   color: var(--text-tertiary);
-   font-weight: 500;
 }
 
 .panel {
@@ -1678,56 +1457,6 @@
    border-radius: 9999px;
 }
 
-.activity-row {
-   display: flex;
-   align-items: flex-start;
-   gap: 12px;
-   padding: 10px 0;
-   border-bottom: 1px dashed var(--border-light);
-}
-.activity-row:last-child {
-   border-bottom: none;
-}
-.act-ico {
-   width: 32px;
-   height: 32px;
-   border-radius: 8px;
-   display: grid;
-   place-items: center;
-   flex-shrink: 0;
-}
-.act-ico.purple {
-   background: var(--accent-purple-light);
-   color: var(--accent-purple);
-}
-.act-ico.green {
-   background: var(--accent-green-light);
-   color: var(--accent-green);
-}
-.act-ico.blue {
-   background: var(--accent-blue-light);
-   color: var(--accent-blue);
-}
-.act-ico.orange {
-   background: var(--accent-orange-light);
-   color: var(--accent-orange);
-}
-.act-meta {
-   flex: 1;
-   min-width: 0;
-}
-.act-title {
-   font-size: 13px;
-   font-weight: 500;
-   line-height: 18px;
-}
-.act-time {
-   font-family: var(--font-mono);
-   font-size: 11px;
-   color: var(--text-tertiary);
-   margin-top: 2px;
-}
-
 .settings-layout {
    display: grid;
    grid-template-columns: 220px 1fr;
@@ -1768,59 +1497,6 @@
 }
 .settings-nav button.danger {
    color: var(--accent-red);
-}
-
-.toggle-row {
-   display: flex;
-   align-items: center;
-   justify-content: space-between;
-   padding: 14px 0;
-   border-bottom: 1px solid var(--border-light);
-}
-.toggle-row:last-child {
-   border-bottom: none;
-}
-.toggle-meta {
-   flex: 1;
-}
-.toggle-title {
-   font-size: 13.5px;
-   font-weight: 600;
-}
-.toggle-sub {
-   font-size: 12px;
-   color: var(--text-secondary);
-   margin-top: 2px;
-   line-height: 18px;
-   max-width: 480px;
-}
-.toggle {
-   width: 36px;
-   height: 20px;
-   background: var(--bg-elevated);
-   border-radius: 9999px;
-   position: relative;
-   cursor: pointer;
-   transition: background var(--transition-base);
-   flex-shrink: 0;
-}
-.toggle::after {
-   content: "";
-   position: absolute;
-   top: 2px;
-   left: 2px;
-   width: 16px;
-   height: 16px;
-   background: white;
-   border-radius: 9999px;
-   box-shadow: var(--shadow-sm);
-   transition: transform var(--transition-base);
-}
-.toggle.on {
-   background: var(--accent-purple);
-}
-.toggle.on::after {
-   transform: translateX(16px);
 }
 
 .form-row {
@@ -1966,69 +1642,6 @@
 .danger-row button:hover {
    background: var(--accent-red);
    color: white;
-}
-
-.member-grid {
-   display: grid;
-   grid-template-columns: repeat(2, 1fr);
-   gap: 12px;
-}
-.member-card {
-   display: flex;
-   color: inherit;
-   text-decoration: none;
-   gap: 14px;
-   align-items: center;
-   padding: 14px 16px;
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 10px;
-   transition: all var(--transition-base);
-}
-.member-card:hover {
-   border-color: var(--border-default);
-   box-shadow: var(--shadow-sm);
-}
-.member-avatar {
-   width: 44px;
-   height: 44px;
-   border-radius: 9999px;
-   background: var(--gradient-accent);
-   display: grid;
-   place-items: center;
-   color: white;
-   font-weight: 700;
-   font-size: 14px;
-   flex-shrink: 0;
-}
-.member-name {
-   font-weight: 600;
-   font-size: 13.5px;
-}
-.member-role {
-   font-size: 11.5px;
-   color: var(--text-secondary);
-   margin-top: 2px;
-}
-.member-card .role-tag {
-   font-family: var(--font-mono);
-   font-size: 10px;
-   font-weight: 700;
-   text-transform: uppercase;
-   letter-spacing: 0.4px;
-   padding: 2px 6px;
-   border-radius: 4px;
-   background: var(--bg-elevated);
-   color: var(--text-secondary);
-   margin-left: auto;
-}
-.member-card .role-tag.admin {
-   background: var(--accent-purple-light);
-   color: var(--accent-purple);
-}
-.member-card .role-tag.volunteer {
-   background: var(--accent-orange-light);
-   color: var(--accent-orange);
 }
 
 .profile-empty {
@@ -2307,42 +1920,6 @@
    text-decoration: underline;
 }
 
-.profile-saved {
-   font-size: 12px;
-   color: var(--accent-green);
-}
-.profile-error {
-   color: var(--accent-red);
-   font-size: 12.5px;
-   margin-top: 8px;
-}
-
-.achievements-empty {
-   text-align: center;
-   padding: 60px 20px;
-}
-.achievements-empty .ic {
-   width: 64px;
-   height: 64px;
-   margin: 0 auto 16px;
-   border-radius: 16px;
-   background: var(--accent-purple-light);
-   display: grid;
-   place-items: center;
-   color: var(--accent-purple);
-}
-.achievements-empty .count {
-   font-family: var(--font-display);
-   font-weight: 700;
-   font-size: 20px;
-   letter-spacing: -0.01em;
-}
-.achievements-empty .sub {
-   color: var(--text-secondary);
-   font-size: 13.5px;
-   margin-top: 6px;
-}
-
 /* ===========================================================
    Campus Hub — Auth pages (Login / Register / Verify / Forgot)
    =========================================================== */
@@ -2586,54 +2163,6 @@ body {
 }
 
 /* SSO buttons */
-.sso-row {
-   display: grid;
-   grid-template-columns: 1fr 1fr;
-   gap: 10px;
-   margin-bottom: 20px;
-}
-.sso-btn {
-   height: 44px;
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 8px;
-   display: flex;
-   align-items: center;
-   justify-content: center;
-   gap: 8px;
-   font-size: 13.5px;
-   font-weight: 500;
-   color: var(--text-primary);
-   transition: all var(--transition-base);
-}
-.sso-btn:hover {
-   background: var(--bg-surface);
-   border-color: var(--border-default);
-   transform: translateY(-1px);
-   box-shadow: var(--shadow-sm);
-}
-.sso-btn svg {
-   flex-shrink: 0;
-}
-
-.divider {
-   display: flex;
-   align-items: center;
-   gap: 12px;
-   font-size: 11.5px;
-   font-weight: 500;
-   color: var(--text-tertiary);
-   text-transform: uppercase;
-   letter-spacing: 0.4px;
-   margin-bottom: 20px;
-}
-.divider::before,
-.divider::after {
-   content: "";
-   flex: 1;
-   height: 1px;
-   background: var(--border-light);
-}
 
 /* Form fields */
 .field {
@@ -2718,14 +2247,6 @@ body {
    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
 }
 
-.field-error {
-   font-size: 11.5px;
-   color: var(--accent-red);
-   margin-top: 6px;
-   display: flex;
-   align-items: center;
-   gap: 4px;
-}
 .field-help {
    font-size: 11.5px;
    color: var(--text-tertiary);
@@ -2771,13 +2292,7 @@ body {
 }
 
 /* Checkbox + remember row */
-.row-between {
-   display: flex;
-   align-items: center;
-   justify-content: space-between;
-   margin-bottom: 20px;
-   font-size: 13px;
-}
+
 .check {
    display: inline-flex;
    align-items: center;
@@ -2789,29 +2304,7 @@ body {
 .check input {
    display: none;
 }
-.check .box {
-   width: 16px;
-   height: 16px;
-   border-radius: 4px;
-   border: 1.5px solid var(--border-default);
-   background: var(--bg-base);
-   display: grid;
-   place-items: center;
-   transition: all var(--transition-base);
-}
-.check input:checked + .box {
-   background: var(--accent-purple);
-   border-color: var(--accent-purple);
-   color: white;
-}
-.check input:checked + .box::after {
-   content: "";
-   width: 9px;
-   height: 5px;
-   border-left: 2px solid white;
-   border-bottom: 2px solid white;
-   transform: rotate(-45deg) translate(1px, -1px);
-}
+
 .link {
    color: var(--accent-purple);
    font-weight: 600;
@@ -2877,108 +2370,8 @@ body {
 }
 
 /* Role chooser (register) */
-.role-grid {
-   display: grid;
-   grid-template-columns: repeat(3, 1fr);
-   gap: 8px;
-   margin-bottom: 20px;
-}
-.role-card {
-   padding: 12px 10px;
-   border: 1px solid var(--border-light);
-   border-radius: 10px;
-   background: var(--bg-base);
-   cursor: pointer;
-   transition: all var(--transition-base);
-   text-align: center;
-}
-.role-card:hover {
-   border-color: var(--border-default);
-}
-.role-card.active {
-   border-color: var(--accent-purple);
-   background: var(--accent-purple-light);
-   box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.12);
-}
-.role-card .ic {
-   width: 30px;
-   height: 30px;
-   border-radius: 8px;
-   background: var(--bg-elevated);
-   display: grid;
-   place-items: center;
-   margin: 0 auto 6px;
-   color: var(--text-secondary);
-}
-.role-card.active .ic {
-   background: var(--accent-purple);
-   color: white;
-}
-.role-card .name {
-   font-weight: 600;
-   font-size: 12.5px;
-}
-.role-card .desc {
-   font-size: 10.5px;
-   color: var(--text-tertiary);
-   margin-top: 2px;
-   line-height: 14px;
-}
 
 /* OTP boxes (verification) */
-.otp-row {
-   display: flex;
-   gap: 10px;
-   justify-content: center;
-   margin: 20px 0 12px;
-}
-.otp-box {
-   width: 52px;
-   height: 60px;
-   background: var(--bg-base);
-   border: 1.5px solid var(--border-light);
-   border-radius: 10px;
-   text-align: center;
-   font: 600 22px/1 var(--font-display);
-   color: var(--text-primary);
-   transition: all var(--transition-base);
-   caret-color: var(--accent-purple);
-}
-.otp-box:focus {
-   outline: none;
-   border-color: var(--accent-purple);
-   box-shadow: 0 0 0 4px rgba(108, 99, 255, 0.12);
-}
-.otp-box.filled {
-   background: var(--accent-purple-light);
-   border-color: var(--accent-purple);
-}
-
-.otp-info {
-   text-align: center;
-   font-size: 13px;
-   color: var(--text-secondary);
-   margin-bottom: 6px;
-}
-.otp-info b {
-   color: var(--text-primary);
-   font-weight: 600;
-}
-.timer-row {
-   text-align: center;
-   font-size: 12px;
-   color: var(--text-tertiary);
-   font-family: var(--font-mono);
-   margin-bottom: 24px;
-}
-.timer-row .resend {
-   color: var(--accent-purple);
-   font-weight: 600;
-   cursor: pointer;
-}
-.timer-row .resend:hover {
-   text-decoration: underline;
-}
 
 /* Success banner (forgot password done state) */
 .success-card {
@@ -3126,27 +2519,7 @@ body {
    position: relative;
    max-width: 720px;
 }
-.clubs-hero .hero-tag {
-   display: inline-flex;
-   align-items: center;
-   gap: 6px;
-   padding: 3px 9px;
-   border-radius: 9999px;
-   background: rgba(255, 255, 255, 0.08);
-   border: 1px solid rgba(255, 255, 255, 0.14);
-   font-size: 10.5px;
-   font-weight: 700;
-   letter-spacing: 0.4px;
-   color: rgba(255, 255, 255, 0.8);
-   text-transform: uppercase;
-   margin-bottom: 12px;
-}
-.clubs-hero .hero-tag .dot {
-   width: 6px;
-   height: 6px;
-   border-radius: 9999px;
-   background: var(--accent-green);
-}
+
 .clubs-hero h1 {
    font-weight: 800;
    font-size: 30px;
@@ -3623,17 +2996,20 @@ body {
    background: var(--accent-red);
    color: white;
 }
-.join-btn.pending {
-   background: var(--accent-orange-light);
-   color: var(--accent-orange);
-   cursor: default;
-}
 .join-btn.disabled,
 .join-btn:disabled {
    background: var(--bg-elevated);
    color: var(--text-tertiary);
    cursor: not-allowed;
    transform: none;
+}
+/* A pending request keeps its own colour, so this has to outrank :disabled above —
+   the button carries both. */
+.join-btn.pending,
+.join-btn.pending:disabled {
+   background: var(--accent-orange-light);
+   color: var(--accent-orange);
+   cursor: default;
 }
 
 /* LIST VIEW */
@@ -4217,7 +3593,7 @@ body {
 }
 .ml-row {
    display: grid;
-   grid-template-columns: 36px 1fr auto auto auto;
+   grid-template-columns: 36px 1fr auto auto;
    gap: 14px;
    align-items: center;
    padding: 12px 20px;
@@ -4229,9 +3605,6 @@ body {
 }
 .ml-row:hover {
    background: var(--bg-surface);
-}
-.ml-row.pending {
-   grid-template-columns: 36px 1fr auto auto;
 }
 .ml-name {
    font-weight: 600;
@@ -4257,77 +3630,6 @@ body {
 .ml-role.coordinator {
    background: var(--accent-purple-light);
    color: var(--accent-purple);
-}
-.ml-engage {
-   font-family: var(--font-mono);
-   font-size: 12px;
-   font-weight: 600;
-   color: var(--accent-green);
-   min-width: 36px;
-   text-align: right;
-}
-.ml-action {
-   width: 28px;
-   height: 28px;
-   border-radius: 6px;
-   background: transparent;
-   border: none;
-   color: var(--text-tertiary);
-   display: grid;
-   place-items: center;
-   cursor: pointer;
-   transition: all var(--transition-base);
-}
-.ml-action:hover:not(:disabled) {
-   background: var(--bg-hover);
-   color: var(--text-primary);
-}
-.ml-action:disabled {
-   opacity: 0.5;
-   cursor: not-allowed;
-}
-
-.ml-menu-wrap {
-   position: relative;
-}
-.ml-menu {
-   position: absolute;
-   right: 0;
-   top: calc(100% + 4px);
-   z-index: 30;
-   min-width: 180px;
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 8px;
-   box-shadow: var(--shadow-lg);
-   padding: 4px;
-   display: flex;
-   flex-direction: column;
-}
-.ml-menu button {
-   text-align: left;
-   padding: 8px 10px;
-   font-size: 12.5px;
-   background: transparent;
-   border: none;
-   border-radius: 5px;
-   color: var(--text-primary);
-   cursor: pointer;
-   font-family: inherit;
-}
-.ml-menu button:hover {
-   background: var(--bg-surface);
-}
-.ml-menu button.danger {
-   color: var(--accent-red);
-}
-.ml-menu button.danger:hover {
-   background: var(--accent-red-light);
-}
-
-.ml-pending-actions {
-   display: flex;
-   gap: 8px;
 }
 
 /* ── Faculty (superAdmin) ─────────────────────────────────────────── */
@@ -4475,9 +3777,6 @@ body {
    color: var(--text-primary);
    box-shadow: var(--shadow-sm);
 }
-.fac-export {
-   margin-left: auto;
-}
 
 /* Table */
 .fac-table-card {
@@ -4511,10 +3810,7 @@ body {
 .fac-dt tbody td.ta-right {
    text-align: right;
 }
-.fac-dt thead th.ta-center,
-.fac-dt tbody td.ta-center {
-   text-align: center;
-}
+
 .fac-dt tbody td {
    padding: 14px 16px;
    border-bottom: 1px solid var(--border-light);
@@ -4559,42 +3855,7 @@ body {
    color: var(--text-tertiary);
    margin-top: 1px;
 }
-.fac-status {
-   display: inline-flex;
-   align-items: center;
-   gap: 5px;
-   font-size: 11px;
-   font-weight: 600;
-   padding: 3px 9px;
-   border-radius: var(--radius-full);
-}
-.fac-status .dot {
-   width: 6px;
-   height: 6px;
-   border-radius: var(--radius-full);
-}
-.fac-status.active {
-   background: var(--accent-green-light);
-   color: #047857;
-}
-.fac-status.active .dot {
-   background: var(--accent-green);
-}
-.fac-status.inactive {
-   background: var(--bg-elevated);
-   color: var(--text-tertiary);
-}
-.fac-status.inactive .dot {
-   background: var(--text-tertiary);
-}
-.fac-status.pending {
-   background: var(--accent-orange-light);
-   color: #b45309;
-}
-.fac-status.pending .dot {
-   background: var(--accent-orange);
-   animation: fac-blink 1.4s infinite;
-}
+
 @keyframes fac-blink {
    50% {
       opacity: 0.4;
@@ -4810,7 +4071,7 @@ body {
    background: var(--bg-surface);
 }
 
-/* ── Club edit + manage-faculty modals (Phase 5) ──────────────────── */
+/* ── Club edit + manage-faculty modals ────────────────────────────── */
 .fac-modal.wide {
    max-width: 560px;
 }
@@ -4819,94 +4080,6 @@ body {
    overflow-y: auto;
 }
 /* The edit-club form reuses the create-club wizard's field styling (.create-club scope). */
-.mf-results {
-   margin-top: 8px;
-   border: 1px solid var(--border-light);
-   border-radius: 8px;
-   overflow: hidden;
-}
-.mf-result {
-   display: flex;
-   align-items: center;
-   justify-content: space-between;
-   width: 100%;
-   padding: 9px 12px;
-   background: var(--bg-base);
-   border: none;
-   border-bottom: 1px solid var(--border-light);
-   cursor: pointer;
-   text-align: left;
-   transition: background var(--transition-base);
-}
-.mf-result:last-child {
-   border-bottom: none;
-}
-.mf-result:hover:not(:disabled) {
-   background: var(--bg-surface);
-}
-.mf-result:disabled {
-   opacity: 0.6;
-   cursor: default;
-}
-.mf-add {
-   font-size: 12px;
-   font-weight: 600;
-   color: var(--accent-purple);
-   flex-shrink: 0;
-}
-.mf-list {
-   display: flex;
-   flex-direction: column;
-   gap: 8px;
-   margin-top: 8px;
-}
-.mf-row {
-   display: grid;
-   grid-template-columns: 32px 1fr auto;
-   gap: 12px;
-   align-items: center;
-   padding: 8px 10px;
-   border: 1px solid var(--border-light);
-   border-radius: 8px;
-}
-.mf-rowtext {
-   min-width: 0;
-}
-.mf-name {
-   font-size: 13px;
-   font-weight: 600;
-   color: var(--text-primary);
-}
-.mf-sub {
-   font-size: 11.5px;
-   color: var(--text-tertiary);
-}
-.mf-remove {
-   font-size: 12px;
-   font-weight: 600;
-   padding: 5px 10px;
-   border: 1px solid var(--border-default);
-   border-radius: 6px;
-   background: var(--bg-base);
-   color: var(--accent-red);
-   cursor: pointer;
-   transition: all var(--transition-base);
-}
-.mf-remove:hover:not(:disabled) {
-   background: var(--accent-red-light);
-   border-color: var(--accent-red-light);
-}
-.mf-remove:disabled {
-   opacity: 0.45;
-   cursor: not-allowed;
-   color: var(--text-tertiary);
-}
-.mf-empty {
-   padding: 14px;
-   text-align: center;
-   font-size: 12.5px;
-   color: var(--text-tertiary);
-}
 
 /* Success state */
 .fac-modal-success {
@@ -5037,27 +4210,6 @@ body {
 .club-status-pill.archived {
    background: var(--bg-hover);
    color: var(--text-secondary);
-}
-.club-status-select {
-   height: 34px;
-   padding: 0 10px;
-   border: 1px solid var(--border-default);
-   border-radius: var(--radius-lg);
-   background: var(--bg-base);
-   color: var(--text-secondary);
-   font-size: 12.5px;
-   font-weight: 600;
-   font-family: inherit;
-   cursor: pointer;
-   transition: all var(--transition-base);
-}
-.club-status-select:hover:not(:disabled) {
-   border-color: var(--border-strong);
-   color: var(--text-primary);
-}
-.club-status-select:disabled {
-   opacity: 0.6;
-   cursor: not-allowed;
 }
 
 /* ── All Clubs (superAdmin) — reuses the faculty table shell (.fac-*) ──── */
@@ -5197,41 +4349,7 @@ body {
    color: var(--text-primary);
    font-weight: 600;
 }
-.ac-status {
-   display: inline-flex;
-   align-items: center;
-   gap: 5px;
-   font-size: 11px;
-   font-weight: 600;
-   padding: 3px 9px;
-   border-radius: var(--radius-full);
-}
-.ac-status .dot {
-   width: 6px;
-   height: 6px;
-   border-radius: var(--radius-full);
-}
-.ac-status.active {
-   background: var(--accent-green-light);
-   color: #047857;
-}
-.ac-status.active .dot {
-   background: var(--accent-green);
-}
-.ac-status.suspended {
-   background: var(--accent-red-light);
-   color: #b91c1c;
-}
-.ac-status.suspended .dot {
-   background: var(--accent-red);
-}
-.ac-status.archived {
-   background: var(--bg-elevated);
-   color: var(--text-tertiary);
-}
-.ac-status.archived .dot {
-   background: var(--text-tertiary);
-}
+
 /* Inline per-row status changer — a colour-coded pill <select>. */
 .ac-status-select {
    appearance: none;
@@ -5909,9 +5027,6 @@ body {
    white-space: nowrap;
    flex-shrink: 0;
 }
-.clubs-create {
-   margin-top: 16px;
-}
 
 /* ── Create club wizard (ported from .design/Create Club.html) ─────── */
 @keyframes ccFadeUp {
@@ -6239,8 +5354,9 @@ body {
    font-weight: 600;
 }
 
-.create-club .tag-box,
-.create-event .tag-box {
+/* The tag chip-input. Unscoped: the two create wizards and the two edit modals all
+   render it, and scoping it to the wizards left both modals unstyled. */
+.tag-box {
    display: flex;
    flex-wrap: wrap;
    gap: 6px;
@@ -6249,14 +5365,13 @@ body {
    border-radius: 8px;
    min-height: 42px;
    align-items: center;
+   background: var(--bg-base);
 }
-.create-club .tag-box:focus-within,
-.create-event .tag-box:focus-within {
+.tag-box:focus-within {
    border-color: var(--accent-purple);
    box-shadow: 0 0 0 3px rgba(108, 99, 255, 0.12);
 }
-.create-club .tag,
-.create-event .tag {
+.tag {
    display: inline-flex;
    align-items: center;
    gap: 5px;
@@ -6267,8 +5382,7 @@ body {
    font-size: 12px;
    font-weight: 600;
 }
-.create-club .tag .x,
-.create-event .tag .x {
+.tag .x {
    cursor: pointer;
    width: 14px;
    height: 14px;
@@ -6276,11 +5390,10 @@ body {
    place-items: center;
    border-radius: 4px;
 }
-.create-club .tag .x:hover,
-.create-event .tag .x:hover {
+.tag .x:hover {
    background: rgba(108, 99, 255, 0.2);
 }
-.create-club .tag-box input {
+.tag-box input {
    border: none;
    outline: none;
    flex: 1;
@@ -6289,6 +5402,9 @@ body {
    background: transparent;
    padding: 4px;
    color: var(--text-primary);
+}
+.tag-box input::placeholder {
+   color: var(--text-tertiary);
 }
 
 .create-club .policy-grid {
@@ -6456,19 +5572,7 @@ body {
    font-size: 12.5px;
    color: var(--text-tertiary);
 }
-.create-club .pc-verified {
-   display: inline-flex;
-   align-items: center;
-   gap: 3px;
-   font-size: 9.5px;
-   font-weight: 700;
-   padding: 2px 6px;
-   border-radius: 4px;
-   background: var(--accent-purple-light);
-   color: var(--accent-purple);
-   text-transform: uppercase;
-   letter-spacing: 0.3px;
-}
+
 .create-club .success-status.ok {
    background: var(--accent-green-light);
    color: #047857;
@@ -6576,13 +5680,7 @@ body {
    flex-direction: column;
    gap: 16px;
 }
-.create-club .preview-card {
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 14px;
-   box-shadow: var(--shadow-sm);
-   overflow: hidden;
-}
+
 .create-club .preview-label {
    font-size: 10.5px;
    font-weight: 700;
@@ -6605,122 +5703,12 @@ body {
    text-transform: uppercase;
    letter-spacing: 0.5px;
 }
-.create-club .pc-cover {
-   height: 64px;
-   position: relative;
-   transition: background 200ms ease;
-}
-.create-club .pc-cover::before {
-   content: "";
-   position: absolute;
-   inset: 0;
-   background-image: radial-gradient(
-      circle at 20% 30%,
-      rgba(255, 255, 255, 0.18),
-      transparent 40%
-   );
-}
-.create-club .pc-logo {
-   position: absolute;
-   bottom: -20px;
-   left: 16px;
-   width: 46px;
-   height: 46px;
-   border-radius: 12px;
-   border: 3px solid var(--bg-base);
-   display: grid;
-   place-items: center;
-   color: #fff;
-   font-weight: 800;
-   font-size: 15px;
-   transition: background 200ms ease;
-}
-.create-club .pc-body {
-   padding: 28px 16px 16px;
-}
-.create-club .pc-name-row {
-   display: flex;
-   align-items: center;
-   gap: 6px;
-}
+
 .create-club .pc-name {
    font-family: var(--font-display);
    font-weight: 700;
    font-size: 15px;
    letter-spacing: -0.01em;
-}
-.create-club .pc-unverified {
-   display: inline-flex;
-   align-items: center;
-   gap: 3px;
-   font-size: 9.5px;
-   font-weight: 700;
-   padding: 2px 6px;
-   border-radius: 4px;
-   background: var(--accent-orange-light);
-   color: #b45309;
-   text-transform: uppercase;
-   letter-spacing: 0.3px;
-}
-.create-club .pc-domain {
-   font-size: 11.5px;
-   color: var(--text-secondary);
-   margin-top: 2px;
-}
-.create-club .pc-tagline {
-   font-size: 12px;
-   color: var(--text-secondary);
-   line-height: 17px;
-   margin-top: 8px;
-   min-height: 34px;
-}
-.create-club .pc-meta {
-   display: flex;
-   gap: 12px;
-   margin-top: 10px;
-   padding-top: 10px;
-   border-top: 1px solid var(--border-light);
-   font-size: 11px;
-   color: var(--text-tertiary);
-}
-.create-club .pc-meta b {
-   color: var(--text-primary);
-   font-weight: 600;
-}
-.create-club .info-note {
-   background: linear-gradient(
-      135deg,
-      rgba(245, 158, 11, 0.08),
-      rgba(108, 99, 255, 0.06)
-   );
-   border: 1px solid var(--accent-orange-light);
-   border-radius: 12px;
-   padding: 14px 16px;
-}
-.create-club .info-note h4 {
-   font-size: 12.5px;
-   font-weight: 700;
-   display: flex;
-   align-items: center;
-   gap: 7px;
-   margin-bottom: 6px;
-}
-.create-club .info-note h4 .ic {
-   width: 22px;
-   height: 22px;
-   border-radius: 6px;
-   background: var(--accent-orange);
-   color: #fff;
-   display: grid;
-   place-items: center;
-}
-.create-club .info-note p {
-   font-size: 12px;
-   color: var(--text-secondary);
-   line-height: 18px;
-}
-.create-club .info-note p + p {
-   margin-top: 6px;
 }
 
 /* Footer */
@@ -6800,29 +5788,7 @@ body {
    letter-spacing: -0.02em;
    color: var(--text-primary);
 }
-.mm-club-chip {
-   display: inline-flex;
-   align-items: center;
-   gap: 7px;
-   font-size: 13px;
-   font-weight: 600;
-   color: var(--text-secondary);
-   background: var(--bg-elevated);
-   padding: 4px 12px 4px 6px;
-   border-radius: var(--radius-full);
-   vertical-align: middle;
-   margin-left: 10px;
-}
-.mm-club-lg {
-   width: 22px;
-   height: 22px;
-   border-radius: 6px;
-   display: grid;
-   place-items: center;
-   color: #fff;
-   font-size: 9px;
-   font-weight: 800;
-}
+
 .mm-sub {
    color: var(--text-secondary);
    margin-top: 6px;
@@ -7158,10 +6124,6 @@ body {
    font-size: 12px;
    color: var(--text-secondary);
 }
-.mm-eng {
-   font-family: var(--font-mono);
-   font-weight: 600;
-}
 .mm-by {
    font-size: 12.5px;
    font-weight: 600;
@@ -7307,7 +6269,6 @@ body {
    }
 }
 
-
 /* Manage-members per-row role switcher — a colour-coded <select>, like the club status pill. */
 .mm-role-select {
    appearance: none;
@@ -7332,7 +6293,7 @@ body {
    cursor: not-allowed;
 }
 
-/* ── Club Roles page (Phase 6) — .design/Club Roles.html ─────────────── */
+/* ── Club Roles page — .design/Club Roles.html ───────────────────────── */
 .cr-main {
    max-width: 1180px;
 }
@@ -7775,39 +6736,7 @@ body {
    margin-left: auto;
 }
 
-.event-list {
-   display: flex;
-   flex-direction: column;
-   gap: 12px;
-}
-.ev-card {
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 12px;
-   padding: 16px 20px;
-   display: grid;
-   /* Fixed tracks so the stat, status and action columns line up down the whole list —
-      each card is its own grid, so `auto` sized them to each row's own content. */
-   grid-template-columns: 56px minmax(0, 1fr) 104px 88px 116px;
-   gap: 16px;
-   align-items: center;
-   box-shadow: var(--shadow-sm);
-   transition: all var(--transition-base);
-}
-.ev-card:hover {
-   box-shadow: var(--shadow-md);
-   border-color: var(--border-default);
-   transform: translateY(-2px);
-}
 /* A draft is only visible to managers — mute it so it never reads as live. */
-.ev-card.draft {
-   border-style: dashed;
-   background: var(--bg-surface);
-}
-.ev-card.cancelled .ev-title {
-   text-decoration: line-through;
-   color: var(--text-tertiary);
-}
 
 .ev-date {
    width: 56px;
@@ -7830,42 +6759,6 @@ body {
    font-size: 20px;
    line-height: 24px;
    color: var(--text-primary);
-}
-
-.ev-info {
-   min-width: 0;
-}
-.ev-title {
-   font-weight: 700;
-   font-size: 14.5px;
-}
-.ev-meta {
-   font-size: 12px;
-   color: var(--text-secondary);
-   margin-top: 3px;
-   display: flex;
-   gap: 10px;
-   flex-wrap: wrap;
-   align-items: center;
-}
-.ev-meta span {
-   display: inline-flex;
-   align-items: center;
-   gap: 4px;
-}
-
-.ev-stat {
-   font-size: 11.5px;
-   color: var(--text-tertiary);
-   text-align: right;
-   white-space: nowrap;
-}
-.ev-stat b {
-   font-family: var(--font-mono);
-   color: var(--text-primary);
-   font-weight: 700;
-   display: block;
-   font-size: 13px;
 }
 
 .ev-status {
@@ -7901,65 +6794,10 @@ body {
 }
 
 /* Register / waitlist control on a card. */
-.ev-reg-btn {
-   /* Stretches its fixed track, so every button in the list is the same width. */
-   justify-self: stretch;
-   text-align: center;
-   font-family: inherit;
-   font-size: 12px;
-   font-weight: 700;
-   padding: 7px 14px;
-   border-radius: 8px;
-   border: 1px solid var(--border-default);
-   background: var(--bg-base);
-   color: var(--text-secondary);
-   cursor: pointer;
-   white-space: nowrap;
-   transition: all var(--transition-base);
-}
-.ev-reg-btn:hover:not(:disabled) {
-   background: var(--accent-purple);
-   border-color: var(--accent-purple);
-   color: #fff;
-}
-.ev-reg-btn:disabled {
-   opacity: 0.55;
-   cursor: default;
-}
-.ev-reg-btn.primary {
-   background: var(--accent-purple);
-   border-color: var(--accent-purple);
-   color: #fff;
-}
-.ev-reg-btn.primary:hover:not(:disabled) {
-   filter: brightness(1.06);
-   color: #fff;
-}
+
 /* A seat you already hold. Clicking cancels, so it keeps its own colour and only
    deepens on hover — it never flashes the register purple, and it never falls back
    to inherited body text (which read as black inside a table row). */
-.ev-reg-btn.done {
-   background: var(--accent-green-light, var(--bg-elevated));
-   border-color: transparent;
-   color: var(--accent-green, var(--text-secondary));
-}
-.ev-reg-btn.wait {
-   background: var(--accent-orange-light, var(--bg-elevated));
-   border-color: transparent;
-   color: var(--accent-orange, var(--text-secondary));
-}
-.ev-reg-btn.done:hover:not(:disabled) {
-   background: var(--accent-green-light, var(--bg-elevated));
-   border-color: transparent;
-   color: var(--accent-green, var(--text-secondary));
-   filter: brightness(0.95);
-}
-.ev-reg-btn.wait:hover:not(:disabled) {
-   background: var(--accent-orange-light, var(--bg-elevated));
-   border-color: transparent;
-   color: var(--accent-orange, var(--text-secondary));
-   filter: brightness(0.95);
-}
 
 .ev-empty {
    padding: 28px;
@@ -7969,13 +6807,7 @@ body {
 }
 
 @media (max-width: 720px) {
-   .ev-card {
-      grid-template-columns: 48px 1fr;
-      row-gap: 10px;
-   }
-   .ev-stat,
-   .ev-status,
-   .ev-reg-btn {
+   .ev-status {
       grid-column: 2;
       justify-self: start;
       text-align: left;
@@ -8045,8 +6877,6 @@ body {
    margin-top: 3px;
 }
 
-
-
 /* ── Explore (/explore) ───────────────────────────────────────────── */
 /* Ported from .design/Discovery.html. Everything is scoped under .explore —
    .section-title, .club-row and .club-name already mean other things elsewhere. */
@@ -8085,27 +6915,7 @@ body {
    z-index: 1;
    max-width: 720px;
 }
-.explore .hero-eyebrow {
-   display: inline-flex;
-   align-items: center;
-   gap: 6px;
-   padding: 4px 10px;
-   border-radius: 9999px;
-   background: rgba(108, 99, 255, 0.2);
-   color: #c8c2ff;
-   font-size: 11px;
-   font-weight: 700;
-   letter-spacing: 0.4px;
-   text-transform: uppercase;
-   margin-bottom: 14px;
-}
-.explore .hero-eyebrow .pulse {
-   width: 6px;
-   height: 6px;
-   border-radius: 9999px;
-   background: var(--accent-purple);
-   animation: exPulse 1.6s ease-out infinite;
-}
+
 @keyframes exPulse {
    0% {
       box-shadow: 0 0 0 0 rgba(108, 99, 255, 0.6);
@@ -8357,19 +7167,18 @@ body {
 .event-cover .ec-status.live {
    color: var(--accent-green);
 }
-/* Management buttons in the card footer. A card is ~280px wide and can carry up
-   to four of these (Edit / Publish / Cancel / Delete), so the footer stacks instead
-   of trying to fit them beside the seat count. */
+/* Management buttons sit at the end of the spots line, exactly where the register
+   button goes on a student's card. A draft carries three of them (Edit / Publish /
+   Delete), so the group wraps to its own line when the card is too narrow. */
 .event-foot.with-actions {
-   flex-direction: column;
-   align-items: stretch;
-   gap: 8px;
+   flex-wrap: wrap;
+   row-gap: 8px;
 }
 .ec-actions {
    display: flex;
    gap: 6px;
-   flex-wrap: wrap;
-   justify-content: flex-end;
+   flex-shrink: 0;
+   margin-left: auto;
 }
 /* The card itself is unscoped — the Explore feed and the create-event wizard's live
    preview both render it. Only the grid that lays the feed out belongs to .explore. */
@@ -8531,8 +7340,8 @@ button.btn-mini:hover:not(:disabled) {
 .btn-mini.muted {
    color: var(--text-tertiary);
 }
-/* Same rule as .ev-reg-btn's held states: keep the colour, just deepen. The element
-   selector is needed to outweigh the neutral hover above, which is `button.btn-mini`. */
+/* Keep the held-seat colour on hover, just deepen it. The element selector is needed to
+   outweigh the neutral hover above, which is `button.btn-mini`. */
 a.btn-mini.registered:hover,
 button.btn-mini.registered:hover:not(:disabled) {
    background: var(--accent-green-light);
@@ -8845,9 +7654,7 @@ button.btn-mini.on:hover:not(:disabled) {
    gap: 6px;
    flex-shrink: 0;
 }
-.hm-notices {
-   margin-top: 32px;
-}
+
 /* Dashboard variant: no avatar column, and the body is trimmed to a preview. */
 .an-card.compact .an-body,
 .an-body.compact {
@@ -9015,7 +7822,6 @@ button.btn-mini.on:hover:not(:disabled) {
    background: var(--accent-purple-light);
    color: var(--accent-purple);
 }
-
 
 @media (max-width: 1100px) {
    .explore .with-rail {
@@ -9426,7 +8232,6 @@ button.btn-mini.on:hover:not(:disabled) {
    }
 }
 
-
 /* ── Club Home (/clubs/:slug/admin) ───────────────────────────────── */
 /* Ported from .design/Club Admin Dashboard.html. Scoped: .panel and .page-header
    mean other things elsewhere in this file. */
@@ -9544,7 +8349,7 @@ button.btn-mini.on:hover:not(:disabled) {
    color: var(--text-secondary);
    margin-top: 2px;
 }
-.club-admin .link-btn {
+.link-btn {
    color: var(--accent-purple);
    font-size: 12.5px;
    font-weight: 600;
@@ -9554,7 +8359,7 @@ button.btn-mini.on:hover:not(:disabled) {
    white-space: nowrap;
    transition: background var(--transition-base);
 }
-.club-admin .link-btn:hover {
+.link-btn:hover {
    background: var(--accent-purple-light);
 }
 
@@ -9656,60 +8461,6 @@ button.btn-mini.on:hover:not(:disabled) {
    color: var(--text-secondary);
 }
 
-.club-admin .actions-grid {
-   display: grid;
-   grid-template-columns: repeat(2, 1fr);
-   gap: 12px;
-}
-.club-admin .action-card {
-   background: var(--bg-base);
-   border: 1px solid var(--border-light);
-   border-radius: 10px;
-   padding: 16px;
-   display: flex;
-   flex-direction: column;
-   gap: 8px;
-   color: inherit;
-   text-decoration: none;
-   transition: all var(--transition-base);
-}
-.club-admin .action-card:hover {
-   border-color: var(--border-default);
-   box-shadow: var(--shadow-md);
-   transform: translateY(-2px);
-}
-.club-admin .action-icon {
-   width: 32px;
-   height: 32px;
-   border-radius: 8px;
-   display: grid;
-   place-items: center;
-}
-.club-admin .action-icon.purple {
-   background: var(--accent-purple-light);
-   color: var(--accent-purple);
-}
-.club-admin .action-icon.green {
-   background: var(--accent-green-light);
-   color: var(--accent-green);
-}
-.club-admin .action-icon.orange {
-   background: var(--accent-orange-light);
-   color: var(--accent-orange);
-}
-.club-admin .action-icon.blue {
-   background: var(--accent-blue-light, var(--accent-purple-light));
-   color: var(--accent-blue, var(--accent-purple));
-}
-.club-admin .action-title {
-   font-size: 13.5px;
-   font-weight: 600;
-}
-.club-admin .action-sub {
-   font-size: 11.5px;
-   color: var(--text-tertiary);
-}
-
 @media (max-width: 1100px) {
    .club-admin .kpi-grid {
       grid-template-columns: repeat(2, 1fr);
@@ -9719,14 +8470,13 @@ button.btn-mini.on:hover:not(:disabled) {
    }
 }
 @media (max-width: 620px) {
-   .club-admin .kpi-grid,
-   .club-admin .actions-grid {
+   .club-admin .kpi-grid {
       grid-template-columns: 1fr;
    }
 }
 
 /* ── Club events management (/clubs/:slug/events) ─────────────────── */
-/* Same page header as Club Home; the list reuses the global .ev-card row. */
+/* Same page header as Club Home; the list uses the shared EventCard grid. */
 .club-events .page-header {
    display: flex;
    align-items: flex-end;
@@ -9751,15 +8501,7 @@ button.btn-mini.on:hover:not(:disabled) {
 .all-events .fac-tabs {
    margin-left: 0;
 }
-.all-events .ae-club {
-   font-weight: 600;
-   color: var(--accent-purple);
-   text-decoration: none;
-}
-.all-events .ae-club:hover {
-   color: var(--accent-purple);
-   text-decoration: underline;
-}
+
 .all-events .ae-count {
    margin-left: 5px;
    font-family: var(--font-mono);
@@ -9788,45 +8530,16 @@ button.btn-mini.on:hover:not(:disabled) {
 .ev-date.sm .ev-month {
    font-size: 8.5px;
 }
-.et-name {
-   font-weight: 600;
-   font-size: 13.5px;
-   color: inherit;
-   text-decoration: none;
-   display: flex;
-   align-items: center;
-   gap: 6px;
-}
-.et-meta {
-   margin-top: 3px;
-   display: flex;
-   align-items: center;
-   gap: 6px;
-   flex-wrap: wrap;
-}
+
 /* Row actions in a table cell. Right-aligned so they hang off the row's edge. */
-.et-actions {
-   display: flex;
-   gap: 6px;
-   justify-content: flex-end;
-   flex-wrap: wrap;
-}
-.et-seats {
-   font-family: var(--font-mono);
-   font-weight: 600;
-   white-space: nowrap;
-}
+
 /* A cancelled event stays in the list but reads as struck off. */
 .fac-dt tbody tr.dim {
    opacity: 0.62;
 }
-.fac-dt tbody tr.dim .et-name {
-   text-decoration: line-through;
-}
+
 /* The tab sits inside the club page's inset column, so it needs its own top gap. */
-.ev-table-card {
-   margin-top: 4px;
-}
+
 .club-detail .fac-dt tbody td,
 .club-events .fac-dt tbody td,
 .all-events .fac-dt tbody td {

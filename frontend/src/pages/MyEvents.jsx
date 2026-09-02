@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { eventsApi, ApiError } from "../services";
-import { EVENT_TYPE_LABEL } from "../utils/events";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -11,6 +10,10 @@ import EventCard from "../components/EventCard";
 import Pagination from "../components/Pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
+import useDebounced from "../hooks/useDebounced";
+import SearchField from "../components/SearchField";
+import FilterSelect from "../components/FilterSelect";
+import { EVENT_TYPE_OPTIONS } from "../utils/events";
 
 const PAGE_SIZE = 9;
 const TABS = [
@@ -39,7 +42,7 @@ export default function MyEvents() {
       setSearchParams(id === TABS[0].id ? {} : { tab: id }, { replace: true });
 
    const [search, setSearch] = useState("");
-   const [q, setQ] = useState("");
+   const q = useDebounced(search.trim());
    const [type, setType] = useState("");
    const [seat, setSeat] = useState("");
    const [sort, setSort] = useState("");
@@ -78,10 +81,6 @@ export default function MyEvents() {
       };
    }, [when, q, type, seat, sort, page, key, toast]);
 
-   useEffect(() => {
-      const id = setTimeout(() => setQ(search.trim()), 300);
-      return () => clearTimeout(id);
-   }, [search]);
 
    // Any filter change restarts paging — page 3 of one filter means nothing under
    // another. Derived during render, the pattern the other list pages use.
@@ -154,68 +153,36 @@ export default function MyEvents() {
             </div>
 
             <div className="fac-toolbar">
-               <div className="fac-search">
-                  <Icon size={15}>
-                     <circle cx="11" cy="11" r="8" />
-                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </Icon>
-                  <input
-                     placeholder="Search your events by name…"
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
-               </div>
-               <div className="ac-sort">
-                  <span>Type</span>
-                  <select
-                     value={type}
-                     onChange={(e) => setType(e.target.value)}
-                     aria-label="Filter by event type"
-                  >
-                     <option value="">All types</option>
-                     {Object.entries(EVENT_TYPE_LABEL).map(([id, label]) => (
-                        <option key={id} value={id}>
-                           {label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
+               <SearchField
+                  placeholder="Search your events by name…"
+                  value={search}
+                  onChange={setSearch}
+               />
+               <FilterSelect
+                  label="Type"
+                  value={type}
+                  onChange={setType}
+                  options={EVENT_TYPE_OPTIONS}
+                  allLabel="All types"
+                  ariaLabel="Filter by event type"
+               />
                {/* Your standing on the event, not the event's own status. */}
-               <div className="ac-sort">
-                  <span>Seat</span>
-                  <select
-                     value={seat}
-                     onChange={(e) => setSeat(e.target.value)}
-                     aria-label="Filter by seat"
-                  >
-                     {SEATS.map((o) => (
-                        <option key={o.id} value={o.id}>
-                           {o.label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
-               <div className="ac-sort">
-                  <Icon size={13} strokeWidth={2.2}>
-                     <line x1="3" y1="6" x2="13" y2="6" />
-                     <line x1="3" y1="12" x2="10" y2="12" />
-                     <line x1="3" y1="18" x2="7" y2="18" />
-                  </Icon>
-                  <span>Sort</span>
-                  <select
-                     value={sort}
-                     onChange={(e) => setSort(e.target.value)}
-                     aria-label="Sort events"
-                  >
-                     {/* Blank = the tab's natural order: soonest ahead, latest behind. */}
-                     <option value="">Default</option>
-                     {SORTS.map((o) => (
-                        <option key={o.id} value={o.id}>
-                           {o.label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
+               <FilterSelect
+                  label="Seat"
+                  value={seat}
+                  onChange={setSeat}
+                  options={SEATS}
+                  ariaLabel="Filter by seat"
+               />
+               <FilterSelect
+                  label="Sort"
+                  value={sort}
+                  onChange={setSort}
+                  options={SORTS}
+                  allLabel="Default"
+                  ariaLabel="Sort events"
+                  withIcon
+               />
             </div>
 
             {loading && !data ? (

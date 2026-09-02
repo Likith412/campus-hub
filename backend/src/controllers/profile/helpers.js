@@ -1,4 +1,4 @@
-// Shared helpers for the profile controllers (profile, skills, preferences, dashboard).
+// Shared helpers for the profile controllers (profile, skills, clubs, publicProfile).
 const { User } = require("../../models");
 
 // Resolve the role discriminator model so writes cast/validate against the subtype's

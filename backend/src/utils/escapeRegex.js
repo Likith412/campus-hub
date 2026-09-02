@@ -1,6 +1,4 @@
-// Shared helpers for the admin controllers (users, clubs).
-
-// Escape user input before dropping into a RegExp.
+// Escape user input before dropping it into a RegExp.
 function escapeRegex(s) {
    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

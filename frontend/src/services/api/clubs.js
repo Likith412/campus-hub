@@ -19,7 +19,7 @@ export async function createClub(body) {
    return data;
 }
 
-// Edit a club (coordinator of the club, or superAdmin). `patch` is a partial club body.
+// Edit a club — needs `club:edit` in that club. `patch` is a partial club body.
 export async function updateClub(slug, patch) {
    const { data } = await apiClient.patch(
       `/clubs/${encodeURIComponent(slug)}`,
@@ -101,7 +101,7 @@ export async function getClub(slug) {
    return data;
 }
 
-// Headline member counts for the manage-members page (coordinator/superAdmin only).
+// Headline member counts for the manage-members page — needs `members:moderate`.
 export async function getMemberStats(slug) {
    const { data } = await apiClient.get(
       `/clubs/${encodeURIComponent(slug)}/members/stats`,
@@ -169,7 +169,7 @@ export async function removeMember(slug, userId) {
    return data;
 }
 
-// ── Roles (Phase 6) ──────────────────────────────────────────────────
+// ── Roles ────────────────────────────────────────────────────────────
 
 // Static list of grantable per-club permissions for the role picker.
 export async function getPermissionCatalog() {

@@ -4,13 +4,9 @@ import { useActiveClub } from "../../contexts/ActiveClubContext";
 import Icon from "../Icon";
 import ClubSwitcher from "./ClubSwitcher";
 import { NAV_BY_ROLE, getFacultyNav } from "./navConfig";
+import { initials } from "../../utils/text";
 
 // Two-letter initials for the avatar (e.g. "Arjun Sharma" → "AS").
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
-
 // Subtitle under the user's name in the sidebar footer.
 function userMeta(user) {
    const dept = user?.profile?.department;

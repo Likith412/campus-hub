@@ -4,6 +4,7 @@ import { ApiError } from "../services";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import Spinner from "../components/Spinner";
+import { redirectAfterLogin } from "../utils/nav";
 
 // Tiny inline SVG wrapper for the small icons scattered through this page.
 function Icon({ size = 14, strokeWidth = 2.2, children }) {
@@ -67,12 +68,11 @@ function Login() {
    const toast = useToast();
    // Hints passed in router state: from Register (just signed up) or from ProtectedRoute (deep link).
    const justRegistered = location.state?.justRegistered === true;
-   const redirectTo = location.state?.from?.pathname ?? "/";
+   const redirectTo = redirectAfterLogin(location.state);
 
    const [formData, setFormData] = useState({
       email: location.state?.email ?? "",
       password: "",
-      rememberMe: true,
    });
    const [showPassword, setShowPassword] = useState(false);
    const [submitting, setSubmitting] = useState(false);

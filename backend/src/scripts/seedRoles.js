@@ -1,4 +1,4 @@
-// Idempotent seed (npm run db:seed:roles) — Phase 6 per-club roles.
+// Idempotent seed (npm run db:seed:roles) — the per-club system roles.
 // For every active club: ensures the two system roles (coordinator/member), creates a
 // few custom roles, and assigns a handful of approved student members to them so the
 // Roles page, coloured badges, and the role switcher all have real data.

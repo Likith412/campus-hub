@@ -34,6 +34,17 @@ export function ActiveClubProvider({ children }) {
    // Overlays the branded splash for a beat while switching the focused club.
    const [switching, setSwitching] = useState(false);
 
+   // Logging out doesn't unmount the provider, so a second account signing in on the
+   // same tab would keep the first one's clubs until its refetch landed.
+   const userKey = user?.id || user?._id || null;
+   const [prevUser, setPrevUser] = useState(userKey);
+   if (prevUser !== userKey) {
+      setPrevUser(userKey);
+      setClubs([]);
+      setActiveSlugState(null);
+      setLoaded(false);
+   }
+
    const persist = useCallback(
       (slug) => {
          setActiveSlugState(slug);
@@ -111,25 +122,18 @@ export function ActiveClubProvider({ children }) {
       [clubs, activeSlug, persist],
    );
 
-   // Clear the switch splash after its dwell. Timer lives in a callback, not the
-   // effect body, so it stays clear of the no-sync-setState-in-effect rule.
+   // Clear the switch splash after its dwell.
    useEffect(() => {
       if (!switching) return;
       const id = setTimeout(() => setSwitching(false), SWITCH_MS);
       return () => clearTimeout(id);
    }, [switching]);
 
-   // Keep focus in step with the URL. Landing on one of your clubs' pages — from a
-   // link, a bookmark, or the address bar — should move the sidebar with you, or the
-   // nav ends up pointing at a different club than the page you're reading. Slugs you
-   // don't coordinate are ignored, so this can't hand anyone access they lack; the
-   // API decides that, and it already refuses.
-   //
-   // Derived during render (not in an effect) so the sidebar never paints a frame
-   // scoped to the previous club, and without the switch splash — you're already
-   // looking at the page, so there's nothing to cover.
-   // The `urlSlug !== activeSlug` check is what stops this looping: the moment it
-   // persists, the two agree and the branch goes quiet.
+   // Keep the sidebar's focused club in step with the URL, so a link or bookmark into
+   // another of your clubs doesn't leave the nav pointing somewhere else. Derived during
+   // render so the sidebar never paints a frame scoped to the previous club; the
+   // slug !== activeSlug check is what stops it looping. Slugs you don't coordinate are
+   // ignored, and the API refuses them anyway.
    const urlSlug = isFaculty ? slugFromPath(pathname) : null;
    if (
       urlSlug &&

@@ -28,11 +28,6 @@ export async function getProfileEvents(handle, page) {
    return data;
 }
 
-export async function getStats() {
-   const { data } = await apiClient.get("/profile/me/stats");
-   return data;
-}
-
 export async function getSkills() {
    const { data } = await apiClient.get("/profile/me/skills");
    return data;
@@ -43,36 +38,11 @@ export async function updateSkills(skills) {
    return data;
 }
 
-export async function getHeatmap() {
-   const { data } = await apiClient.get("/profile/me/heatmap");
-   return data;
-}
-
-export async function getRecentActivity() {
-   const { data } = await apiClient.get("/profile/me/recent-activity");
-   return data;
-}
-
 // relation: "member" (default) | "following" | "all"
 export async function getClubs({ relation } = {}) {
    const { data } = await apiClient.get(
       `/profile/me/clubs${relation ? `?relation=${relation}` : ""}`,
    );
-   return data;
-}
-
-export async function getAchievementsSummary() {
-   const { data } = await apiClient.get("/profile/me/achievements/summary");
-   return data;
-}
-
-export async function getPreferences() {
-   const { data } = await apiClient.get("/profile/me/preferences");
-   return data;
-}
-
-export async function updatePreferences(patch) {
-   const { data } = await apiClient.patch("/profile/me/preferences", patch);
    return data;
 }
 

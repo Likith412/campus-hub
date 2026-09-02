@@ -2,6 +2,8 @@
 const mongoose = require("mongoose");
 
 const EVENT_TYPES = ["contest", "workshop", "hackathon", "seminar", "fun"];
+// The app's own lifecycle only ever writes draft → published → cancelled; "ongoing" and
+// "completed" exist because the seed script sets "completed" on its past events.
 const EVENT_STATUSES = [
    "draft",
    "published",

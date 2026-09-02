@@ -11,7 +11,7 @@ const passwordRule = z
    .regex(/[0-9]/, "Password must contain a number");
 
 // Normalize emails to lowercase + trim so lookups always match.
-const emailRule = z.string().email().toLowerCase().trim();
+const emailRule = z.string().trim().toLowerCase().email();
 
 const registerSchema = z.object({
    email: emailRule,

@@ -1,7 +1,7 @@
 // Announcements controller — a club's notice board, plus the cross-club digest that
 // drives the dashboard. Writes are gated per-club by requireClubPermission, which
 // leaves the resolved club on req.club and the caller's standing on req.clubContext.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const { NotFoundError, ForbiddenError } = require("../../utils/errors");
 const {
    Announcement,
@@ -9,12 +9,11 @@ const {
    ClubFollow,
    ClubMembership,
    Event,
-   EventRegistration,
    User,
 } = require("../../models");
+const { escapeRegex } = require("../../utils/escapeRegex");
 const { notifyAnnouncement } = require("./notify");
 const {
-   escapeRegex,
    findClubBySlugFor,
    resolveClubContext,
    contextCan,
@@ -89,7 +88,7 @@ async function listClubAnnouncements(req, res) {
       items: rows.map((a) =>
          publicAnnouncement(a, { author: a.authorId, viewerId: req.user._id }),
       ),
-      pagination: { page, limit, total, hasMore: skip + rows.length < total },
+      pagination: pageMeta(page, limit, total, rows.length),
       viewer: { ...announcementViewer(ctx), isMember },
    });
 }
@@ -168,8 +167,8 @@ async function setAnnouncementPinned(req, res) {
 }
 
 // DELETE /api/clubs/:slug/announcements/:id
-// The route gate only requires announcements:create, because taking down your own note
-// is part of posting. Removing someone else's is what announcements:delete buys.
+// Taking down your own note is part of posting; removing someone else's needs
+// announcements:delete. Either permission gets you through the route gate.
 async function deleteAnnouncement(req, res) {
    const found = await Announcement.findOne({
       _id: req.params.id,
@@ -192,10 +191,9 @@ async function deleteAnnouncement(req, res) {
    });
 }
 
-// GET /api/events/:eventId/announcements — the notices attached to one event, shown
-// on its detail page. The event's own visibility gate has already run by the time a
-// viewer can reach this, so the only extra rule is the announcement one: private
-// notices are for the club's members.
+// GET /api/events/:eventId/announcements — the notices attached to one event, shown on
+// its detail page. Enforces the club-status rule and the announcement one (private notices
+// are for members); the event's own draft/private gate lives on GET /events/:eventId.
 async function listEventAnnouncements(req, res) {
    const event = await Event.findById(req.params.eventId)
       .select("clubId status visibility")
@@ -272,6 +270,14 @@ async function listMyAnnouncements(req, res) {
    if (followClubIds.length) {
       or.push({ clubId: { $in: followClubIds }, visibility: "public" });
    }
+   // Every club you belonged to has since been suspended or archived. Mongoose drops an
+   // empty $or, which would leave {} and match the whole collection.
+   if (or.length === 0) {
+      return successResponse(res, 200, "Announcements", {
+         items: [],
+         pagination: { page, limit, total: 0, hasMore: false },
+      });
+   }
    const match = or.length === 1 ? or[0] : { $or: or };
 
    const skip = (page - 1) * limit;
@@ -294,7 +300,7 @@ async function listMyAnnouncements(req, res) {
             viewerId: req.user._id,
          }),
       ),
-      pagination: { page, limit, total, hasMore: skip + rows.length < total },
+      pagination: pageMeta(page, limit, total, rows.length),
    });
 }
 

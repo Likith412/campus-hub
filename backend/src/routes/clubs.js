@@ -7,6 +7,7 @@ const announcements = require("../controllers/announcements");
 const authenticate = require("../middlewares/authenticate");
 const requireRole = require("../middlewares/requireRole");
 const requireClubPermission = require("../middlewares/requireClubPermission");
+const { requireAnyClubPermission } = require("../middlewares/requireClubPermission");
 const validate = require("../middlewares/validate");
 const { validateQuery } = require("../middlewares/validate");
 const { ROLES } = require("../constants/roles");
@@ -173,11 +174,11 @@ router.delete(
 // ============================================================================
 //  ANNOUNCEMENTS  (controllers/announcements)
 // ============================================================================
-// The board is members-only, so reading is gated in the controller (which knows
-// whether the caller is a member) rather than by a permission. Writes:
+// Reading is gated in the controller, which knows whether the caller is a member:
+// members see the whole board, everyone else only its public notices. Writes:
 //   announcements:create → post, and take your own note down
 //   announcements:pin    → pin / unpin
-//   announcements:delete → take anyone else's note down
+//   announcements:delete → take anyone's note down
 router.get(
    "/:slug/announcements",
    validateQuery(listAnnouncementsQuerySchema),
@@ -195,9 +196,14 @@ router.patch(
    validate(pinAnnouncementBodySchema),
    announcements.setAnnouncementPinned,
 );
+// Either permission reaches the handler: create covers your own note, delete covers
+// anyone's. deleteAnnouncement decides which of the two the caller actually needs.
 router.delete(
    "/:slug/announcements/:id",
-   requireClubPermission("announcements", "create"),
+   requireAnyClubPermission(
+      ["announcements", "create"],
+      ["announcements", "delete"],
+   ),
    announcements.deleteAnnouncement,
 );
 

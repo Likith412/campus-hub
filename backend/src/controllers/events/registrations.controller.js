@@ -2,7 +2,7 @@
 // rosters behind "my events" and the attendee list.
 // Students register; faculty and superAdmins run events rather than attend them.
 // A public event is open to any student; a private one is for the club's members.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const {
    NotFoundError,
    ForbiddenError,
@@ -15,7 +15,7 @@ const {
    EventRegistration,
 } = require("../../models");
 const { ROLES } = require("../../constants/roles");
-const { escapeRegex } = require("../clubs/helpers");
+const { escapeRegex } = require("../../utils/escapeRegex");
 const {
    LIVE_REGISTRATION_STATUSES,
    publicEvent,
@@ -102,9 +102,14 @@ async function registerForEvent(req, res) {
    const status = seated ? "registered" : "waitlisted";
 
    try {
-      // Upsert: a previously cancelled row is reused (the unique index allows only one).
+      // Upsert onto a row that isn't already holding a seat. A concurrent duplicate finds
+      // no match, tries to insert, and loses to the unique index — caught below.
       const registration = await EventRegistration.findOneAndUpdate(
-         { eventId: event._id, userId },
+         {
+            eventId: event._id,
+            userId,
+            status: { $nin: LIVE_REGISTRATION_STATUSES },
+         },
          { $set: { status, registeredAt: now, cancelledAt: null } },
          { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
       );
@@ -126,6 +131,9 @@ async function registerForEvent(req, res) {
             { $inc: { "stats.registered": -1 } },
          );
       }
+      if (err?.code === 11000) {
+         throw new ConflictError("You're already registered");
+      }
       throw err;
    }
 }
@@ -142,7 +150,7 @@ async function unregisterFromEvent(req, res) {
    });
    if (
       !registration ||
-      !["registered", "waitlisted"].includes(registration.status)
+      !LIVE_REGISTRATION_STATUSES.includes(registration.status)
    ) {
       throw new NotFoundError("You're not registered for this event");
    }
@@ -151,10 +159,16 @@ async function unregisterFromEvent(req, res) {
       throw new ConflictError("This event has already started");
    }
 
-   const heldSeat = registration.status === "registered";
-   registration.status = "cancelled";
-   registration.cancelledAt = new Date();
-   await registration.save();
+   // Flip the row atomically: only the write that actually moved it off a live status
+   // may give the seat back, or two concurrent cancels decrement twice for one seat.
+   const cancelledAt = new Date();
+   const prev = await EventRegistration.findOneAndUpdate(
+      { _id: registration._id, status: { $in: LIVE_REGISTRATION_STATUSES } },
+      { $set: { status: "cancelled", cancelledAt } },
+      { returnDocument: "before" },
+   );
+   if (!prev) throw new NotFoundError("You're not registered for this event");
+   const heldSeat = prev.status === "registered";
 
    // Only a confirmed seat frees anything up. Hand it to the person who has waited longest;
    // if nobody is waiting, drop the counter instead.
@@ -168,7 +182,11 @@ async function unregisterFromEvent(req, res) {
    }
 
    return successResponse(res, 200, "Registration cancelled", {
-      registration: publicRegistration(registration),
+      registration: publicRegistration({
+         ...prev.toObject(),
+         status: "cancelled",
+         cancelledAt,
+      }),
       promotedUserId: promoted[0]?.userId || null,
    });
 }
@@ -238,12 +256,7 @@ async function listMyEvents(req, res) {
       items: rows.map((r) =>
          publicEvent(r.event, { club: r.club, viewerStatus: r.status }),
       ),
-      pagination: {
-         page,
-         limit,
-         total,
-         hasMore: skip + rows.length < total,
-      },
+      pagination: pageMeta(page, limit, total, rows.length),
    });
 }
 
@@ -312,12 +325,7 @@ async function listAttendees(req, res) {
          status: r.status,
          registeredAt: r.registeredAt,
       })),
-      pagination: {
-         page,
-         limit,
-         total,
-         hasMore: skip + rows.length < total,
-      },
+      pagination: pageMeta(page, limit, total, rows.length),
    });
 }
 

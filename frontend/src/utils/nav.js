@@ -18,6 +18,15 @@ export function clubHref(role, slug) {
       : `/clubs/${slug}`;
 }
 
+// Where to send someone after they sign in: back to the page ProtectedRoute bounced
+// them from, query string and hash included.
+export function redirectAfterLogin(state) {
+   const from = state?.from;
+   return from
+      ? `${from.pathname}${from.search || ""}${from.hash || ""}`
+      : "/";
+}
+
 // Anyone's profile page. Prefers the username so shared links stay readable, and
 // falls back to the id for accounts that never picked one. Returns null when there
 // is no account to point at (e.g. a removed member's row) — render plain text then.

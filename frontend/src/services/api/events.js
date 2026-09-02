@@ -14,7 +14,7 @@ function qs(params) {
 // ── Club-scoped ──────────────────────────────────────────────────────
 
 // One club's events. Drafts come back only for viewers who can manage them; the
-// response also carries a `viewer` object (canCreate/canEdit/canCancel).
+// response also carries a `viewer` object (canCreate/canEdit/canPublish/canCancel).
 export async function listClubEvents(
    slug,
    { status, type, when, sort, page, limit } = {},

@@ -5,7 +5,8 @@ const { User } = require("../../models");
 const { ROLES } = require("../../constants/roles");
 const { modelFor } = require("./helpers");
 
-// Shape the user record for public consumption. Strips sensitive fields and flattens some nested ones.
+// Shape the caller's own user record for /profile/me. Sensitive fields (passwordHash,
+// deletedAt) are left off.
 function publicProfile(u) {
    return {
       id: u._id,
@@ -14,7 +15,6 @@ function publicProfile(u) {
       username: u.username,
       phone: u.phone,
       avatarUrl: u.avatarUrl,
-      coverUrl: u.coverUrl,
       role: u.role,
       profile: u.profile,
       interests: u.interests,
@@ -43,7 +43,6 @@ function computeCompletion(u) {
               !!u.name,
               !!u.username,
               !!u.avatarUrl,
-              !!u.coverUrl,
               !!u.profile?.bio,
               !!u.profile?.department,
               !!u.profile?.year,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
 import { clubsApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
@@ -7,6 +7,9 @@ import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
+import FilterSelect from "../components/FilterSelect";
 
 // Category chips — order + emoji + cover gradient palette mirror .design/Clubs.html.
 const CATEGORIES = [
@@ -318,7 +321,7 @@ function ClubRow({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
 
 export default function Clubs() {
    const [search, setSearch] = useState("");
-   const [debounced, setDebounced] = useState("");
+   const debounced = useDebounced(search.trim());
    const [category, setCategory] = useState("all");
    const [sort, setSort] = useState("popular");
    const [view, setView] = useState("grid"); // grid | list
@@ -330,17 +333,13 @@ export default function Clubs() {
    const [loadedKey, setLoadedKey] = useState(null);
    const toast = useToast();
    const confirm = useConfirm();
-   const reqIdRef = useRef(0);
+   const startRequest = useLatestRequest();
 
    // Derive loading instead of setting it in the fetch effect: we're loading
    // whenever the data on screen doesn't match the current filter/page.
    const currentKey = `${debounced}|${category}|${sort}|${page}|${perPage}`;
    const loading = loadedKey !== currentKey;
 
-   useEffect(() => {
-      const id = setTimeout(() => setDebounced(search.trim()), 300);
-      return () => clearTimeout(id);
-   }, [search]);
 
    // Reset to page 1 when filters change
    const [prevFilters, setPrevFilters] = useState({
@@ -361,7 +360,7 @@ export default function Clubs() {
 
    // Only keep the latest request's response, ignore the rest (e.g. from a stale filter state).
    const fetchClubs = useCallback(() => {
-      const myReqId = ++reqIdRef.current;
+      const isCurrent = startRequest();
       const myKey = `${debounced}|${category}|${sort}|${page}|${perPage}`;
       clubsApi
          .listClubs({
@@ -372,11 +371,11 @@ export default function Clubs() {
             limit: perPage,
          })
          .then((d) => {
-            if (myReqId !== reqIdRef.current) return;
+            if (!isCurrent()) return;
             setData(d);
          })
          .catch((err) => {
-            if (myReqId !== reqIdRef.current) return;
+            if (!isCurrent()) return;
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load clubs",
             );
@@ -387,9 +386,9 @@ export default function Clubs() {
             });
          })
          .finally(() => {
-            if (myReqId === reqIdRef.current) setLoadedKey(myKey);
+            if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [debounced, category, sort, page, perPage, toast]);
+   }, [debounced, category, sort, page, perPage, toast, startRequest]);
 
    useEffect(() => {
       fetchClubs();
@@ -565,24 +564,13 @@ export default function Clubs() {
                   );
                })}
                <div className="sort-wrap">
-                  <div className="ac-sort">
-                     <Icon size={13} strokeWidth={2.2}>
-                        <line x1="3" y1="6" x2="13" y2="6" />
-                        <line x1="3" y1="12" x2="10" y2="12" />
-                        <line x1="3" y1="18" x2="7" y2="18" />
-                     </Icon>
-                     <span>Sort</span>
-                     <select
-                        value={sort}
-                        onChange={(e) => setSort(e.target.value)}
-                     >
-                        {SORTS.map((s) => (
-                           <option key={s.id} value={s.id}>
-                              {s.label}
-                           </option>
-                        ))}
-                     </select>
-                  </div>
+                  <FilterSelect
+                     label="Sort"
+                     value={sort}
+                     onChange={setSort}
+                     options={SORTS}
+                     withIcon
+                  />
                   <div className="view-toggle">
                      <button
                         type="button"

@@ -1,7 +1,7 @@
 // User accounts. One `users` collection, split by role via Mongoose discriminators
 // (keyed on `role`) so each account type only carries the fields that apply to it:
-//   - student     → academic profile, skills, interests, stats, full preferences
-//   - faculty     → faculty profile (designation/office/expertise), slim preferences
+//   - student     → academic profile, skills, interests
+//   - faculty     → faculty profile (designation/office/expertise)
 //   - superAdmin  → base fields only
 const mongoose = require("mongoose");
 const { ROLES } = require("../constants/roles");
@@ -46,15 +46,12 @@ const userSchema = new mongoose.Schema(
       },
       phone: { type: String, trim: true },
       avatarUrl: String,
-      coverUrl: String,
 
       emailVerified: { type: Boolean, default: false },
       isActive: { type: Boolean, default: true },
       lastLoginAt: Date,
       // Set by `DELETE /profile/me`; grace period before hard-delete.
       deletedAt: Date,
-
-      metadata: mongoose.Schema.Types.Mixed,
    },
    baseOptions,
 );
@@ -77,34 +74,7 @@ const studentSchema = new mongoose.Schema({
    },
    skills: { type: [skillSchema], default: [] },
    interests: { type: [String], default: [] },
-   stats: {
-      certificatesCount: { type: Number, default: 0 },
-      contestRating: { type: Number, default: 0 },
-      currentStreak: { type: Number, default: 0 },
-      longestStreak: { type: Number, default: 0 },
-      lastActivityAt: Date,
-   },
-   preferences: {
-      notifications: {
-         eventReminders: { type: Boolean, default: true },
-         contestInvitations: { type: Boolean, default: true },
-         // On by default: following a club is an explicit opt-in, and announcements
-         // are how a club reaches its followers. The Settings toggle opts out.
-         clubAnnouncements: { type: Boolean, default: true },
-         emailDigest: { type: Boolean, default: true },
-         channels: {
-            email: { type: Boolean, default: true },
-            push: { type: Boolean, default: true },
-            inApp: { type: Boolean, default: true },
-         },
-      },
-      privacy: {
-         publicProfile: { type: Boolean, default: true },
-         showOnLeaderboards: { type: Boolean, default: true },
-      },
-   },
 });
-studentSchema.index({ "skills.name": 1 });
 
 // ── Faculty: runs clubs; no academic/contest fields ─────────────
 const facultySchema = new mongoose.Schema({
@@ -116,21 +86,6 @@ const facultySchema = new mongoose.Schema({
       linkedinUrl: String,
       portfolioUrl: String,
       expertise: { type: [String], default: [] },
-   },
-   preferences: {
-      notifications: {
-         eventReminders: { type: Boolean, default: true },
-         clubAnnouncements: { type: Boolean, default: true },
-         emailDigest: { type: Boolean, default: true },
-         channels: {
-            email: { type: Boolean, default: true },
-            push: { type: Boolean, default: true },
-            inApp: { type: Boolean, default: true },
-         },
-      },
-      privacy: {
-         publicProfile: { type: Boolean, default: true },
-      },
    },
 });
 

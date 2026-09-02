@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
+import { redirectAfterLogin } from "../utils/nav";
 
 // Gate for authenticated routes. Returns null during bootstrap to avoid flashing
 // the login page while we're still checking whether the user has a valid session.
@@ -27,9 +28,6 @@ export function PublicOnlyRoute() {
    const location = useLocation();
 
    if (loading) return null;
-   if (user) {
-      const redirectTo = location.state?.from?.pathname ?? "/";
-      return <Navigate to={redirectTo} replace />;
-   }
+   if (user) return <Navigate to={redirectAfterLogin(location.state)} replace />;
    return <Outlet />;
 }

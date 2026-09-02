@@ -1,8 +1,7 @@
 // Blacklist access JWTs by session id so revocation kills outstanding tokens immediately
 // instead of waiting for them to expire naturally.
 const { redisClient } = require("../config/redis");
-
-const ACCESS_TTL_SEC = Number(process.env.JWT_ACCESS_TTL_MINUTES || 15) * 60;
+const { accessTtlSeconds } = require("./jwt");
 
 const key = (sessionId) => `bl:sid:${sessionId}`;
 
@@ -13,7 +12,9 @@ async function blacklistSessionAccess(sessionIds) {
       sessionIds
          .filter(Boolean)
          .map((id) =>
-            redisClient.set(key(id.toString()), "1", { EX: ACCESS_TTL_SEC }),
+            redisClient.set(key(id.toString()), "1", {
+               EX: accessTtlSeconds(),
+            }),
          ),
    );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { adminApi, clubsApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
@@ -6,6 +6,11 @@ import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { CATEGORY_LABEL } from "../utils/clubs";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
+import SearchField from "../components/SearchField";
+import FilterSelect from "../components/FilterSelect";
 
 const PAGE_SIZE = 10;
 const FILTER_TABS = [
@@ -14,16 +19,6 @@ const FILTER_TABS = [
    { id: "suspended", label: "Suspended" },
    { id: "archived", label: "Archived" },
 ];
-const CATEGORY_LABEL = {
-   tech: "Tech & CS",
-   design: "Design",
-   culture: "Culture",
-   sports: "Sports",
-   business: "Business",
-   media: "Media",
-   social: "Social",
-   other: "Other",
-};
 const SORTS = [
    { id: "popular", label: "Most members" },
    { id: "new", label: "Newest" },
@@ -60,7 +55,7 @@ export default function AllClubs() {
    const navigate = useNavigate();
 
    const [search, setSearch] = useState("");
-   const [debounced, setDebounced] = useState("");
+   const debounced = useDebounced(search.trim());
    const [domain, setDomain] = useState("");
    const [sort, setSort] = useState("popular");
    const [filter, setFilter] = useState("all");
@@ -68,15 +63,11 @@ export default function AllClubs() {
    const [data, setData] = useState(null);
    const [loadedKey, setLoadedKey] = useState(null);
    const [busyId, setBusyId] = useState(null);
-   const reqIdRef = useRef(0);
+   const startRequest = useLatestRequest();
 
    const currentKey = `${debounced}|${domain}|${sort}|${filter}|${page}`;
    const loading = loadedKey !== currentKey;
 
-   useEffect(() => {
-      const id = setTimeout(() => setDebounced(search.trim()), 300);
-      return () => clearTimeout(id);
-   }, [search]);
 
    // Reset to page 1 when filters change.
    const [prevFilters, setPrevFilters] = useState({
@@ -96,7 +87,7 @@ export default function AllClubs() {
    }
 
    const fetchClubs = useCallback(() => {
-      const myReqId = ++reqIdRef.current;
+      const isCurrent = startRequest();
       const myKey = `${debounced}|${domain}|${sort}|${filter}|${page}`;
       adminApi
          .listClubs({
@@ -108,11 +99,11 @@ export default function AllClubs() {
             limit: PAGE_SIZE,
          })
          .then((d) => {
-            if (myReqId !== reqIdRef.current) return;
+            if (!isCurrent()) return;
             setData(d);
          })
          .catch((err) => {
-            if (myReqId !== reqIdRef.current) return;
+            if (!isCurrent()) return;
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load clubs",
             );
@@ -123,9 +114,9 @@ export default function AllClubs() {
             });
          })
          .finally(() => {
-            if (myReqId === reqIdRef.current) setLoadedKey(myKey);
+            if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [debounced, domain, sort, filter, page, toast]);
+   }, [debounced, domain, sort, filter, page, toast, startRequest]);
 
    useEffect(() => {
       fetchClubs();
@@ -269,17 +260,11 @@ export default function AllClubs() {
             </div>
 
             <div className="fac-toolbar">
-               <div className="fac-search">
-                  <Icon size={15}>
-                     <circle cx="11" cy="11" r="8" />
-                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </Icon>
-                  <input
-                     placeholder="Search clubs…"
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
-               </div>
+               <SearchField
+                  placeholder="Search clubs…"
+                  value={search}
+                  onChange={setSearch}
+               />
                <select
                   className="ac-select"
                   value={domain}
@@ -304,25 +289,14 @@ export default function AllClubs() {
                      </button>
                   ))}
                </div>
-               <div className="ac-sort">
-                  <Icon size={13} strokeWidth={2.2}>
-                     <line x1="3" y1="6" x2="13" y2="6" />
-                     <line x1="3" y1="12" x2="10" y2="12" />
-                     <line x1="3" y1="18" x2="7" y2="18" />
-                  </Icon>
-                  <span>Sort</span>
-                  <select
-                     value={sort}
-                     onChange={(e) => setSort(e.target.value)}
-                     aria-label="Sort clubs"
-                  >
-                     {SORTS.map((s) => (
-                        <option key={s.id} value={s.id}>
-                           {s.label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
+               <FilterSelect
+                  label="Sort"
+                  value={sort}
+                  onChange={setSort}
+                  options={SORTS}
+                  ariaLabel="Sort clubs"
+                  withIcon
+               />
             </div>
 
             <div className="fac-table-card">

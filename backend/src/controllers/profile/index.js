@@ -2,7 +2,6 @@
 module.exports = {
    ...require("./profile.controller"),
    ...require("./skills.controller"),
-   ...require("./preferences.controller"),
-   ...require("./dashboard.controller"),
+   ...require("./clubs.controller"),
    ...require("./publicProfile.controller"),
 };

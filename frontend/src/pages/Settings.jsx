@@ -41,8 +41,6 @@ function DeviceIcon({ type }) {
 // ──────────────────────────────────────────────────────────────────────────────
 const SECTIONS = [
    { id: "account", label: "Account" },
-   { id: "notifications", label: "Notifications" },
-   { id: "privacy", label: "Privacy & security" },
    { id: "sessions", label: "Sessions & devices" },
    { id: "danger", label: "Danger zone", danger: true },
 ];
@@ -113,23 +111,15 @@ function AccountForm({ user, onUserUpdated, isCoordinator }) {
                  portfolioUrl: p.portfolioUrl,
                  tags: fromCsv(form.tags),
               };
-         for (const k of Object.keys(profile)) {
-            if (
-               profile[k] === "" ||
-               (Array.isArray(profile[k]) && profile[k].length === 0)
-            ) {
-               delete profile[k];
-            }
-         }
+         // Emptied fields go through as "" / [] — that's how they get cleared. Only
+         // username is held back, since the API has no way to unset one.
          const payload = {
             name: form.name,
+            phone: form.phone,
+            profile,
             ...(form.username ? { username: form.username } : {}),
-            ...(form.phone ? { phone: form.phone } : {}),
-            ...(Object.keys(profile).length ? { profile } : {}),
             ...(isCoordinator ? {} : { interests: fromCsv(form.interests) }),
          };
-         if (payload.interests && payload.interests.length === 0)
-            delete payload.interests;
 
          const data = await profileApi.updateMe(payload);
          onUserUpdated?.(data);
@@ -399,106 +389,6 @@ function AccountForm({ user, onUserUpdated, isCoordinator }) {
    );
 }
 
-// Drives both Notifications and Privacy sections — both are just toggle groups on `preferences`.
-const PREF_SECTIONS = {
-   notifications: {
-      title: "Notifications",
-      sub: "Choose what we ping you about",
-      toggles: [
-         {
-            key: "eventReminders",
-            title: "Event reminders",
-            sub: "Get pinged 24h, 1h before any event you registered for",
-         },
-         {
-            key: "contestInvitations",
-            title: "Contest invitations",
-            sub: "Notify when a coding contest matching your skill drops",
-            studentOnly: true,
-         },
-         {
-            key: "clubAnnouncements",
-            title: "Club announcements",
-            sub: "From clubs you're a member of",
-         },
-         {
-            key: "emailDigest",
-            title: "Email digest",
-            sub: "Weekly summary, every Sunday at 8pm",
-         },
-      ],
-   },
-   privacy: {
-      title: "Privacy & visibility",
-      sub: "Control who sees what",
-      toggles: [
-         {
-            key: "publicProfile",
-            title: "Public profile",
-            sub: "Anyone with the link can view your profile",
-         },
-         {
-            key: "showOnLeaderboards",
-            title: "Show on leaderboards",
-            sub: "Display your name & rank on contest leaderboards",
-            studentOnly: true,
-         },
-      ],
-   },
-};
-
-function PreferencesPanel({ kind, isCoordinator }) {
-   const meta = PREF_SECTIONS[kind];
-   const toggles = meta.toggles.filter(
-      (t) => !(isCoordinator && t.studentOnly),
-   );
-   const [values, setValues] = useState(null);
-
-   useEffect(() => {
-      profileApi
-         .getPreferences()
-         .then((d) => setValues(d?.preferences?.[kind] || {}))
-         .catch(() => setValues({}));
-   }, [kind]);
-
-   const toggle = async (key) => {
-      const next = { ...values, [key]: !values[key] };
-      setValues(next); // optimistic
-      try {
-         await profileApi.updatePreferences({ [kind]: { [key]: next[key] } });
-      } catch {
-         setValues(values); // rollback
-      }
-   };
-
-   return (
-      <div className="panel">
-         <div className="panel-head">
-            <div>
-               <div className="panel-title">{meta.title}</div>
-               <div className="panel-sub">{meta.sub}</div>
-            </div>
-         </div>
-         {values === null ? (
-            <LoadingBlock label="Loading preferences" />
-         ) : (
-            toggles.map((t) => (
-               <div className="toggle-row" key={t.key}>
-                  <div className="toggle-meta">
-                     <div className="toggle-title">{t.title}</div>
-                     <div className="toggle-sub">{t.sub}</div>
-                  </div>
-                  <div
-                     className={`toggle${values[t.key] ? " on" : ""}`}
-                     onClick={() => toggle(t.key)}
-                  ></div>
-               </div>
-            ))
-         )}
-      </div>
-   );
-}
-
 function SessionsPanel() {
    const [sessions, setSessions] = useState(null);
    const [busy, setBusy] = useState(false);
@@ -726,18 +616,6 @@ export default function Settings() {
                         <AccountForm
                            user={user}
                            onUserUpdated={(d) => setUser(d?.user || user)}
-                           isCoordinator={isCoordinator}
-                        />
-                     )}
-                     {section === "notifications" && (
-                        <PreferencesPanel
-                           kind="notifications"
-                           isCoordinator={isCoordinator}
-                        />
-                     )}
-                     {section === "privacy" && (
-                        <PreferencesPanel
-                           kind="privacy"
                            isCoordinator={isCoordinator}
                         />
                      )}

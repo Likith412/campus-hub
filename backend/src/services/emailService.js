@@ -65,8 +65,18 @@ async function sendFacultyAccountEmail(to, { name, password, loginUrl }) {
    await addToQueue("sendEmail", { to, subject, html, text });
 }
 
-// Sent to a club's followers (and, when the note is attached to an event, everyone
-// registered for it) each time a public announcement goes up.
+// Announcement titles and bodies are written by club members, so they can't go into
+// the HTML as-is.
+function escapeHtml(s) {
+   return String(s ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+         ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+   );
+}
+
+// Sent when an announcement goes up. notify.js decides the recipients: members always,
+// plus followers and any attached event's registrants when the note is public.
 async function sendAnnouncementEmail(
    to,
    { name, clubName, title, body, eventTitle, link },
@@ -74,9 +84,11 @@ async function sendAnnouncementEmail(
    const about = eventTitle ? ` about ${eventTitle}` : "";
    const subject = `${clubName}: ${title}`;
    const text = `Hi ${name},\n\n${clubName} posted a new announcement${about}.\n\n${title}\n\n${body}\n\nRead it here: ${link}`;
-   const html = `<p>Hi ${name},</p><p><b>${clubName}</b> posted a new announcement${about}.</p><h3>${title}</h3><p>${String(
-      body,
-   ).replace(/\n/g, "<br/>")}</p><p><a href="${link}">Read it on Campus Hub</a></p>`;
+   const html = `<p>Hi ${escapeHtml(name)},</p><p><b>${escapeHtml(
+      clubName,
+   )}</b> posted a new announcement${escapeHtml(about)}.</p><h3>${escapeHtml(
+      title,
+   )}</h3><p>${escapeHtml(body).replace(/\n/g, "<br/>")}</p><p><a href="${link}">Read it on Campus Hub</a></p>`;
    await addToQueue("sendEmail", { to, subject, html, text });
 }
 

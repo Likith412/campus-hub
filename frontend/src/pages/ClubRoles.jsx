@@ -1,6 +1,6 @@
-// Dedicated Roles & Permissions page (Phase 6) — /clubs/:slug/roles.
-// Roles list on the left, a sticky create/edit editor on the right (mirrors
-// .design/Club Roles.html). Gated to coordinators (roles:manage) in the controller.
+// Roles & Permissions — /clubs/:slug/roles. Roles list on the left, a sticky create/edit
+// editor on the right (mirrors .design/Club Roles.html). The editor is shown only to
+// viewers the API reports as holding roles:manage.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
 import { clubsApi, ApiError } from "../services";
@@ -9,6 +9,7 @@ import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { initials } from "../utils/text";
 
 const PALETTE = [
    "#6c63ff",
@@ -21,11 +22,6 @@ const PALETTE = [
    "#06b6d4",
    "#64748b",
 ];
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
 
 function LockIcon({ size = 13 }) {
    return (

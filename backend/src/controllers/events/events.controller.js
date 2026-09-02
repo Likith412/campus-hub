@@ -1,7 +1,7 @@
 // Event lifecycle controller — browse, read, create, edit, publish/cancel, delete.
 // Per-club writes are gated on events:create / events:edit / events:cancel by
 // requireClubPermission, which leaves the resolved club on req.club.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const {
    NotFoundError,
    ForbiddenError,
@@ -9,8 +9,8 @@ const {
    ValidationError,
 } = require("../../utils/errors");
 const { Club, Event, EventRegistration, User } = require("../../models");
+const { escapeRegex } = require("../../utils/escapeRegex");
 const {
-   escapeRegex,
    findClubBySlugFor,
    resolveClubContext,
    contextCan,
@@ -54,8 +54,15 @@ async function listClubEvents(req, res) {
    const match = { clubId: club._id };
    // A private event is for the club's own members; outsiders don't see it listed.
    const isMember = !!ctx?.membership || !!ctx?.isSuperAdmin;
-   if (!isMember && !canSeeDrafts(viewer)) match.visibility = "public";
-   if (visibility) match.visibility = visibility;
+   const seesPrivate = isMember || canSeeDrafts(viewer);
+   if (!seesPrivate) match.visibility = "public";
+   if (visibility) {
+      // Narrowing to public is fine for anyone; asking for private is not.
+      if (visibility === "private" && !seesPrivate) {
+         throw new ForbiddenError("Only members can view this club's private events");
+      }
+      match.visibility = visibility;
+   }
    if (status) {
       if (status === "draft" && !canSeeDrafts(viewer)) {
          throw new ForbiddenError("You don't have permission to view drafts");
@@ -90,12 +97,7 @@ async function listClubEvents(req, res) {
          publicEvent(e, { club, viewerStatus: mine.get(String(e._id)) }),
       ),
       viewer,
-      pagination: {
-         page,
-         limit,
-         total,
-         hasMore: skip + rows.length < total,
-      },
+      pagination: pageMeta(page, limit, total, rows.length),
    });
 }
 
@@ -167,12 +169,7 @@ async function listPublicEvents(req, res) {
       items: rows.map((e) =>
          publicEvent(e, { club: e.club, viewerStatus: mine.get(String(e._id)) }),
       ),
-      pagination: {
-         page,
-         limit,
-         total,
-         hasMore: skip + rows.length < total,
-      },
+      pagination: pageMeta(page, limit, total, rows.length),
    });
 }
 
@@ -226,6 +223,10 @@ async function getEvent(req, res) {
 async function createEvent(req, res) {
    const club = req.club; // resolved + events:create asserted by requireClubPermission
    const { publish, ...fields } = req.body;
+   // Skipping the draft step is still publishing — it needs the publish permission too.
+   if (publish && !contextCan(req.clubContext, "events:publish")) {
+      throw new ForbiddenError("You don't have permission to publish events");
+   }
    assertCanBePublic(club, fields.visibility);
 
    const event = await Event.create({
@@ -285,8 +286,9 @@ async function updateEvent(req, res) {
    if (startChanged && event.startAt <= now) {
       throw new ValidationError("Start time must be in the future");
    }
+   // Clearing it is always allowed; only a new date has to be in the future.
    const deadlineChanged =
-      req.body.registrationDeadline !== undefined &&
+      req.body.registrationDeadline != null &&
       new Date(req.body.registrationDeadline).getTime() !==
          (prevDeadline ? new Date(prevDeadline).getTime() : null);
    if (deadlineChanged && event.registrationDeadline <= now) {
@@ -334,7 +336,8 @@ async function updateEvent(req, res) {
 
 // PATCH /api/clubs/:slug/events/:eventId/status — publish a draft or cancel an event.
 async function setEventStatus(req, res) {
-   const club = req.club; // resolved + events:cancel asserted by requireClubPermission
+   // requireStatusPermission asserted events:publish or events:cancel to match req.body.status.
+   const club = req.club;
    const event = await findClubEvent(club._id, req.params.eventId);
    const { status } = req.body;
 

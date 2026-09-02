@@ -15,11 +15,9 @@ const {
    User,
 } = require("../../models");
 const { sendAnnouncementEmail } = require("../../services/emailService");
-
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
-
+const { FRONTEND_URL } = require("../../config/env");
 // Live registrations only — someone who cancelled shouldn't keep getting the club's mail.
-const LIVE_REGISTRATION_STATUSES = ["registered", "waitlisted"];
+const { LIVE_REGISTRATION_STATUSES } = require("../events/helpers");
 
 async function recipientIdsFor(announcement) {
    const members = await ClubMembership.find({
@@ -57,21 +55,19 @@ async function notifyAnnouncement(announcement, { club, event } = {}) {
    const ids = await recipientIdsFor(announcement);
    if (ids.length === 0) return { queued: 0 };
 
-   // Skip deactivated accounts and anyone who turned club announcements off.
-   const users = await User.find({
+   // Deactivated and deleted accounts don't get mail.
+   const wanted = await User.find({
       _id: { $in: ids },
       isActive: true,
       deletedAt: null,
    })
-      .select("email name preferences.notifications.clubAnnouncements")
+      .select("email name")
       .lean();
 
-   const wanted = users.filter(
-      (u) => u.preferences?.notifications?.clubAnnouncements !== false,
-   );
-
    const link = `${FRONTEND_URL}/clubs/${club?.slug || ""}/announcements`;
-   await Promise.all(
+   // allSettled, not all: one queue rejection shouldn't discard the rest or make the
+   // caller report that nobody was emailed.
+   const results = await Promise.allSettled(
       wanted.map((u) =>
          sendAnnouncementEmail(u.email, {
             name: u.name,
@@ -84,7 +80,7 @@ async function notifyAnnouncement(announcement, { club, event } = {}) {
       ),
    );
 
-   return { queued: wanted.length };
+   return { queued: results.filter((r) => r.status === "fulfilled").length };
 }
 
-module.exports = { notifyAnnouncement, recipientIdsFor };
+module.exports = { notifyAnnouncement };

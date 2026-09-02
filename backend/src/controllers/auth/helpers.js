@@ -1,9 +1,10 @@
 // Shared helpers for the auth controllers (auth lifecycle, email verification).
 const { randomToken, sha256 } = require("../../utils/tokens");
 const { EmailVerification } = require("../../models");
+const { FRONTEND_URL } = require("../../config/env");
+const { sendVerificationEmail } = require("../../services/emailService");
 
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // Email verification link valid for 24h.
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 // Strip private fields (passwordHash, etc.) before sending a user back to the client.
 function publicUser(u) {
@@ -32,9 +33,19 @@ async function issueVerificationToken(userId) {
    return token;
 }
 
+// Issue a token, compose the link, and queue the email. Logged in dev so the flow works
+// without SMTP configured.
+async function sendVerificationLink(userId, email) {
+   const token = await issueVerificationToken(userId);
+   const link = `${FRONTEND_URL}/verify-email?token=${token}`;
+   if (process.env.NODE_ENV !== "production") {
+      console.log(`[dev] verification link for ${email}: ${link}`);
+   }
+   await sendVerificationEmail(email, link);
+}
+
 module.exports = {
-   VERIFY_TTL_MS,
    FRONTEND_URL,
    publicUser,
-   issueVerificationToken,
+   sendVerificationLink,
 };

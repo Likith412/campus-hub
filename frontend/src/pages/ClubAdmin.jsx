@@ -12,11 +12,7 @@ import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { EVENT_TYPE_LABEL, eventDateParts, formatEventWhen } from "../utils/events";
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
+import { initials } from "../utils/text";
 
 function Kpi({ tone, icon, label, value, sub }) {
    return (

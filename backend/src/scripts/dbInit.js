@@ -1,11 +1,10 @@
-// One-shot script (npm run db:init) to: ensure all indexes exist + seed system roles.
+// One-shot script (npm run db:init) to: ensure all indexes exist + seed the super admin.
 // Safe to run repeatedly — uses upsert.
 const dotenv = require("dotenv");
 dotenv.config();
 
 const { connectDatabase, disconnectDatabase } = require("../config/database");
 const models = require("../models");
-const { DEFAULT_ROLES } = require("../constants/roles");
 const { hashPassword } = require("../utils/password");
 
 // Walk every model and build any missing indexes declared in its schema.
@@ -14,21 +13,6 @@ async function syncIndexes() {
       await Model.init();
       const indexes = await Model.listIndexes();
       console.log(`  ✓ ${name}: ${indexes.length} index(es)`);
-   }
-}
-
-// Idempotent upsert of the built-in roles (student, faculty, superAdmin).
-async function seedRoles() {
-   const { Role } = models;
-   for (const role of DEFAULT_ROLES) {
-      await Role.findOneAndUpdate({ name: role.name }, role, {
-         upsert: true,
-         setDefaultsOnInsert: true,
-         returnDocument: "after",
-      });
-      console.log(
-         `  ✓ ${role.name} (${role.permissions.length} permission(s))`,
-      );
    }
 }
 
@@ -78,9 +62,6 @@ async function init() {
 
    console.log("→ Syncing collection indexes");
    await syncIndexes();
-
-   console.log("→ Seeding system roles");
-   await seedRoles();
 
    console.log("→ Seeding super admin user");
    await seedSuperAdmin();

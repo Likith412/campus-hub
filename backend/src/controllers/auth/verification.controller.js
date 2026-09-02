@@ -3,13 +3,15 @@ const { successResponse } = require("../../utils/response");
 const { sha256 } = require("../../utils/tokens");
 const { UnauthorizedError } = require("../../utils/errors");
 const { User, EmailVerification } = require("../../models");
-const { sendVerificationEmail } = require("../../services/emailService");
-const { FRONTEND_URL, issueVerificationToken } = require("./helpers");
+const { sendVerificationLink } = require("./helpers");
 
 // GET /auth/verify-email?token=... — flips the user's emailVerified flag and consumes the token.
 async function verifyEmail(req, res) {
    const { token } = req.query;
-   if (!token) throw new UnauthorizedError("Missing token");
+   // A repeated ?token= arrives as an array — that's a malformed link, not a valid one.
+   if (!token || typeof token !== "string") {
+      throw new UnauthorizedError("Missing token");
+   }
 
    // Match by hash + ensure not used/revoked/expired.
    const record = await EmailVerification.findOne({
@@ -34,12 +36,7 @@ async function resendVerification(req, res) {
    const user = await User.findOne({ email });
 
    if (user && !user.emailVerified) {
-      const token = await issueVerificationToken(user._id);
-      const link = `${FRONTEND_URL}/verify-email?token=${token}`;
-      if (process.env.NODE_ENV !== "production") {
-         console.log(`[dev] verification link for ${email}: ${link}`);
-      }
-      await sendVerificationEmail(email, link);
+      await sendVerificationLink(user._id, email);
    }
 
    return successResponse(

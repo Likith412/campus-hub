@@ -1,6 +1,6 @@
 // Zod schemas for /api/admin/* endpoints (superAdmin-only platform administration).
 const { z } = require("zod");
-const { CLUB_CATEGORIES } = require("../models/Club");
+const { CLUB_CATEGORIES, CLUB_STATUSES } = require("../models/Club");
 const { EVENT_TYPES, EVENT_STATUSES } = require("../models/Event");
 
 // Create a faculty (coordinator) account. Password is generated server-side.
@@ -31,7 +31,6 @@ const setUserActiveBodySchema = z
    })
    .strict();
 
-// GET /api/admin/clubs — every club across the institute, filterable by domain + status.
 // GET /api/admin/events — institute-wide event listing.
 const listAllEventsQuerySchema = z
    .object({
@@ -52,11 +51,12 @@ const listAllEventsQuerySchema = z
    })
    .strict();
 
+// GET /api/admin/clubs — every club across the institute, filterable by domain + status.
 const listAllClubsQuerySchema = z
    .object({
       q: z.string().trim().max(100).optional(),
       category: z.enum(CLUB_CATEGORIES).optional(),
-      status: z.enum(["active", "suspended", "archived"]).optional(),
+      status: z.enum(CLUB_STATUSES).optional(),
       sort: z.enum(["popular", "new", "name"]).default("popular"),
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(50).default(20),

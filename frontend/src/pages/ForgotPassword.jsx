@@ -60,8 +60,9 @@ const stats = [
    { num: "Single-use", label: "Tokens" },
 ];
 
-// View state machine: 'form' → 'sent' after server responds. Network/5xx surfaces an inline error.
-// Resend rate limiting is enforced server-side (3/hour per email), so no client-side cooldown.
+// View state machine: 'form' → 'sent' after the server responds; network/5xx surfaces an
+// inline error. Requests are rate-limited server-side (3/hour per IP), so there's no
+// client-side cooldown.
 function ForgotPassword() {
    const [status, setStatus] = useState("form");
    const [email, setEmail] = useState("");

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { clubsApi, eventsApi, announcementsApi, ApiError } from "../services";
 import { clubsListHref } from "../utils/nav";
@@ -12,17 +12,11 @@ import Pagination from "../components/Pagination";
 import EditClubModal from "../components/EditClubModal";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
-
-const CATEGORY_LABEL = {
-   tech: "Tech & CS",
-   design: "Design",
-   culture: "Culture",
-   sports: "Sports",
-   business: "Business",
-   media: "Media",
-   social: "Social",
-   other: "Other",
-};
+import { initials } from "../utils/text";
+import { CATEGORY_LABEL } from "../utils/clubs";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
+import FilterSelect from "../components/FilterSelect";
 
 const CATEGORY_GRADIENT = {
    tech: ["#4c1d95", "#6c63ff"],
@@ -51,12 +45,12 @@ const EVENT_SORTS = [
 ];
 
 const PAGE_SIZE = 20;
-const NOTICES_PAGE = 8;
+const MEMBER_SORTS = [
+   { id: "role", label: "Role" },
+   { id: "new", label: "Recently joined" },
+];
 
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
+const NOTICES_PAGE = 8;
 
 function gradient(club) {
    const [a, b] = CATEGORY_GRADIENT[club?.category] || CATEGORY_GRADIENT.other;
@@ -131,7 +125,6 @@ function MemberRow({ row, roleBySlug }) {
             <div className="ml-meta">{meta}</div>
          </div>
          <RoleBadge slug={row.role} roleBySlug={roleBySlug} />
-         <span className="ml-engage">{row.engagementScore}</span>
          <span />
       </div>
    );
@@ -176,15 +169,20 @@ export default function ClubDetail() {
 
    // Members tab state
    const [search, setSearch] = useState("");
-   const [debounced, setDebounced] = useState("");
+   const debounced = useDebounced(search.trim());
    const [roleFilter, setRoleFilter] = useState("");
    const [sort, setSort] = useState("role");
    const [page, setPage] = useState(1);
    const [members, setMembers] = useState(null);
    const [membersLoadedKey, setMembersLoadedKey] = useState(null);
-   const reqIdRef = useRef(0);
+   // One counter per fetcher: a newer request for the same list invalidates the older.
+   const startClubRequest = useLatestRequest();
+   const startRolesRequest = useLatestRequest();
+   const startNoticesRequest = useLatestRequest();
+   const startEventsRequest = useLatestRequest();
+   const startMembersRequest = useLatestRequest();
 
-   // Roles (Phase 6) — drives the badges, the role filter, and the Roles tab.
+   // Roles — drive the badges, the role filter, and the Roles tab.
    const [roles, setRoles] = useState([]);
    const [rolesViewer, setRolesViewer] = useState(null);
    const roleBySlug = useMemo(
@@ -197,15 +195,12 @@ export default function ClubDetail() {
    const membersKey = `${slug}|${debounced}|${roleFilter}|${sort}|${page}`;
    const membersLoading = membersLoadedKey !== membersKey;
 
-   useEffect(() => {
-      const id = setTimeout(() => setDebounced(search.trim()), 300);
-      return () => clearTimeout(id);
-   }, [search]);
 
    const refetchClub = useCallback(() => {
+      const isCurrent = startClubRequest();
       clubsApi
          .getClub(slug)
-         .then((d) => setClub(d))
+         .then((d) => isCurrent() && setClub(d))
          .catch((err) => {
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load club",
@@ -213,24 +208,27 @@ export default function ClubDetail() {
             setClub(null);
          })
          .finally(() => setClubLoadedSlug(slug));
-   }, [slug, toast]);
+   }, [slug, toast, startClubRequest]);
 
    useEffect(() => {
       refetchClub();
    }, [refetchClub]);
 
    const refetchRoles = useCallback(() => {
+      const isCurrent = startRolesRequest();
       clubsApi
          .listRoles(slug)
          .then((d) => {
+            if (!isCurrent()) return;
             setRoles(d.items || []);
             setRolesViewer(d.viewer || null);
          })
          .catch(() => {
+            if (!isCurrent()) return;
             setRoles([]);
             setRolesViewer(null);
          });
-   }, [slug]);
+   }, [slug, startRolesRequest]);
 
    useEffect(() => {
       refetchRoles();
@@ -241,15 +239,17 @@ export default function ClubDetail() {
    const noticesLoading = tab === "announcements" && noticesLoadedKey !== noticesKey;
 
    const refetchNotices = useCallback(() => {
+      const isCurrent = startNoticesRequest();
       announcementsApi
          .listClubAnnouncements(slug, { page: noticesPage, limit: NOTICES_PAGE })
          .then((d) => {
+            if (!isCurrent()) return;
             setNotices(d);
             setNoticesViewer(d.viewer || null);
          })
-         .catch(() => setNotices({ items: [], pagination: { total: 0 } }))
+         .catch(() => isCurrent() && setNotices({ items: [], pagination: { total: 0 } }))
          .finally(() => setNoticesLoadedKey(`${slug}|${noticesPage}`));
-   }, [slug, noticesPage]);
+   }, [slug, noticesPage, startNoticesRequest]);
 
    useEffect(() => {
       if (tab !== "announcements") return;
@@ -260,20 +260,23 @@ export default function ClubDetail() {
    const eventsLoading = eventsLoadedKey !== eventsKey;
 
    const refetchEvents = useCallback(() => {
+      const isCurrent = startEventsRequest();
       eventsApi
          .listClubEvents(slug, { when: eventsWhen, sort: eventsSort, limit: 50 })
          .then((d) => {
+            if (!isCurrent()) return;
             setEvents(d);
             setEventsViewer(d.viewer || null);
          })
          .catch((err) => {
+            if (!isCurrent()) return;
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load events",
             );
             setEvents({ items: [], pagination: { total: 0 } });
          })
          .finally(() => setEventsLoadedKey(`${slug}|${eventsWhen}|${eventsSort}`));
-   }, [slug, eventsWhen, eventsSort, toast]);
+   }, [slug, eventsWhen, eventsSort, toast, startEventsRequest]);
 
    useEffect(() => {
       refetchEvents();
@@ -320,7 +323,7 @@ export default function ClubDetail() {
    }
 
    const fetchMembers = useCallback(() => {
-      const myId = ++reqIdRef.current;
+      const isCurrent = startMembersRequest();
       const myKey = `${slug}|${debounced}|${roleFilter}|${sort}|${page}`;
       clubsApi
          .listMembers(slug, {
@@ -332,11 +335,11 @@ export default function ClubDetail() {
             limit: PAGE_SIZE,
          })
          .then((d) => {
-            if (myId !== reqIdRef.current) return;
+            if (!isCurrent()) return;
             setMembers(d);
          })
          .catch((err) => {
-            if (myId !== reqIdRef.current) return;
+            if (!isCurrent()) return;
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load members",
             );
@@ -346,9 +349,9 @@ export default function ClubDetail() {
             });
          })
          .finally(() => {
-            if (myId === reqIdRef.current) setMembersLoadedKey(myKey);
+            if (isCurrent()) setMembersLoadedKey(myKey);
          });
-   }, [slug, debounced, roleFilter, sort, page, toast]);
+   }, [slug, debounced, roleFilter, sort, page, toast, startMembersRequest]);
 
    useEffect(() => {
       fetchMembers();
@@ -536,10 +539,7 @@ export default function ClubDetail() {
       if (joinKind === "leave") handleLeave();
       else if (joinKind === "join") handleJoin();
    }
-   // A coordinator of this club can't leave it (only a superAdmin can step them down).
-   // Only students can join/leave, so the CTA is shown to students only. The label and
-   // behaviour (Join / Request to join / Pending / Leave / Invite-only) come from the
-   // club's join policy + this student's membership status (see joinKind/joinLabel above).
+   // Only students join or leave a club; staff coordinate one.
    const showJoinButton = isStudent;
 
    const items = members?.items || [];
@@ -756,10 +756,7 @@ export default function ClubDetail() {
                   <div className="member-list">
                      <div className="ml-head">
                         <div style={{ fontWeight: 600, fontSize: 13.5 }}>
-                           {pagination?.total ?? 0}{" "}
-                           {status === "pending"
-                              ? "pending requests"
-                              : "members"}
+                           {pagination?.total ?? 0} members
                         </div>
                         <div className="ml-search">
                            <Icon size={13} strokeWidth={2.2}>
@@ -784,23 +781,14 @@ export default function ClubDetail() {
                                  </option>
                               ))}
                            </select>
-                           <div className="ac-sort">
-                              <Icon size={13} strokeWidth={2.2}>
-                                 <line x1="3" y1="6" x2="13" y2="6" />
-                                 <line x1="3" y1="12" x2="10" y2="12" />
-                                 <line x1="3" y1="18" x2="7" y2="18" />
-                              </Icon>
-                              <span>Sort</span>
-                              <select
-                                 value={sort}
-                                 onChange={(e) => setSort(e.target.value)}
-                                 aria-label="Sort members"
-                              >
-                                 <option value="role">Role</option>
-                                 <option value="new">Recently joined</option>
-                                 <option value="active">Most active</option>
-                              </select>
-                           </div>
+                           <FilterSelect
+                              label="Sort"
+                              value={sort}
+                              onChange={setSort}
+                              options={MEMBER_SORTS}
+                              ariaLabel="Sort members"
+                              withIcon
+                           />
                         </div>
                      </div>
 
@@ -955,25 +943,14 @@ export default function ClubDetail() {
                            </button>
                         ))}
                      </div>
-                     <div className="ac-sort">
-                        <Icon size={13} strokeWidth={2.2}>
-                           <line x1="3" y1="6" x2="13" y2="6" />
-                           <line x1="3" y1="12" x2="10" y2="12" />
-                           <line x1="3" y1="18" x2="7" y2="18" />
-                        </Icon>
-                        <span>Sort</span>
-                        <select
-                           value={eventsSort}
-                           onChange={(e) => setEventsSort(e.target.value)}
-                           aria-label="Sort events"
-                        >
-                           {EVENT_SORTS.map((o) => (
-                              <option key={o.id} value={o.id}>
-                                 {o.label}
-                              </option>
-                           ))}
-                        </select>
-                     </div>
+                     <FilterSelect
+                        label="Sort"
+                        value={eventsSort}
+                        onChange={setEventsSort}
+                        options={EVENT_SORTS}
+                        ariaLabel="Sort events"
+                        withIcon
+                     />
                      {eventsViewer?.canCreate && (
                         <Link
                            className="btn btn-primary"

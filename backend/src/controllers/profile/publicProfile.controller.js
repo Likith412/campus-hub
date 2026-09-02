@@ -2,7 +2,7 @@
 // else's profile; the viewer's identity decides how much of the account record comes back.
 // The account block (login state, activation) is superAdmin-only.
 const mongoose = require("mongoose");
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const { NotFoundError } = require("../../utils/errors");
 const {
    User,
@@ -12,6 +12,7 @@ const {
    EventRegistration,
 } = require("../../models");
 const { ROLES } = require("../../constants/roles");
+const { LIVE_REGISTRATION_STATUSES } = require("../events/helpers");
 
 // Share links carry a username when one is set and the raw id otherwise.
 function handleFilter(handle) {
@@ -29,7 +30,6 @@ function publicCard(u) {
       email: u.email,
       role: u.role,
       avatarUrl: u.avatarUrl,
-      coverUrl: u.coverUrl,
       profile: u.profile || {},
       interests: u.interests || [],
       skills: u.skills || [],
@@ -76,6 +76,7 @@ function publicEventRow(e) {
       startAt: e.startAt,
       endAt: e.endAt,
       eventType: e.eventType,
+      visibility: e.visibility || "private",
       venue: e.venue,
       club: e.clubId ? { name: e.clubId.name, slug: e.clubId.slug } : null,
       // The profile row shows seats the same way Club Home does.
@@ -92,7 +93,7 @@ const EVENTS_PAGE = 5;
 async function upcomingEventsOf(userId, includePrivate, page = 1) {
    const rows = await EventRegistration.find({
       userId,
-      status: { $in: ["registered", "waitlisted"] },
+      status: { $in: LIVE_REGISTRATION_STATUSES },
    })
       .populate({
          path: "eventId",
@@ -137,7 +138,9 @@ async function upcomingClubEventsOf(clubIds, includePrivate, page = 1) {
    const skip = (page - 1) * EVENTS_PAGE;
    const [rows, total] = await Promise.all([
       Event.find(filter)
-         .select("title startAt endAt eventType venue clubId capacity stats.registered")
+         .select(
+            "title startAt endAt eventType venue visibility clubId capacity stats.registered",
+         )
          .populate({ path: "clubId", model: Club, select: "name slug" })
          .sort({ startAt: 1 })
          .skip(skip)
@@ -174,10 +177,6 @@ async function listProfileEvents(req, res) {
    const { target, isSelf, isAdmin } = await resolveTarget(req);
    const { page } = req.validatedQuery;
 
-   if (target.preferences?.privacy?.publicProfile === false && !isSelf && !isAdmin) {
-      throw new NotFoundError("Profile not found");
-   }
-
    const seesPrivate = isSelf || isAdmin;
    let result;
    if (target.role === ROLES.STUDENT) {
@@ -190,12 +189,7 @@ async function listProfileEvents(req, res) {
 
    return successResponse(res, 200, "Events", {
       items: result.items,
-      pagination: {
-         page,
-         limit: EVENTS_PAGE,
-         total: result.total,
-         hasMore: page * EVENTS_PAGE < result.total,
-      },
+      pagination: pageMeta(page, EVENTS_PAGE, result.total, result.items.length),
    });
 }
 
@@ -205,25 +199,6 @@ async function getPublicProfile(req, res) {
 
    // SuperAdmins can act on anyone but another superAdmin (including themselves).
    const canManage = isAdmin && target.role !== ROLES.SUPER_ADMIN;
-
-   // The privacy toggle hides the detail, never the person — a name card still comes
-   // back so links from member lists and rosters don't dead-end.
-   const hidden =
-      target.preferences?.privacy?.publicProfile === false && !isSelf && !isAdmin;
-   if (hidden) {
-      return successResponse(res, 200, "Profile", {
-         user: {
-            id: target._id,
-            name: target.name,
-            username: target.username || null,
-            role: target.role,
-            avatarUrl: target.avatarUrl,
-         },
-         private: true,
-         isSelf: false,
-         canManage: false,
-      });
-   }
 
    const isStudent = target.role === ROLES.STUDENT;
    const seesPrivate = isSelf || isAdmin;
@@ -250,16 +225,10 @@ async function getPublicProfile(req, res) {
          ? upcomingEventsOf(target._id, seesPrivate)
          : upcomingClubEventsOf(coordinatedIds, seesPrivate),
    ]);
-   const eventsPagination = {
-      page: 1,
-      limit: EVENTS_PAGE,
-      total: events.total,
-      hasMore: EVENTS_PAGE < events.total,
-   };
+   const eventsPagination = pageMeta(1, EVENTS_PAGE, events.total, events.items.length);
 
    return successResponse(res, 200, "Profile", {
       user: publicCard(target),
-      private: false,
       isSelf,
       canManage,
       stats: {

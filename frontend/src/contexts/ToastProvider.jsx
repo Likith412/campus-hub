@@ -48,7 +48,7 @@ function ToastCard({ toast, onDismiss }) {
    const timerRef = useRef(null);
 
    useEffect(() => {
-      // next frame -> trigger slide-in
+      // Slide in on the next frame, so the initial paint has the off-screen position.
       const r = requestAnimationFrame(() => setShow(true));
       timerRef.current = setTimeout(() => setShow(false), toast.duration);
       return () => {

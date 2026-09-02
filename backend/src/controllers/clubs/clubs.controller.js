@@ -1,6 +1,6 @@
 // Clubs controller — browse, lifecycle, join/leave.
 // Membership lifecycle: open=instant approved, request=pending, invite=admin-driven.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const {
    NotFoundError,
    ForbiddenError,
@@ -19,19 +19,14 @@ const {
 } = require("../../models");
 const { systemRoleDocs } = require("../../models/ClubRole");
 const { ROLES } = require("../../constants/roles");
+const { escapeRegex } = require("../../utils/escapeRegex");
 const {
-   escapeRegex,
+   CLUB_SORT,
+   bumpClubStat,
    findClubBySlugFor,
    slugify,
    systemRoleId,
 } = require("./helpers");
-
-const SORT_MAP = {
-   popular: { "stats.memberCount": -1, createdAt: -1 },
-   new: { createdAt: -1 },
-   active: { "stats.eventCount": -1, "stats.memberCount": -1 },
-   name: { name: 1 },
-};
 
 // Shape a club doc for the listing card.
 function publicClubCard(c, membershipByClubId, followedIds = new Set()) {
@@ -83,17 +78,20 @@ async function listClubs(req, res) {
         }
       : {};
 
-   // Browse is for finding somewhere new: clubs you're already approved in, or have
-   // a request pending on, drop out. Your own list lives on /my-clubs. A membership
-   // you left or were removed from stays visible — that's still a club you could
-   // ask to rejoin.
+   // Browse is for finding somewhere new. Clubs you're approved in or have a request
+   // pending on drop out — your own list lives on /my-clubs — and so do clubs you were
+   // removed from, which joinClub refuses outright. A club you left stays: you can rejoin.
    const held = await ClubMembership.find({
       userId,
-      status: { $in: ["approved", "pending"] },
+      status: { $in: ["approved", "pending", "removed"] },
    })
       .select("clubId")
       .lean();
    if (held.length) baseFilter._id = { $nin: held.map((m) => m.clubId) };
+
+   // A private club is unlisted: it never shows up in browse. Members reach it from
+   // /my-clubs, and anyone with the link still gets the page.
+   baseFilter["settings.isPrivate"] = { $ne: true };
 
    const filter = {
       ...baseFilter,
@@ -104,7 +102,7 @@ async function listClubs(req, res) {
    const skip = (page - 1) * limit;
    const [items, total, countsAgg] = await Promise.all([
       Club.find(filter)
-         .sort(SORT_MAP[sort] || SORT_MAP.popular)
+         .sort(CLUB_SORT[sort] || CLUB_SORT.popular)
          .skip(skip)
          .limit(limit)
          .lean(),
@@ -147,12 +145,7 @@ async function listClubs(req, res) {
          publicClubCard(c, membershipByClubId, followedIds),
       ),
       categoryCounts,
-      pagination: {
-         page,
-         limit,
-         total,
-         hasMore: skip + items.length < total,
-      },
+      pagination: pageMeta(page, limit, total, items.length),
    });
 }
 
@@ -164,7 +157,8 @@ async function uniqueSlug(base) {
    return slug;
 }
 
-// POST /api/clubs — coordinator/superAdmin create a club; live immediately, unverified.
+// POST /api/clubs — faculty/superAdmin create a club. Live immediately; a superAdmin's
+// club is verified on the spot, a faculty's starts unverified.
 async function createClub(req, res) {
    const {
       name,
@@ -320,11 +314,12 @@ async function deleteClub(req, res) {
    const club = await Club.findOne({ slug: req.params.slug }).select("_id");
    if (!club) throw new NotFoundError("Club not found");
 
-   // Cascade: drop memberships, roles, announcements, and events before the club
-   // itself. Registrations hang off the events, so they're collected by id first.
+   // Cascade: drop memberships, follows, roles, announcements, and events before the
+   // club itself. Registrations hang off the events, so they're collected by id first.
    const eventIds = await Event.find({ clubId: club._id }).distinct("_id");
    await Promise.all([
       ClubMembership.deleteMany({ clubId: club._id }),
+      ClubFollow.deleteMany({ clubId: club._id }),
       ClubRole.deleteMany({ clubId: club._id }),
       Announcement.deleteMany({ clubId: club._id }),
       EventRegistration.deleteMany({ eventId: { $in: eventIds } }),
@@ -393,10 +388,7 @@ async function joinClub(req, res) {
 
    // Only increment for instant approvals, and only if this write did the transition.
    if (nextStatus === "approved" && prev?.status !== "approved") {
-      await Club.updateOne(
-         { _id: club._id },
-         { $inc: { "stats.memberCount": 1 } },
-      );
+      await bumpClubStat(club._id, "memberCount", 1);
    }
 
    return successResponse(res, 200, "Join processed", { status: nextStatus });
@@ -440,10 +432,7 @@ async function leaveClub(req, res) {
    const wasPending = prev.status === "pending";
 
    if (wasApproved) {
-      await Club.updateOne(
-         { _id: club._id, "stats.memberCount": { $gt: 0 } },
-         { $inc: { "stats.memberCount": -1 } },
-      );
+      await bumpClubStat(club._id, "memberCount", -1);
    }
 
    // "left" is the shared terminal state, but the message reflects what actually ended.
@@ -461,7 +450,7 @@ async function getClub(req, res) {
    if (userId) {
       [membership, isFollowing] = await Promise.all([
          ClubMembership.findOne({ userId, clubId: club._id })
-            .select("status roleId joinedAt engagementScore")
+            .select("status roleId joinedAt")
             .populate({ path: "roleId", select: "slug" })
             .lean(),
          ClubFollow.exists({ userId, clubId: club._id }).then(Boolean),
@@ -496,7 +485,6 @@ async function getClub(req, res) {
               status: membership.status,
               role: membership.roleId?.slug || null,
               joinedAt: membership.joinedAt,
-              engagementScore: membership.engagementScore,
            }
          : null,
    });
@@ -519,10 +507,7 @@ async function followClub(req, res) {
       { upsert: true, returnDocument: "before" },
    );
    if (!prev) {
-      await Club.updateOne(
-         { _id: club._id },
-         { $inc: { "stats.followerCount": 1 } },
-      );
+      await bumpClubStat(club._id, "followerCount", 1);
    }
 
    const followerCount = await ClubFollow.countDocuments({ clubId: club._id });
@@ -541,10 +526,7 @@ async function unfollowClub(req, res) {
       clubId: club._id,
    });
    if (removed) {
-      await Club.updateOne(
-         { _id: club._id, "stats.followerCount": { $gt: 0 } },
-         { $inc: { "stats.followerCount": -1 } },
-      );
+      await bumpClubStat(club._id, "followerCount", -1);
    }
 
    const followerCount = await ClubFollow.countDocuments({ clubId: club._id });

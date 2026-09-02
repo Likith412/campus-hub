@@ -54,7 +54,8 @@ export async function deleteAnnouncement(slug, id) {
    return data;
 }
 
-// Everything from the clubs you belong to, newest first.
+// The dashboard digest: everything from clubs you're a member of, plus the public
+// notices from clubs you follow, newest first.
 export async function listMyAnnouncements({ page, limit } = {}) {
    const { data } = await apiClient.get(`/announcements${qs({ page, limit })}`);
    return data;

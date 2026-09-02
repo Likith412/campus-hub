@@ -1,4 +1,4 @@
-// Club roles + permission catalog controller (Phase 6).
+// Club roles + the grantable-permission catalog.
 const { successResponse } = require("../../utils/response");
 const {
    NotFoundError,
@@ -11,9 +11,25 @@ const {
    findClubBySlugFor,
    ensureSystemRoles,
    slugify,
+   systemRoleId,
    resolveClubContext,
    contextCan,
 } = require("./helpers");
+
+// A role editor can't outrank themselves or hand out access they don't hold — otherwise
+// roles:manage alone would be a route to every other permission in the club.
+function assertCanGrant(ctx, { roleWeight, permissions }) {
+   if (ctx.isSuperAdmin || ctx.roleSlug === "coordinator") return;
+   if (roleWeight !== undefined && roleWeight >= ctx.weight) {
+      throw new ForbiddenError("You can only manage roles ranked below your own");
+   }
+   const missing = (permissions || []).filter((p) => !contextCan(ctx, p));
+   if (missing.length) {
+      throw new ForbiddenError(
+         `You can't grant a permission you don't hold: ${missing.join(", ")}`,
+      );
+   }
+}
 
 // GET /api/permissions/catalog — static list of grantable permissions for the picker.
 async function getPermissionCatalog(req, res) {
@@ -82,6 +98,7 @@ async function createRole(req, res) {
    await ensureSystemRoles(club._id);
 
    const { name, roleWeight, permissions, color } = req.body;
+   assertCanGrant(req.clubContext, { roleWeight, permissions });
 
    // Weight is unique per club — reject a collision up front with a clear message.
    if (await ClubRole.exists({ clubId: club._id, roleWeight })) {
@@ -117,6 +134,10 @@ async function updateRole(req, res) {
    if (role.isSystem) throw new ForbiddenError("System roles can't be edited");
 
    const { name, roleWeight, permissions, color } = req.body;
+   assertCanGrant(req.clubContext, { roleWeight, permissions });
+   // The role being edited has to sit below the editor too, or they could promote the
+   // very role they hold.
+   assertCanGrant(req.clubContext, { roleWeight: role.roleWeight });
 
    // Weight is unique per club — block a move onto a weight another role already holds.
    if (roleWeight !== undefined && roleWeight !== role.roleWeight) {
@@ -139,9 +160,6 @@ async function updateRole(req, res) {
    if (color !== undefined) role.color = color;
    await role.save();
 
-   // Rank lives only on the ClubRole now (memberships reference it by id), so there's
-   // nothing to sync onto memberships when the weight changes.
-
    return successResponse(res, 200, "Role updated", { role: publicRole(role) });
 }
 
@@ -155,6 +173,7 @@ async function deleteRole(req, res) {
    });
    if (!role) throw new NotFoundError("Role not found");
    if (role.isSystem) throw new ForbiddenError("System roles can't be deleted");
+   assertCanGrant(req.clubContext, { roleWeight: role.roleWeight });
 
    const inUse = await ClubMembership.exists({
       clubId: club._id,
@@ -166,6 +185,14 @@ async function deleteRole(req, res) {
          "Reassign members off this role before deleting it",
       );
    }
+
+   // Past members still point at the role. Move them to `member` first, or approving one
+   // of them later would resurrect a membership whose roleId no longer resolves.
+   const memberRoleId = await systemRoleId(club._id, "member");
+   await ClubMembership.updateMany(
+      { clubId: club._id, roleId: role._id },
+      { $set: { roleId: memberRoleId } },
+   );
 
    await ClubRole.deleteOne({ _id: role._id });
    return successResponse(res, 200, "Role deleted", { slug: role.slug });

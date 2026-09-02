@@ -6,12 +6,7 @@ const {
    VENUE_TYPES,
    EVENT_VISIBILITIES,
 } = require("../models/Event");
-
-// Accept a valid URL or an empty string (→ undefined). Matches the clubs validators.
-const urlOrEmpty = z
-   .union([z.string().url(), z.literal("")])
-   .optional()
-   .transform((v) => (v === "" ? undefined : v));
+const { urlOrEmpty } = require("./common");
 
 // Where the event happens. Offline/hybrid need a location, online/hybrid need a link.
 const venueSchema = z
@@ -38,7 +33,8 @@ const eventFields = {
    eventType: z.enum(EVENT_TYPES),
    startAt: z.coerce.date(),
    endAt: z.coerce.date(),
-   registrationDeadline: z.coerce.date().optional(),
+   // nullable so a patch can clear a deadline that was set.
+   registrationDeadline: z.coerce.date().nullable().optional(),
    venue: venueSchema,
    // Rejected for an unverified club when set to "public" — see createEvent.
    visibility: z.enum(EVENT_VISIBILITIES),

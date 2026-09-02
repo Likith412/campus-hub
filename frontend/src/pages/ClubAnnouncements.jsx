@@ -13,6 +13,10 @@ import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { useAuth } from "../contexts/AuthContext";
 import { clubHref, profileHref } from "../utils/nav";
+import { initials } from "../utils/text";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
+import SearchField from "../components/SearchField";
 
 const PAGE_SIZE = 10;
 const VIS_FILTERS = [
@@ -22,11 +26,6 @@ const VIS_FILTERS = [
 ];
 const TITLE_MAX = 120;
 const BODY_MAX = 4000;
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
 
 function postedAt(iso) {
    const diff = Date.now() - new Date(iso).getTime();
@@ -241,20 +240,26 @@ export default function ClubAnnouncements() {
    const [viewer, setViewer] = useState(null);
    const [denied, setDenied] = useState(false);
    const [search, setSearch] = useState("");
-   const [q, setQ] = useState("");
+   const q = useDebounced(search.trim());
    const [vis, setVis] = useState("");
    const [page, setPage] = useState(1);
    const [busyId, setBusyId] = useState(null);
    const [reloadNonce, setReloadNonce] = useState(0);
+   const startRequest = useLatestRequest();
 
    useEffect(() => {
+      let cancelled = false;
       clubsApi
          .getClub(slug)
-         .then((d) => setClub(d?.club || null))
-         .catch(() => setClub(null));
+         .then((d) => !cancelled && setClub(d || null))
+         .catch(() => !cancelled && setClub(null));
+      return () => {
+         cancelled = true;
+      };
    }, [slug]);
 
    const load = useCallback(() => {
+      const isCurrent = startRequest();
       announcementsApi
          .listClubAnnouncements(slug, {
             q: q || undefined,
@@ -263,23 +268,21 @@ export default function ClubAnnouncements() {
             limit: PAGE_SIZE,
          })
          .then((d) => {
+            if (!isCurrent()) return;
             setData(d);
             setViewer(d?.viewer || null);
          })
          .catch((err) => {
+            if (!isCurrent()) return;
             if (err instanceof ApiError && err.status === 403) setDenied(true);
             setData({ items: [], pagination: { total: 0 } });
          });
-   }, [slug, q, vis, page]);
+   }, [slug, q, vis, page, startRequest]);
 
    useEffect(() => {
       load();
    }, [load, reloadNonce]);
 
-   useEffect(() => {
-      const id = setTimeout(() => setQ(search.trim()), 300);
-      return () => clearTimeout(id);
-   }, [search]);
 
    // Any filter change restarts paging.
    const filterKey = `${q}|${vis}`;
@@ -383,17 +386,12 @@ export default function ClubAnnouncements() {
                      ))}
                   </div>
                )}
-               <div className="fac-search an-search">
-                  <Icon size={15}>
-                     <circle cx="11" cy="11" r="8" />
-                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </Icon>
-                  <input
-                     placeholder="Search announcements…"
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
-               </div>
+               <SearchField
+                  placeholder="Search announcements…"
+                  value={search}
+                  onChange={setSearch}
+                  className="an-search"
+               />
             </div>
 
             {viewer?.canPost && (

@@ -6,6 +6,7 @@ import Icon from "../components/Icon";
 import { useAuth } from "../contexts/AuthContext";
 import { useActiveClub } from "../contexts/ActiveClubContext";
 import { useToast } from "../contexts/ToastContext";
+import { initials } from "../utils/text";
 
 // Monogram colour palette (each = a cover gradient).
 const PALETTE = [
@@ -96,21 +97,7 @@ const POLICIES = [
 ];
 
 const STEPS = ["Identity", "Details", "Membership", "Review & create"];
-const STOPWORDS = /^(the|of|and|society|club|group)$/i;
 
-function initials(name) {
-   const cleaned = (name || "").trim();
-   if (!cleaned) return "QC";
-   return (
-      cleaned
-         .split(/\s+/)
-         .filter((w) => !STOPWORDS.test(w))
-         .map((w) => w[0])
-         .slice(0, 2)
-         .join("")
-         .toUpperCase() || cleaned.slice(0, 2).toUpperCase()
-   );
-}
 function slugify(s = "") {
    return s
       .toLowerCase()
@@ -135,8 +122,10 @@ export default function CreateClub() {
    useEffect(() => {
       if (!isSuperAdmin) return;
       adminApi
-         .listUsers({ role: "coordinator", status: "active", limit: 50 })
-         .then((d) => setFaculty(d?.items || []))
+         // No status filter: the admin API's "active" means "has logged in at least
+         // once", which would hide a faculty account created moments ago.
+         .listUsers({ role: "faculty", limit: 50 })
+         .then((d) => setFaculty((d?.items || []).filter((u) => u.isActive)))
          .catch(() => setFaculty([]));
    }, [isSuperAdmin]);
 

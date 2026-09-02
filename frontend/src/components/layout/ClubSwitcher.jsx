@@ -2,11 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useActiveClub } from "../../contexts/ActiveClubContext";
 import Icon from "../Icon";
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
+import { initials } from "../../utils/text";
 
 // Square club badge — logo image if set, else initials over the club's cover gradient.
 function ClubBadge({ club, size = 30 }) {

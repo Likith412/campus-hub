@@ -1,7 +1,7 @@
-// Shared Redis client. Used for: rate limiting, JWT blacklist on logout.
+// Shared Redis client: rate-limit counters, the session blacklist, and the refresh-token
+// rotation locks.
 const { createClient } = require("redis");
 
-// Single client instance reused across the app.
 const redisClient = createClient({
    url: process.env.REDIS_URL,
 });

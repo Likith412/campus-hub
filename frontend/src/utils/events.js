@@ -9,6 +9,11 @@ export const EVENT_TYPE_LABEL = {
    fun: "Fun",
 };
 
+// The same event types as dropdown options.
+export const EVENT_TYPE_OPTIONS = Object.entries(EVENT_TYPE_LABEL).map(
+   ([id, label]) => ({ id, label }),
+);
+
 // The design keys its contest cover gradient off "coding".
 export const EVENT_COVER_CLASS = { contest: "coding" };
 

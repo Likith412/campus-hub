@@ -1,9 +1,9 @@
 // Admin events controller — superAdmin-only institute-wide event listing.
 // Unlike GET /api/events (the student feed) this shows every status, including drafts
 // and cancelled events, across every club whatever its status.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const { Event } = require("../../models");
-const { escapeRegex } = require("./helpers");
+const { escapeRegex } = require("../../utils/escapeRegex");
 const { EVENT_SORT, publicEvent } = require("../events/helpers");
 
 // GET /api/admin/events — every event across the institute, with its host club and a
@@ -58,7 +58,7 @@ async function listAllEvents(req, res) {
    return successResponse(res, 200, "Events", {
       items: rows.map((e) => publicEvent(e, { club: e.club })),
       statusCounts: Object.fromEntries(statusAgg.map((s) => [s._id, s.n])),
-      pagination: { page, limit, total, hasMore: skip + rows.length < total },
+      pagination: pageMeta(page, limit, total, rows.length),
    });
 }
 

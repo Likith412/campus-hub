@@ -1,8 +1,9 @@
 // Zod schemas for /api/clubs endpoints.
 const { z } = require("zod");
-const { CLUB_CATEGORIES } = require("../models/Club");
+const { CLUB_CATEGORIES, CLUB_STATUSES } = require("../models/Club");
 const { MEMBERSHIP_STATUSES } = require("../models/ClubMembership");
 const { CLUB_PERMISSION_KEYS } = require("../constants/clubPermissions");
+const { urlOrEmpty, urlOrEmptyKeep } = require("./common");
 
 const SORTS = ["popular", "new", "active", "name"];
 const JOIN_POLICIES = ["open", "request", "invite-only"];
@@ -15,12 +16,6 @@ const roleSlug = z
    .min(1)
    .max(60)
    .regex(/^[a-z0-9-]+$/, "Invalid role");
-
-// Accept a valid URL or an empty string (→ undefined). Used for optional link fields.
-const urlOrEmpty = z
-   .union([z.string().url(), z.literal("")])
-   .optional()
-   .transform((v) => (v === "" ? undefined : v));
 
 // POST /api/clubs — create a club. slug is optional (derived from name when omitted).
 const createClubBodySchema = z
@@ -68,7 +63,7 @@ const verificationBodySchema = z
    .strict();
 
 const statusBodySchema = z
-   .object({ status: z.enum(["active", "suspended", "archived"]) })
+   .object({ status: z.enum(CLUB_STATUSES) })
    .strict();
 
 const listClubsQuerySchema = z
@@ -88,7 +83,7 @@ const listMembersQuerySchema = z
       role: roleSlug.optional(),
       // "past" is a convenience bucket (left + removed) used by the manage-members audit tab.
       status: z.enum([...MEMBERSHIP_STATUSES, "past"]).default("approved"),
-      sort: z.enum(["role", "new", "active"]).default("role"),
+      sort: z.enum(["role", "new"]).default("role"),
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(50).default(20),
    })
@@ -145,8 +140,8 @@ const updateClubBodySchema = z
       tagline: z.string().trim().max(90),
       description: z.string().trim().max(500),
       category: z.enum(CLUB_CATEGORIES),
-      logoUrl: urlOrEmpty,
-      bannerUrl: urlOrEmpty,
+      logoUrl: urlOrEmptyKeep,
+      bannerUrl: urlOrEmptyKeep,
       tags: z.array(z.string().trim().max(40)).max(10),
       settings: z
          .object({
@@ -155,9 +150,9 @@ const updateClubBodySchema = z
          })
          .strict(),
       socialLinks: z.object({
-         website: urlOrEmpty,
-         instagram: urlOrEmpty,
-         linkedin: urlOrEmpty,
+         website: urlOrEmptyKeep,
+         instagram: urlOrEmptyKeep,
+         linkedin: urlOrEmptyKeep,
       }),
       coverFrom: z.string().regex(HEX_COLOR),
       coverTo: z.string().regex(HEX_COLOR),

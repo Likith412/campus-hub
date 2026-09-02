@@ -5,12 +5,12 @@ const { successResponse } = require("../../utils/response");
 const { hashPassword } = require("../../utils/password");
 const { randomToken, sha256 } = require("../../utils/tokens");
 const { UnauthorizedError } = require("../../utils/errors");
-const { User, PasswordReset, AuthSession } = require("../../models");
-const { blacklistSessionAccess } = require("../../utils/sessionRevocation");
+const { User, PasswordReset } = require("../../models");
+const { revokeSessions } = require("./helpers");
 const { sendPasswordResetEmail } = require("../../services/emailService");
+const { FRONTEND_URL } = require("../../config/env");
 
 const RESET_TTL_MS = 30 * 60 * 1000; // Reset link valid for 30min (tighter — sensitive op).
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 // Revoke stale reset tokens then issue a new one. Prevents multiple-link confusion.
 async function issuePasswordResetToken(userId) {
@@ -87,15 +87,7 @@ async function resetPassword(req, res) {
    await record.save();
 
    // Kill every device immediately: revoke refresh sessions AND blacklist their access JWTs.
-   const active = await AuthSession.find(
-      { userId: record.userId, revokedAt: null },
-      "_id",
-   ).lean();
-   await blacklistSessionAccess(active.map((s) => s._id));
-   await AuthSession.updateMany(
-      { userId: record.userId, revokedAt: null },
-      { revokedAt: new Date() },
-   );
+   await revokeSessions({ userId: record.userId, revokedAt: null });
 
    return successResponse(res, 200, "Password reset. Please log in.");
 }

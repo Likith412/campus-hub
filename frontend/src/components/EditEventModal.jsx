@@ -6,6 +6,7 @@ import { eventsApi, ApiError } from "../services";
 import { useToast } from "../contexts/ToastContext";
 import { nowLocalInput, toLocalInput } from "../utils/events";
 import Icon from "./Icon";
+import useModalChrome from "../hooks/useModalChrome";
 
 const EVENT_TYPES = [
    { id: "workshop", label: "🛠 Workshop" },
@@ -35,6 +36,8 @@ export default function EditEventModal({
 }) {
    const toast = useToast();
    const [busy, setBusy] = useState(false);
+
+   useModalChrome(onClose, { disabled: busy });
    const [errors, setErrors] = useState({});
    // A past event keeps its own start as the floor, so an untouched date isn't flagged;
    // anything still ahead of us can only move forward.
@@ -126,9 +129,10 @@ export default function EditEventModal({
             description: description.trim(),
             tags,
          };
-         if (deadline) {
-            body.registrationDeadline = new Date(deadline).toISOString();
-         }
+         // null, not "omitted" — an emptied field has to reach the server to clear it.
+         body.registrationDeadline = deadline
+            ? new Date(deadline).toISOString()
+            : null;
 
          const res = await eventsApi.updateEvent(slug, event.id, body);
          // Raising the cap pulls people off the waitlist — say so, it isn't obvious.

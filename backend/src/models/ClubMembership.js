@@ -36,7 +36,6 @@ const clubMembershipSchema = new mongoose.Schema(
          default: "pending",
       },
 
-      engagementScore: { type: Number, default: 0 },
 
       joinedAt: Date,
       leftAt: Date,
@@ -51,19 +50,13 @@ const clubMembershipSchema = new mongoose.Schema(
    { timestamps: true, versionKey: false },
 );
 
-// One membership per (user, club). Other indexes power "my clubs" and per-club leaderboards.
+// One membership per (user, club). The rest power "my clubs" and the members listing.
 clubMembershipSchema.index({ userId: 1, clubId: 1 }, { unique: true });
 clubMembershipSchema.index({ userId: 1, status: 1 });
 clubMembershipSchema.index({ clubId: 1, roleId: 1 });
-clubMembershipSchema.index({ clubId: 1, engagementScore: -1 });
-// Powers the members listing (status filter, then engagement / join time). Sorting by role
-// rank is done via a $lookup to ClubRole.roleWeight, so it can't be indexed here.
-clubMembershipSchema.index({
-   clubId: 1,
-   status: 1,
-   engagementScore: -1,
-   joinedAt: 1,
-});
+// Serves the members listing's { clubId, status } match. The sort runs inside a $facet after
+// a $lookup, so it can't use this index — role rank lives on ClubRole.
+clubMembershipSchema.index({ clubId: 1, status: 1, joinedAt: 1 });
 
 module.exports = mongoose.model("ClubMembership", clubMembershipSchema);
 module.exports.MEMBERSHIP_STATUSES = MEMBERSHIP_STATUSES;

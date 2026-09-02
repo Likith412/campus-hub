@@ -1,16 +1,19 @@
 // Institute-wide events — /admin/events, superAdmin only. Every club's events at every
 // status, including drafts and cancelled ones, which the student feed never shows.
 // Read-only: managing an event happens inside its club.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { adminApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
-import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
 import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
 import { EVENT_TYPE_LABEL } from "../utils/events";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
+import SearchField from "../components/SearchField";
+import FilterSelect from "../components/FilterSelect";
 
 const PAGE_SIZE = 20;
 const EVENT_SORTS = [
@@ -32,7 +35,7 @@ export default function AllEvents() {
    const toast = useToast();
 
    const [search, setSearch] = useState("");
-   const [debounced, setDebounced] = useState("");
+   const debounced = useDebounced(search.trim());
    const [club, setClub] = useState("");
    const [type, setType] = useState("");
    const [status, setStatus] = useState("");
@@ -41,15 +44,11 @@ export default function AllEvents() {
    const [data, setData] = useState(null);
    const [clubs, setClubs] = useState([]);
    const [loadedKey, setLoadedKey] = useState(null);
-   const reqIdRef = useRef(0);
+   const startRequest = useLatestRequest();
 
    const key = `${debounced}|${club}|${type}|${status}|${sort}|${page}`;
    const loading = loadedKey !== key;
 
-   useEffect(() => {
-      const id = setTimeout(() => setDebounced(search.trim()), 300);
-      return () => clearTimeout(id);
-   }, [search]);
 
    // The club filter is by slug, so the dropdown needs the full club list once.
    useEffect(() => {
@@ -60,7 +59,7 @@ export default function AllEvents() {
    }, []);
 
    useEffect(() => {
-      const myId = ++reqIdRef.current;
+      const isCurrent = startRequest();
       const myKey = `${debounced}|${club}|${type}|${status}|${sort}|${page}`;
       adminApi
          .listEvents({
@@ -73,19 +72,19 @@ export default function AllEvents() {
             limit: PAGE_SIZE,
          })
          .then((d) => {
-            if (myId === reqIdRef.current) setData(d);
+            if (isCurrent()) setData(d);
          })
          .catch((err) => {
-            if (myId !== reqIdRef.current) return;
+            if (!isCurrent()) return;
             toast.error(
                err instanceof ApiError ? err.message : "Couldn't load events",
             );
             setData({ items: [], pagination: { total: 0 } });
          })
          .finally(() => {
-            if (myId === reqIdRef.current) setLoadedKey(myKey);
+            if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [debounced, club, type, status, sort, page, toast]);
+   }, [debounced, club, type, status, sort, page, toast, startRequest]);
 
    // Reset to page 1 when filters change.
    const [prev, setPrev] = useState({ debounced, club, type, status, sort });
@@ -120,17 +119,11 @@ export default function AllEvents() {
             </div>
 
             <div className="fac-toolbar">
-               <div className="fac-search">
-                  <Icon size={15}>
-                     <circle cx="11" cy="11" r="8" />
-                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </Icon>
-                  <input
-                     placeholder="Search events by title or tag…"
-                     value={search}
-                     onChange={(e) => setSearch(e.target.value)}
-                  />
-               </div>
+               <SearchField
+                  placeholder="Search events by title or tag…"
+                  value={search}
+                  onChange={setSearch}
+               />
                <select
                   className="ac-select"
                   value={club}
@@ -155,25 +148,14 @@ export default function AllEvents() {
                      </option>
                   ))}
                </select>
-               <div className="ac-sort">
-                  <Icon size={13} strokeWidth={2.2}>
-                     <line x1="3" y1="6" x2="13" y2="6" />
-                     <line x1="3" y1="12" x2="10" y2="12" />
-                     <line x1="3" y1="18" x2="7" y2="18" />
-                  </Icon>
-                  <span>Sort</span>
-                  <select
-                     value={sort}
-                     onChange={(e) => setSort(e.target.value)}
-                     aria-label="Sort events"
-                  >
-                     {EVENT_SORTS.map((o) => (
-                        <option key={o.id} value={o.id}>
-                           {o.label}
-                        </option>
-                     ))}
-                  </select>
-               </div>
+               <FilterSelect
+                  label="Sort"
+                  value={sort}
+                  onChange={setSort}
+                  options={EVENT_SORTS}
+                  ariaLabel="Sort events"
+                  withIcon
+               />
                {/* Forces the status tabs onto their own row — five of them plus the
                    filters overflow a single line. */}
                <div className="fac-toolbar-break" />

@@ -3,11 +3,7 @@
 const { z } = require("zod");
 const { YEAR_OPTIONS } = require("../models/User");
 const { passwordRule } = require("./auth");
-
-const urlOrEmpty = z
-   .union([z.string().url(), z.literal("")])
-   .optional()
-   .transform((v) => (v === "" ? undefined : v));
+const { urlOrEmptyKeep } = require("./common");
 
 const updateProfileSchema = z
    .object({
@@ -18,17 +14,21 @@ const updateProfileSchema = z
          .max(30)
          .regex(/^[a-z0-9._-]+$/, "Lowercase letters, digits, . _ - only")
          .optional(),
-      phone: z.string().min(6).max(20).optional(),
-      avatarUrl: urlOrEmpty,
-      coverUrl: urlOrEmpty,
+      // "" clears the field; anything else has to be a real value.
+      phone: z.union([z.string().min(6).max(20), z.literal("")]).optional(),
+      avatarUrl: urlOrEmptyKeep,
       profile: z
          .object({
             department: z.string().max(120).optional(),
-            year: z.enum(YEAR_OPTIONS).optional(),
+            // "" clears it — mapped to null so the model's enum validator skips it.
+            year: z
+               .union([z.enum(YEAR_OPTIONS), z.literal("")])
+               .optional()
+               .transform((v) => (v === "" ? null : v)),
             bio: z.string().max(280).optional(),
-            linkedinUrl: urlOrEmpty,
-            githubUrl: urlOrEmpty,
-            portfolioUrl: urlOrEmpty,
+            linkedinUrl: urlOrEmptyKeep,
+            githubUrl: urlOrEmptyKeep,
+            portfolioUrl: urlOrEmptyKeep,
             tags: z.array(z.string().max(40)).max(10).optional(),
             // Faculty/coordinator fields.
             designation: z.string().max(80).optional(),
@@ -52,34 +52,6 @@ const updateSkillsSchema = z.object({
       .max(50),
 });
 
-// Settings tabs send partial patches — only the toggles the user flipped come over the wire.
-const updatePreferencesSchema = z
-   .object({
-      notifications: z
-         .object({
-            eventReminders: z.boolean().optional(),
-            contestInvitations: z.boolean().optional(),
-            clubAnnouncements: z.boolean().optional(),
-            emailDigest: z.boolean().optional(),
-            channels: z
-               .object({
-                  email: z.boolean().optional(),
-                  push: z.boolean().optional(),
-                  inApp: z.boolean().optional(),
-               })
-               .optional(),
-         })
-         .optional(),
-      privacy: z
-         .object({
-            publicProfile: z.boolean().optional(),
-            showOnLeaderboards: z.boolean().optional(),
-         })
-         .optional(),
-   })
-   .strict();
-
-// GET /profile/me/clubs — "member" keeps the original behaviour for existing callers.
 const listMyClubsQuerySchema = z
    .object({
       relation: z.enum(["member", "following", "all"]).default("member"),
@@ -103,6 +75,5 @@ module.exports = {
    listProfileEventsQuerySchema,
    listMyClubsQuerySchema,
    updateSkillsSchema,
-   updatePreferencesSchema,
    changePasswordSchema,
 };

@@ -101,15 +101,18 @@ async function promoteWaitlisted(eventId, slots) {
       .lean();
    if (rows.length === 0) return [];
 
-   await EventRegistration.updateMany(
-      { _id: { $in: rows.map((r) => r._id) } },
+   // Re-assert "waitlisted" in the filter: a row cancelled since the read above must
+   // not be resurrected, and the seat count has to move by what actually changed.
+   const { modifiedCount } = await EventRegistration.updateMany(
+      { _id: { $in: rows.map((r) => r._id) }, status: "waitlisted" },
       { $set: { status: "registered" } },
    );
+   if (modifiedCount === 0) return [];
    await Event.updateOne(
       { _id: eventId },
-      { $inc: { "stats.registered": rows.length } },
+      { $inc: { "stats.registered": modifiedCount } },
    );
-   return rows;
+   return rows.slice(0, modifiedCount);
 }
 
 // A club's event count only ever grows, and only when an event goes live: drafts don't
@@ -152,10 +155,7 @@ async function viewerRegistrationMap(userId, eventIds) {
 module.exports = {
    EVENT_SORT,
    LIVE_REGISTRATION_STATUSES,
-   seatsLeft,
    registrationClosesAt,
-   isRegistrationOpen,
-   eventClub,
    publicEvent,
    publicRegistration,
    findClubEvent,

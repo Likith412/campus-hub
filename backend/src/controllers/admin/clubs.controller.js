@@ -1,14 +1,8 @@
 // Admin clubs controller — superAdmin-only institute-wide club listing.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const { ClubMembership, Club } = require("../../models");
-const { escapeRegex } = require("./helpers");
-
-// Sort options for the All Clubs table.
-const CLUB_SORT = {
-   popular: { "stats.memberCount": -1, createdAt: -1 },
-   new: { createdAt: -1 },
-   name: { name: 1 },
-};
+const { escapeRegex } = require("../../utils/escapeRegex");
+const { CLUB_SORT } = require("../clubs/helpers");
 
 // GET /api/admin/clubs — every club across the institute (any status), with each club's
 // coordinator(s) and member count, plus a status breakdown. superAdmin-only.
@@ -101,7 +95,7 @@ async function listAllClubs(req, res) {
    return successResponse(res, 200, "Clubs", {
       items: shaped,
       counts,
-      pagination: { page, limit, total, hasMore: skip + items.length < total },
+      pagination: pageMeta(page, limit, total, items.length),
    });
 }
 

@@ -1,4 +1,6 @@
 // Auth cookie helpers. Both access and refresh tokens live in httpOnly cookies so JS can't read them (XSS-safe).
+const { accessTtlSeconds } = require("./jwt");
+
 const REFRESH_COOKIE_NAME = "refresh_token";
 const ACCESS_COOKIE_NAME = "access_token";
 // Non-httpOnly "you probably have a session" hint cookie. Contains no secret —
@@ -20,17 +22,15 @@ function refreshCookieOptions() {
    };
 }
 
-// Access cookie is sent to every /api route. Cookie maxAge should track JWT_ACCESS_TTL — keep
-// JWT_ACCESS_TTL_MINUTES in sync if you change the JWT TTL.
+// Access cookie is sent to every /api route; its maxAge tracks the JWT's own TTL.
 function accessCookieOptions() {
-   const minutes = Number(process.env.JWT_ACCESS_TTL_MINUTES || 15);
    return {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       domain: process.env.COOKIE_DOMAIN || undefined,
       path: "/api",
-      maxAge: minutes * 60 * 1000,
+      maxAge: accessTtlSeconds() * 1000,
    };
 }
 
@@ -83,7 +83,6 @@ function clearSessionHintCookie(res) {
 module.exports = {
    REFRESH_COOKIE_NAME,
    ACCESS_COOKIE_NAME,
-   SESSION_HINT_COOKIE_NAME,
    setRefreshCookie,
    clearRefreshCookie,
    setAccessCookie,

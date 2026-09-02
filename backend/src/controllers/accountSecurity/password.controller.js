@@ -2,9 +2,8 @@
 const { successResponse } = require("../../utils/response");
 const { hashPassword, verifyPassword } = require("../../utils/password");
 const { NotFoundError, UnauthorizedError } = require("../../utils/errors");
-const { blacklistSessionAccess } = require("../../utils/sessionRevocation");
-const { User, AuthSession } = require("../../models");
-const { findCurrentSession } = require("./helpers");
+const { User } = require("../../models");
+const { findCurrentSession, revokeSessions } = require("./helpers");
 
 // POST /profile/me/change-password — authenticated password change.
 // Revokes all other sessions so old refresh tokens can't outlive the change.
@@ -26,9 +25,7 @@ async function changePassword(req, res) {
       revokedAt: null,
       ...(current ? { _id: { $ne: current._id } } : {}),
    };
-   const others = await AuthSession.find(filter, "_id").lean();
-   await blacklistSessionAccess(others.map((s) => s._id));
-   await AuthSession.updateMany(filter, { revokedAt: new Date() });
+   await revokeSessions(filter);
 
    return successResponse(res, 200, "Password changed");
 }

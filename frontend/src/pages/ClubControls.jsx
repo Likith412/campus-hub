@@ -7,6 +7,8 @@ import Spinner, { LoadingBlock } from "../components/Spinner";
 import EditClubModal from "../components/EditClubModal";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { initials } from "../utils/text";
+import { CATEGORY_LABEL } from "../utils/clubs";
 
 const AVATAR_COLORS = [
    "#6c63ff", "#34d399", "#f59e0b", "#3b82f6",
@@ -17,17 +19,6 @@ function colorFor(s = "") {
    for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
    return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
-function initials(name = "") {
-   return (
-      name
-         .replace(/^(Dr|Prof|Mr|Ms|Mrs)\.?\s+/i, "")
-         .split(/\s+/)
-         .map((w) => w[0])
-         .slice(0, 2)
-         .join("")
-         .toUpperCase() || "?"
-   );
-}
 function clubInitials(name = "") {
    const parts = name.trim().split(/\s+/);
    return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
@@ -35,17 +26,6 @@ function clubInitials(name = "") {
 function logoGradient(c) {
    return `linear-gradient(135deg, ${c?.coverFrom || "#6c63ff"}, ${c?.coverTo || "#34d399"})`;
 }
-
-const CATEGORY_LABEL = {
-   tech: "Tech & CS",
-   design: "Design",
-   culture: "Culture",
-   sports: "Sports",
-   business: "Business",
-   media: "Media",
-   social: "Social",
-   other: "Other",
-};
 
 const STATUS_OPTIONS = [
    {
@@ -102,15 +82,17 @@ function FacultyPicker({ slug, clubName, assigned, onClose, onAssigned }) {
    useEffect(() => {
       const myReq = ++reqRef.current;
       adminApi
+         // No status filter: the admin API's "active" means "has logged in at least
+         // once", which would hide a faculty account created moments ago.
          .listUsers({
             role: "faculty",
-            status: "active",
             q: debounced || undefined,
             sort: "name",
             limit: 50,
          })
          .then((d) => {
-            if (myReq === reqRef.current) setPool(d?.items || []);
+            if (myReq === reqRef.current)
+               setPool((d?.items || []).filter((u) => u.isActive));
          })
          .catch(() => {
             if (myReq === reqRef.current) setPool([]);
@@ -132,7 +114,7 @@ function FacultyPicker({ slug, clubName, assigned, onClose, onAssigned }) {
       () => new Set(assigned.map((c) => String(c.userId))),
       [assigned],
    );
-   // Search is server-side now; just hide faculty already assigned to this club.
+   // Search runs server-side; this only hides faculty already assigned to this club.
    const list = (pool || []).filter((f) => !assignedIds.has(String(f.id)));
 
    async function assign(f) {

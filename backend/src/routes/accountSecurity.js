@@ -41,7 +41,7 @@ router.get("/auth/reset-password/validate", account.validateResetToken);
 // Public — consumes the password reset token from the link, sets new password.
 router.post(
    "/auth/reset-password",
-   // passwordLimiter,
+   passwordLimiter,
    validate(resetPasswordSchema),
    account.resetPassword,
 );

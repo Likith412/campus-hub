@@ -12,6 +12,7 @@ import Pagination from "../components/Pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { clubHref } from "../utils/nav";
+import { initials } from "../utils/text";
 import {
    EVENT_TYPE_LABEL,
    eventDateParts,
@@ -48,11 +49,6 @@ function coverFor(seed = "") {
    let h = 0;
    for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
    return COVERS[h % COVERS.length];
-}
-
-function initials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
 }
 
 function levelLabel(level) {
@@ -603,40 +599,28 @@ export default function Profile() {
                      <div className="profile-handle">
                         {subline || user.email}
                      </div>
-                     {data.private ? (
-                        <div className="profile-bio">
-                           This profile is private.
+                     {user.profile?.bio && (
+                        <div className="profile-bio">{user.profile.bio}</div>
+                     )}
+                     <ProfileLinks profile={user.profile} />
+                     {chips.length > 0 && (
+                        <div className="profile-tags">
+                           {chips.map((t) => (
+                              <span key={t} className="profile-tag">
+                                 {t}
+                              </span>
+                           ))}
                         </div>
-                     ) : (
-                        <>
-                           {user.profile?.bio && (
-                              <div className="profile-bio">
-                                 {user.profile.bio}
-                              </div>
-                           )}
-                           <ProfileLinks profile={user.profile} />
-                           {chips.length > 0 && (
-                              <div className="profile-tags">
-                                 {chips.map((t) => (
-                                    <span key={t} className="profile-tag">
-                                       {t}
-                                    </span>
-                                 ))}
-                              </div>
-                           )}
-                        </>
                      )}
                   </div>
                   <div className="profile-actions">
-                     {!data.private && (
-                        <button
-                           type="button"
-                           className="btn btn-secondary"
-                           onClick={share}
-                        >
-                           Share profile
-                        </button>
-                     )}
+                     <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={share}
+                     >
+                        Share profile
+                     </button>
                   </div>
                </div>
             </div>
@@ -649,271 +633,254 @@ export default function Profile() {
                />
             )}
 
-            {data.private ? (
-               <div className="panel">
-                  <div className="pr-blank">
-                     <Icon size={22} strokeWidth={1.8}>
-                        <rect x="3" y="11" width="18" height="11" rx="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                     </Icon>
-                     <span>
-                        {firstName} keeps their profile private. Only they and
-                        platform admins can see the details.
-                     </span>
+               {!isPlatformAdmin && (
+                  <div className="fac-stat-row pr-stats">
+                     <StatCard
+                        tone="purple"
+                        label={isCoordinator ? "Clubs coordinated" : "Clubs"}
+                        value={
+                           isCoordinator
+                              ? (data.stats?.coordinating ?? 0)
+                              : (data.stats?.clubs ?? 0)
+                        }
+                     >
+                        <Icon size={20} strokeWidth={2.2}>
+                           <rect x="2" y="7" width="20" height="14" rx="2" />
+                           <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                        </Icon>
+                     </StatCard>
+
+                     {/* Faculty are measured by what they run, students by what
+                         they signed up for. */}
+                     {isCoordinator && (
+                        <>
+                           <StatCard
+                              tone="blue"
+                              label="Members reached"
+                              value={data.stats?.membersReached ?? 0}
+                           >
+                              <Icon size={20} strokeWidth={2.2}>
+                                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                                 <circle cx="9" cy="7" r="4" />
+                                 <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                              </Icon>
+                           </StatCard>
+                           <StatCard
+                              tone="orange"
+                              label="Events hosted"
+                              value={data.stats?.eventsHosted ?? 0}
+                           >
+                              <Icon size={20} strokeWidth={2.2}>
+                                 <rect x="3" y="4" width="18" height="18" rx="2" />
+                                 <line x1="16" y1="2" x2="16" y2="6" />
+                                 <line x1="8" y1="2" x2="8" y2="6" />
+                                 <line x1="3" y1="10" x2="21" y2="10" />
+                              </Icon>
+                           </StatCard>
+                        </>
+                     )}
+
+                     {isStudent && (
+                        <>
+                           <StatCard
+                              tone="blue"
+                              label="Events registered"
+                              value={data.stats?.eventsRegistered ?? 0}
+                           >
+                              <Icon size={20} strokeWidth={2.2}>
+                                 <rect x="3" y="4" width="18" height="18" rx="2" />
+                                 <line x1="16" y1="2" x2="16" y2="6" />
+                                 <line x1="8" y1="2" x2="8" y2="6" />
+                                 <line x1="3" y1="10" x2="21" y2="10" />
+                              </Icon>
+                           </StatCard>
+                           <StatCard
+                              tone="orange"
+                              label="Coming up"
+                              value={data.eventsPagination?.total ?? 0}
+                           >
+                              <Icon size={20} strokeWidth={2.2}>
+                                 <circle cx="12" cy="12" r="10" />
+                                 <polyline points="12 6 12 12 16 14" />
+                              </Icon>
+                           </StatCard>
+                        </>
+                     )}
+
+                     <StatCard
+                        tone="green"
+                        label="Member since"
+                        value={monthYear(user.createdAt)}
+                     >
+                        <Icon size={20} strokeWidth={2.2}>
+                           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                           <circle cx="12" cy="7" r="4" />
+                        </Icon>
+                     </StatCard>
                   </div>
-               </div>
-            ) : (
-               <>
+               )}
+
+               <div
+                  className={`overview-grid${isPlatformAdmin ? " solo" : ""}`}
+               >
                   {!isPlatformAdmin && (
-                     <div className="fac-stat-row pr-stats">
-                        <StatCard
-                           tone="purple"
-                           label={isCoordinator ? "Clubs coordinated" : "Clubs"}
-                           value={
+                     <div>
+                        <EventsPanel
+                           key={target}
+                           handle={target}
+                           initial={{
+                              items: events,
+                              pagination: data.eventsPagination,
+                           }}
+                           sub={
                               isCoordinator
-                                 ? (data.stats?.coordinating ?? 0)
-                                 : (data.stats?.clubs ?? 0)
+                                 ? isSelf
+                                    ? "What your clubs are running next"
+                                    : `Coming up from ${firstName}'s clubs`
+                                 : isSelf
+                                   ? "What you're signed up for next"
+                                   : "Public events they're attending"
                            }
-                        >
-                           <Icon size={20} strokeWidth={2.2}>
-                              <rect x="2" y="7" width="20" height="14" rx="2" />
-                              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-                           </Icon>
-                        </StatCard>
-
-                        {/* Faculty are measured by what they run, students by what
-                            they signed up for. */}
-                        {isCoordinator && (
-                           <>
-                              <StatCard
-                                 tone="blue"
-                                 label="Members reached"
-                                 value={data.stats?.membersReached ?? 0}
-                              >
-                                 <Icon size={20} strokeWidth={2.2}>
-                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                    <circle cx="9" cy="7" r="4" />
-                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                                 </Icon>
-                              </StatCard>
-                              <StatCard
-                                 tone="orange"
-                                 label="Events hosted"
-                                 value={data.stats?.eventsHosted ?? 0}
-                              >
-                                 <Icon size={20} strokeWidth={2.2}>
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <line x1="16" y1="2" x2="16" y2="6" />
-                                    <line x1="8" y1="2" x2="8" y2="6" />
-                                    <line x1="3" y1="10" x2="21" y2="10" />
-                                 </Icon>
-                              </StatCard>
-                           </>
-                        )}
-
-                        {isStudent && (
-                           <>
-                              <StatCard
-                                 tone="blue"
-                                 label="Events registered"
-                                 value={data.stats?.eventsRegistered ?? 0}
-                              >
-                                 <Icon size={20} strokeWidth={2.2}>
-                                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                                    <line x1="16" y1="2" x2="16" y2="6" />
-                                    <line x1="8" y1="2" x2="8" y2="6" />
-                                    <line x1="3" y1="10" x2="21" y2="10" />
-                                 </Icon>
-                              </StatCard>
-                              <StatCard
-                                 tone="orange"
-                                 label="Coming up"
-                                 value={data.eventsPagination?.total ?? 0}
-                              >
-                                 <Icon size={20} strokeWidth={2.2}>
-                                    <circle cx="12" cy="12" r="10" />
-                                    <polyline points="12 6 12 12 16 14" />
-                                 </Icon>
-                              </StatCard>
-                           </>
-                        )}
-
-                        <StatCard
-                           tone="green"
-                           label="Member since"
-                           value={monthYear(user.createdAt)}
-                        >
-                           <Icon size={20} strokeWidth={2.2}>
-                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                              <circle cx="12" cy="7" r="4" />
-                           </Icon>
-                        </StatCard>
+                           emptyText={
+                              isCoordinator
+                                 ? "No events scheduled yet."
+                                 : "Nothing on the calendar yet."
+                           }
+                           cta={
+                              isSelf && isCoordinator && coordinated[0] ? (
+                                 <Link
+                                    to={`/clubs/${coordinated[0].slug}/events/new`}
+                                    className="fac-inline-link"
+                                 >
+                                    Create an event →
+                                 </Link>
+                              ) : isSelf && isStudent ? (
+                                 <Link to="/explore" className="fac-inline-link">
+                                    Explore events →
+                                 </Link>
+                              ) : null
+                           }
+                        />
+                        <ClubsPanel
+                           clubs={panelClubs}
+                           title={runsClubs ? "Clubs coordinated" : "Clubs"}
+                           sub={
+                              runsClubs
+                                 ? isSelf
+                                    ? "Clubs you run"
+                                    : `Clubs ${firstName} runs`
+                                 : isSelf
+                                   ? "Clubs you're part of"
+                                   : `Clubs ${firstName} is part of`
+                           }
+                           emptyText={
+                              isCoordinator
+                                 ? "Not coordinating any club yet."
+                                 : "Not a member of any club yet."
+                           }
+                           viewerRole={me?.role}
+                        />
                      </div>
                   )}
 
-                  <div
-                     className={`overview-grid${isPlatformAdmin ? " solo" : ""}`}
-                  >
-                     {!isPlatformAdmin && (
-                        <div>
-                           <EventsPanel
-                              key={target}
-                              handle={target}
-                              initial={{
-                                 items: events,
-                                 pagination: data.eventsPagination,
-                              }}
-                              sub={
-                                 isCoordinator
-                                    ? isSelf
-                                       ? "What your clubs are running next"
-                                       : `Coming up from ${firstName}'s clubs`
-                                    : isSelf
-                                      ? "What you're signed up for next"
-                                      : "Public events they're attending"
-                              }
-                              emptyText={
-                                 isCoordinator
-                                    ? "No events scheduled yet."
-                                    : "Nothing on the calendar yet."
-                              }
-                              cta={
-                                 isSelf && isCoordinator && coordinated[0] ? (
-                                    <Link
-                                       to={`/clubs/${coordinated[0].slug}/events/new`}
-                                       className="fac-inline-link"
-                                    >
-                                       Create an event →
-                                    </Link>
-                                 ) : isSelf && isStudent ? (
-                                    <Link to="/explore" className="fac-inline-link">
-                                       Explore events →
-                                    </Link>
-                                 ) : null
-                              }
+                  <div>
+                     <div className="panel">
+                        <div className="panel-head">
+                           <div>
+                              <div className="panel-title">About</div>
+                              {isPlatformAdmin && (
+                                 <div className="panel-sub">
+                                    Platform administrator — runs the institute
+                                    rather than joining clubs.
+                                 </div>
+                              )}
+                           </div>
+                        </div>
+                        <div className="pr-facts">
+                           <Fact
+                              label="Role"
+                              value={ROLE_LABEL[user.role] || user.role}
                            />
-                           <ClubsPanel
-                              clubs={panelClubs}
-                              title={runsClubs ? "Clubs coordinated" : "Clubs"}
-                              sub={
-                                 runsClubs
-                                    ? isSelf
-                                       ? "Clubs you run"
-                                       : `Clubs ${firstName} runs`
-                                    : isSelf
-                                      ? "Clubs you're part of"
-                                      : `Clubs ${firstName} is part of`
-                              }
-                              emptyText={
-                                 isCoordinator
-                                    ? "Not coordinating any club yet."
-                                    : "Not a member of any club yet."
-                              }
-                              viewerRole={me?.role}
+                           <Fact
+                              label="Email"
+                              value={user.email}
+                              href={`mailto:${user.email}`}
+                           />
+                           <Fact label="Department" value={dept} />
+                           {isCoordinator ? (
+                              <>
+                                 <Fact
+                                    label="Designation"
+                                    value={user.profile?.designation}
+                                 />
+                                 <Fact
+                                    label="Office"
+                                    value={user.profile?.officeLocation}
+                                 />
+                              </>
+                           ) : (
+                              <Fact
+                                 label="Year"
+                                 value={
+                                    user.profile?.year &&
+                                    YEAR_LABEL[user.profile.year]
+                                 }
+                              />
+                           )}
+                           <Fact
+                              label="Joined"
+                              value={fullDate(user.createdAt)}
                            />
                         </div>
-                     )}
+                        {isSelf && user.role !== "superAdmin" && (
+                           <Link to="/settings" className="pr-edit-hint">
+                              Edit these in Settings →
+                           </Link>
+                        )}
+                     </div>
 
-                     <div>
+                     {!isCoordinator && skills.length > 0 && (
                         <div className="panel">
                            <div className="panel-head">
                               <div>
-                                 <div className="panel-title">About</div>
-                                 {isPlatformAdmin && (
-                                    <div className="panel-sub">
-                                       Platform administrator — runs the institute
-                                       rather than joining clubs.
-                                    </div>
-                                 )}
+                                 <div className="panel-title">Skills</div>
+                                 <div className="panel-sub">
+                                    Self-reported proficiency
+                                 </div>
                               </div>
                            </div>
-                           <div className="pr-facts">
-                              <Fact
-                                 label="Role"
-                                 value={ROLE_LABEL[user.role] || user.role}
-                              />
-                              <Fact
-                                 label="Email"
-                                 value={user.email}
-                                 href={`mailto:${user.email}`}
-                              />
-                              <Fact label="Department" value={dept} />
-                              {isCoordinator ? (
-                                 <>
-                                    <Fact
-                                       label="Designation"
-                                       value={user.profile?.designation}
-                                    />
-                                    <Fact
-                                       label="Office"
-                                       value={user.profile?.officeLocation}
-                                    />
-                                 </>
-                              ) : (
-                                 <Fact
-                                    label="Year"
-                                    value={
-                                       user.profile?.year &&
-                                       YEAR_LABEL[user.profile.year]
-                                    }
-                                 />
-                              )}
-                              <Fact
-                                 label="Joined"
-                                 value={fullDate(user.createdAt)}
-                              />
-                           </div>
-                           {isSelf && user.role !== "superAdmin" && (
-                              <Link to="/settings" className="pr-edit-hint">
-                                 Edit these in Settings →
-                              </Link>
-                           )}
+                           {skills.map((s) => (
+                              <div className="skill-row compact" key={s.name}>
+                                 <div className="skill-name">{s.name}</div>
+                                 <div className="skill-bar">
+                                    <span
+                                       style={{ width: `${s.level}%` }}
+                                    ></span>
+                                 </div>
+                                 <div className="skill-level">
+                                    {levelLabel(s.level)}
+                                 </div>
+                              </div>
+                           ))}
                         </div>
+                     )}
 
-                        {!isCoordinator && skills.length > 0 && (
-                           <div className="panel">
-                              <div className="panel-head">
-                                 <div>
-                                    <div className="panel-title">Skills</div>
-                                    <div className="panel-sub">
-                                       Self-reported proficiency
-                                    </div>
-                                 </div>
-                              </div>
-                              {skills.map((s) => (
-                                 <div className="skill-row compact" key={s.name}>
-                                    <div className="skill-name">{s.name}</div>
-                                    <div className="skill-bar">
-                                       <span
-                                          style={{ width: `${s.level}%` }}
-                                       ></span>
-                                    </div>
-                                    <div className="skill-level">
-                                       {levelLabel(s.level)}
-                                    </div>
-                                 </div>
+                     {interests.length > 0 && (
+                        <div className="panel">
+                           <div className="panel-head">
+                              <div className="panel-title">Interests</div>
+                           </div>
+                           <div className="profile-tags">
+                              {interests.map((t) => (
+                                 <span key={t} className="profile-tag">
+                                    {t}
+                                 </span>
                               ))}
                            </div>
-                        )}
-
-                        {interests.length > 0 && (
-                           <div className="panel">
-                              <div className="panel-head">
-                                 <div className="panel-title">Interests</div>
-                              </div>
-                              <div className="profile-tags">
-                                 {interests.map((t) => (
-                                    <span key={t} className="profile-tag">
-                                       {t}
-                                    </span>
-                                 ))}
-                              </div>
-                           </div>
-                        )}
-                     </div>
+                        </div>
+                     )}
                   </div>
-               </>
-            )}
+               </div>
          </div>
       </AppShell>
    );
