@@ -52,7 +52,11 @@ services:
         sync: false
       - key: SUPERADMIN_PASSWORD
         sync: false
-      # Leave SMTP_HOST empty and verification links are logged instead of sent.
+      # Email. Render blocks outbound SMTP on free instances, so Gmail/SMTP will time
+      # out there — use a Resend API key, which goes over HTTPS. The SMTP vars below
+      # stay for local development.
+      - key: RESEND_API_KEY
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

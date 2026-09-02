@@ -1,9 +1,13 @@
-// Email service — sends verification + password-reset mails via SMTP.
-// In dev (no SMTP_HOST set), emails are logged to the console instead so the flow still works.
+// Email service. Three transports, tried in order:
+//   RESEND_API_KEY → Resend's HTTPS API. The only one that works on hosts that block
+//                    outbound SMTP, which most free PaaS tiers (Render included) do.
+//   SMTP_HOST      → plain SMTP via nodemailer. Fine locally.
+//   neither        → print the message, so the flow still works without any provider.
 const nodemailer = require("nodemailer");
 const { addToQueue } = require("../config/queue");
 
 const from = process.env.SMTP_FROM || "Campus Hub <no-reply@campushub.local>";
+const resendKey = process.env.RESEND_API_KEY;
 const host = process.env.SMTP_HOST;
 const port = Number(process.env.SMTP_PORT) || 587;
 const user = process.env.SMTP_USER;
@@ -14,8 +18,7 @@ let transporter = null;
 
 function getTransporter() {
    if (transporter) return transporter;
-
-   if (!host) return null; // No SMTP configured → caller falls back to console logging.
+   if (!host) return null;
 
    transporter = nodemailer.createTransport({
       host,
@@ -27,10 +30,26 @@ function getTransporter() {
    return transporter;
 }
 
-// Internal sender. If SMTP isn't configured we just print the email — handy for local dev.
-async function sendEmail(to, subject, html, text) {
-   const t = getTransporter();
+// Resend over HTTPS. Errors carry the API's own message so the queue log is useful.
+async function sendViaResend(to, subject, html, text) {
+   const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+         Authorization: `Bearer ${resendKey}`,
+         "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to, subject, html, text }),
+   });
+   if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(`Resend ${res.status}: ${detail.slice(0, 300)}`);
+   }
+}
 
+async function sendEmail(to, subject, html, text) {
+   if (resendKey) return sendViaResend(to, subject, html, text);
+
+   const t = getTransporter();
    if (!t) {
       console.log(
          `\n[email:dev] to=${to}\n  subject="${subject}"\n  ${text}\n`,
