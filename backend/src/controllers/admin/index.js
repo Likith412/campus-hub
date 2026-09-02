@@ -2,4 +2,5 @@
 module.exports = {
    ...require("./users.controller"),
    ...require("./clubs.controller"),
+   ...require("./events.controller"),
 };

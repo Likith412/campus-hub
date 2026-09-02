@@ -6,6 +6,7 @@ const Club = require("./Club");
 const ClubMembership = require("./ClubMembership");
 const ClubRole = require("./ClubRole");
 const Event = require("./Event");
+const EventRegistration = require("./EventRegistration");
 const AuthSession = require("./AuthSession");
 const EmailVerification = require("./EmailVerification");
 const PasswordReset = require("./PasswordReset");
@@ -20,6 +21,7 @@ module.exports = {
    ClubMembership,
    ClubRole,
    Event,
+   EventRegistration,
    AuthSession,
    EmailVerification,
    PasswordReset,

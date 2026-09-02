@@ -39,6 +39,8 @@ const CAPPED_EVENT = {
    capacity: 3,
    waitlistEnabled: true,
    status: "published",
+   // Campus-wide, so it only lands on a verified club (see blueprintsFor).
+   visibility: "public",
    fill: 5, // deliberately over capacity — exercises the waitlist
 };
 
@@ -52,6 +54,7 @@ const OPEN_EVENT = {
    venue: { type: "offline", location: "Seminar Hall B" },
    capacity: 0, // unlimited
    status: "published",
+   visibility: "public",
    fill: 3,
 };
 
@@ -171,6 +174,11 @@ async function seed() {
                capacity: bp.capacity,
                waitlistEnabled: !!bp.waitlistEnabled,
                status: bp.status,
+               // An unverified club can't host a public event.
+               visibility:
+                  bp.visibility === "public" && club.verified
+                     ? "public"
+                     : "private",
             },
             { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
          );

@@ -455,17 +455,6 @@ export default function ClubControls() {
                   </div>
                </div>
                <div className="cctl-head-actions">
-                  <Link
-                     className="btn btn-secondary"
-                     to={`/clubs/${club.slug}/members`}
-                  >
-                     <Icon size={13} strokeWidth={2.2}>
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                     </Icon>
-                     Manage members
-                  </Link>
                   <button
                      type="button"
                      className="btn btn-secondary"
@@ -489,6 +478,75 @@ export default function ClubControls() {
             </div>
 
             <div className={`cctl-grid${busy ? " is-busy" : ""}`}>
+               {/* MANAGE — the club's own admin surfaces, which a superAdmin can
+                   otherwise only reach from the faculty sidebar. */}
+               <div className="cctl-panel cctl-span">
+                  <div className="cctl-panel-title">
+                     <span className="cctl-ic blue">
+                        <Icon size={15} strokeWidth={2.2}>
+                           <rect x="3" y="3" width="7" height="7" rx="1" />
+                           <rect x="14" y="3" width="7" height="7" rx="1" />
+                           <rect x="3" y="14" width="7" height="7" rx="1" />
+                           <rect x="14" y="14" width="7" height="7" rx="1" />
+                        </Icon>
+                     </span>
+                     Manage this club
+                  </div>
+                  <div className="cctl-panel-sub">
+                     The same surfaces a coordinator uses, with full superAdmin access.
+                  </div>
+                  <div className="cctl-links">
+                     <Link
+                        className="cctl-link"
+                        to={`/clubs/${club.slug}/members`}
+                     >
+                        <span className="cctl-link-ic">
+                           <Icon size={15} strokeWidth={2.2}>
+                              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                              <circle cx="9" cy="7" r="4" />
+                              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                           </Icon>
+                        </span>
+                        <span>
+                           <span className="cctl-link-name">Members</span>
+                           <span className="cctl-link-sub">
+                              Approve, remove, assign roles
+                           </span>
+                        </span>
+                     </Link>
+                     <Link className="cctl-link" to={`/clubs/${club.slug}/roles`}>
+                        <span className="cctl-link-ic">
+                           <Icon size={15} strokeWidth={2.2}>
+                              <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+                              <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+                           </Icon>
+                        </span>
+                        <span>
+                           <span className="cctl-link-name">Roles</span>
+                           <span className="cctl-link-sub">
+                              Permissions per role
+                           </span>
+                        </span>
+                     </Link>
+                     <Link className="cctl-link" to={`/clubs/${club.slug}/events`}>
+                        <span className="cctl-link-ic">
+                           <Icon size={15} strokeWidth={2.2}>
+                              <rect x="3" y="4" width="18" height="18" rx="2" />
+                              <line x1="16" y1="2" x2="16" y2="6" />
+                              <line x1="8" y1="2" x2="8" y2="6" />
+                              <line x1="3" y1="10" x2="21" y2="10" />
+                           </Icon>
+                        </span>
+                        <span>
+                           <span className="cctl-link-name">Events</span>
+                           <span className="cctl-link-sub">
+                              Publish, edit, cancel
+                           </span>
+                        </span>
+                     </Link>
+                  </div>
+               </div>
+
                {/* VERIFICATION */}
                <div className="cctl-panel">
                   <div className="cctl-panel-title">

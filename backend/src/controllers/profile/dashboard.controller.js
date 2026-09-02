@@ -1,12 +1,27 @@
 // Profile dashboard controller — the lazily-loaded read-only tabs (overview stats, activity,
 // heatmap, clubs, achievements). Some are placeholders until their backing models land.
 const { successResponse } = require("../../utils/response");
-const { User, ClubMembership, Club } = require("../../models");
+const {
+   User,
+   ClubMembership,
+   Club,
+   EventRegistration,
+} = require("../../models");
 
 // GET /profile/me/stats — the four stat cards across the top of the overview tab.
+// eventsRegistered is counted live off the registrations; the rest are still stored
+// placeholders waiting on their own features.
 async function getStats(req, res) {
-   const user = await User.findById(req.user._id, "stats").lean();
-   return successResponse(res, 200, "Stats", { stats: user?.stats || {} });
+   const [user, eventsRegistered] = await Promise.all([
+      User.findById(req.user._id, "stats").lean(),
+      EventRegistration.countDocuments({
+         userId: req.user._id,
+         status: "registered",
+      }),
+   ]);
+   return successResponse(res, 200, "Stats", {
+      stats: { ...(user?.stats || {}), eventsRegistered },
+   });
 }
 
 // GET /profile/me/recent-activity — placeholder until the Activity model lands.

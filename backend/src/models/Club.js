@@ -69,7 +69,6 @@ const clubSchema = new mongoose.Schema(
       stats: {
          memberCount: { type: Number, default: 0 },
          eventCount: { type: Number, default: 0 },
-         totalEngagement: { type: Number, default: 0 },
       },
 
       socialLinks: {

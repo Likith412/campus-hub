@@ -25,6 +25,7 @@ const CUSTOM_ROLES = [
          "announcements:pin",
          "events:create",
          "events:edit",
+         "events:publish",
       ],
    },
    {
@@ -71,9 +72,12 @@ async function seed() {
    for (const club of clubs) {
       // System roles (coordinator / member) — only insert if missing.
       for (const doc of systemRoleDocs(club._id)) {
+         const { permissions, ...rest } = doc;
          await ClubRole.findOneAndUpdate(
             { clubId: club._id, slug: doc.slug },
-            { $setOnInsert: doc },
+            // Keep the permission array current as the catalog grows; everything else
+            // about a system role is fixed at creation.
+            { $setOnInsert: rest, $set: { permissions } },
             { upsert: true, setDefaultsOnInsert: true },
          );
       }

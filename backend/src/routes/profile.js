@@ -6,10 +6,12 @@ const express = require("express");
 const profile = require("../controllers/profile");
 const authenticate = require("../middlewares/authenticate");
 const validate = require("../middlewares/validate");
+const { validateQuery } = require("../middlewares/validate");
 const {
    updateProfileSchema,
    updateSkillsSchema,
    updatePreferencesSchema,
+   listProfileEventsQuerySchema,
 } = require("../validators/profile");
 
 const router = express.Router();
@@ -44,6 +46,17 @@ router.patch(
    "/me/preferences",
    validate(updatePreferencesSchema),
    profile.updatePreferences,
+);
+
+// ============================================================================
+//  PUBLIC PROFILE — anyone's profile by username or id  (publicProfile.controller)
+//  Declared last: ":handle" is a single segment, so it can't shadow the /me routes.
+// ============================================================================
+router.get("/:handle", profile.getPublicProfile);
+router.get(
+   "/:handle/events",
+   validateQuery(listProfileEventsQuerySchema),
+   profile.listProfileEvents,
 );
 
 module.exports = router;

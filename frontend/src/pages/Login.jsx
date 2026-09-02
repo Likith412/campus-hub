@@ -28,8 +28,8 @@ const brandFeats = [
       icon: (
          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21 12 17.77 5.82 21 7 14.14 2 9.27 8.91 8.26" />
       ),
-      title: "AI Discovery.",
-      body: "Personalised events & clubs picked from your activity, skills, and friends.",
+      title: "One place to look.",
+      body: "Every workshop, contest and hackathon running across campus, in one feed.",
    },
    {
       icon: (
@@ -114,7 +114,7 @@ function Login() {
             <div className="brand-top">
                <div className="brand-mark-big">C</div>
                <div className="brand-name-big">
-                  CampusHub <span>AI</span>
+                  Campus Hub
                </div>
             </div>
 
@@ -123,12 +123,11 @@ function Login() {
                   <span className="pulse"></span>Welcome back
                </div>
                <h1 className="brand-headline">
-                  Your campus, <em>organised by intelligence</em>.
+                  Your campus, <em>all in one place</em>.
                </h1>
                <p className="brand-sub">
                   Discover events, run clubs, contest with peers, earn verified
-                  certificates — all in one place. AI surfaces what fits your
-                  skills, your schedule, your curve.
+                  certificates — all in one place.
                </p>
 
                <ul className="brand-feats">
@@ -160,7 +159,7 @@ function Login() {
 
          <section className="auth-form-wrap">
             <div className="auth-form-top">
-               New to CampusHub?<Link to="/register">Create an account</Link>
+               New to Campus Hub?<Link to="/register">Create an account</Link>
             </div>
 
             <form className="auth-form" onSubmit={handleSubmit}>
@@ -257,7 +256,7 @@ function Login() {
 
                <div className="auth-foot">
                   Need help signing in?
-                  <Link to="/contact">Contact your club coordinator</Link>
+                  <span>Contact your club coordinator</span>
                </div>
             </form>
          </section>

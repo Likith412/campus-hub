@@ -5,4 +5,5 @@ export { apiClient } from "./api/client";
 export * as authApi from "./api/auth";
 export * as profileApi from "./api/profile";
 export * as clubsApi from "./api/clubs";
+export * as eventsApi from "./api/events";
 export * as adminApi from "./api/admin";

@@ -1,5 +1,5 @@
 // Full-screen branded splash shown while the app bootstraps the session.
-// Reuses the CampusHub logo mark (white "C" + purple orbit dot) so the cold-load
+// Reuses the Campus Hub logo mark (white "C" + purple orbit dot) so the cold-load
 // looks intentional instead of a blank flash.
 export default function BootScreen({ label = "Loading your campus…" }) {
    return (
@@ -24,7 +24,7 @@ export default function BootScreen({ label = "Loading your campus…" }) {
                </svg>
             </div>
             <div className="boot-name">
-               CampusHub <span>AI</span>
+               Campus Hub
             </div>
             <div className="boot-bar">
                <span />

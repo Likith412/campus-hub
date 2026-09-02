@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
+import PersonLink from "../components/PersonLink";
 import { adminApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
@@ -416,7 +417,7 @@ export default function Faculty() {
                <p className="fac-page-sub">
                   Mint faculty accounts. Each gets an email with login credentials.
                   Coordinators can then be{" "}
-                  <Link to="/clubs" className="fac-inline-link">
+                  <Link to="/admin/clubs" className="fac-inline-link">
                      assigned clubs
                   </Link>{" "}
                   to administer.
@@ -540,7 +541,7 @@ export default function Faculty() {
                                              {initials(u.name)}
                                           </div>
                                           <div>
-                                             <div className="fac-name">{u.name}</div>
+                                             <PersonLink user={u} className="fac-name" />
                                              <div className="fac-email">{u.email}</div>
                                           </div>
                                        </div>

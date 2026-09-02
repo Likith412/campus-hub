@@ -78,7 +78,6 @@ const studentSchema = new mongoose.Schema({
    skills: { type: [skillSchema], default: [] },
    interests: { type: [String], default: [] },
    stats: {
-      eventsAttended: { type: Number, default: 0 },
       certificatesCount: { type: Number, default: 0 },
       contestRating: { type: Number, default: 0 },
       currentStreak: { type: Number, default: 0 },

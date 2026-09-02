@@ -64,35 +64,6 @@ const POLICY_LABEL = {
    "invite-only": "Invite-only",
 };
 
-// TODO(ai): replace with /api/clubs/recommendations once the recommender lands.
-// Placeholder picks rendered with a visible "Coming soon" badge so it isn't mistaken for live data.
-const AI_SUGGESTIONS = [
-   {
-      slug: "quantum-computing",
-      short: "QC",
-      name: "Quantum Computing",
-      match: "92% match · new this semester",
-      from: "#4338ca",
-      to: "#818cf8",
-   },
-   {
-      slug: "webdev-society",
-      short: "WD",
-      name: "WebDev Society",
-      match: "87% match · 4 friends here",
-      from: "#831843",
-      to: "#ec4899",
-   },
-   {
-      slug: "robotics-club",
-      short: "RB",
-      name: "Robotics Club",
-      match: "81% match · open recruitment",
-      from: "#064e3b",
-      to: "#34d399",
-   },
-];
-
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
 function clubInitials(name = "") {
@@ -511,59 +482,6 @@ export default function Clubs() {
                         </button>
                      )}
                   </div>
-               </div>
-            </div>
-
-            {/* AI SUGGESTIONS — TODO: wire to /api/clubs/recommendations */}
-            <div className="ai-suggest">
-               <div className="ai-suggest-head">
-                  <div className="ai-suggest-glyph">
-                     <Icon size={14} strokeWidth={2.5}>
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21 12 17.77 5.82 21 7 14.14 2 9.27 8.91 8.26" />
-                     </Icon>
-                  </div>
-                  <div>
-                     <div className="ai-suggest-title">
-                        Clubs you might enjoy
-                     </div>
-                     <div className="ai-suggest-sub">
-                        Based on your activity, attended events &amp; skill
-                        graph
-                     </div>
-                  </div>
-                  <span
-                     className="ai-pill"
-                     title="Placeholder — recommender not wired yet"
-                  >
-                     TODO · Coming soon
-                  </span>
-               </div>
-               <div className="suggestion-row">
-                  {AI_SUGGESTIONS.map((s) => (
-                     <Link
-                        key={s.slug}
-                        to={`/clubs/${s.slug}`}
-                        className="suggestion"
-                     >
-                        <div
-                           className="suggestion-logo"
-                           style={{
-                              background: `linear-gradient(135deg, ${s.from}, ${s.to})`,
-                           }}
-                        >
-                           {s.short}
-                        </div>
-                        <div className="suggestion-info">
-                           <div className="suggestion-name">{s.name}</div>
-                           <div className="suggestion-match">{s.match}</div>
-                        </div>
-                        <span className="suggestion-arrow">
-                           <Icon size={14} strokeWidth={2.5}>
-                              <polyline points="9 18 15 12 9 6" />
-                           </Icon>
-                        </span>
-                     </Link>
-                  ))}
                </div>
             </div>
 

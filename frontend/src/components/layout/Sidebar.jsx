@@ -34,7 +34,7 @@ export default function Sidebar() {
          <div className="brand">
             <div className="brand-mark">C</div>
             <div className="brand-name">
-               CampusHub <span>AI</span>
+               Campus Hub
             </div>
          </div>
 

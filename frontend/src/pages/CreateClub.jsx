@@ -388,7 +388,7 @@ export default function CreateClub() {
                                  <span className="opt">· auto-generated</span>
                               </label>
                               <div className="input-affix">
-                                 <span className="prefix">campushub.ai/c/</span>
+                                 <span className="prefix">campushub.edu/c/</span>
                                  <input
                                     className="input"
                                     value={slug}
@@ -580,8 +580,7 @@ export default function CreateClub() {
                                  />
                               </div>
                               <div className="help">
-                                 Helps AI recommend your club to the right
-                                 students.
+                                 Students filter and search by these.
                               </div>
                            </div>
 
@@ -792,7 +791,7 @@ export default function CreateClub() {
                                     </strong>
                                     <br />
                                     <span className="meta">
-                                       campushub.ai/c/{slug || "—"}
+                                       campushub.edu/c/{slug || "—"}
                                     </span>
                                  </div>
                                  <button
@@ -932,8 +931,8 @@ export default function CreateClub() {
                                  </h4>
                                  <p>
                                     {isSuperAdmin
-                                       ? "Your club is active and verified the moment you create it — verified clubs rank higher in Explore and AI recommendations."
-                                       : "Your club is active the moment you create it. A Super Admin reviews new clubs and awards the verified ✓ — verified clubs rank higher in Explore and AI recommendations."}
+                                       ? "Your club is active and verified the moment you create it — verified clubs rank higher in Explore."
+                                       : "Your club is active the moment you create it. A Super Admin reviews new clubs and awards the verified ✓ — verified clubs rank higher in Explore."}
                                  </p>
                               </div>
                            </div>

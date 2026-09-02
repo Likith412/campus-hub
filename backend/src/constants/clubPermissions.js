@@ -11,8 +11,9 @@ const CLUB_PERMISSIONS = [
    { key: "announcements:pin", label: "Pin announcements", group: "Announcements", desc: "Pin announcements to the top of the feed" },
    { key: "announcements:delete", label: "Delete announcements", group: "Announcements", desc: "Remove any announcement in the club" },
    { key: "events:create", label: "Create events", group: "Events", desc: "Run the event creation wizard" },
-   { key: "events:edit", label: "Edit events", group: "Events", desc: "Edit details, reschedule, take attendance" },
-   { key: "events:cancel", label: "Cancel events", group: "Events", desc: "Cancel or archive events" },
+   { key: "events:edit", label: "Edit events", group: "Events", desc: "Edit details, reschedule, view the attendee roster" },
+   { key: "events:publish", label: "Publish events", group: "Events", desc: "Take a draft live so members can register" },
+   { key: "events:cancel", label: "Cancel events", group: "Events", desc: "Call off a live event, delete a draft" },
 ];
 
 const CLUB_PERMISSION_KEYS = CLUB_PERMISSIONS.map((p) => p.key);

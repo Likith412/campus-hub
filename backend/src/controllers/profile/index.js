@@ -4,4 +4,5 @@ module.exports = {
    ...require("./skills.controller"),
    ...require("./preferences.controller"),
    ...require("./dashboard.controller"),
+   ...require("./publicProfile.controller"),
 };

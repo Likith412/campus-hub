@@ -118,7 +118,7 @@ function VerifyEmail() {
             <div className="brand-top">
                <div className="brand-mark-big">C</div>
                <div className="brand-name-big">
-                  CampusHub <span>AI</span>
+                  Campus Hub
                </div>
             </div>
 
@@ -194,7 +194,7 @@ function VerifyEmail() {
                            <div className="title">You're all set</div>
                            <div className="msg">
                               Your email has been confirmed and your account is
-                              active. Sign in to start exploring CampusHub.
+                              active. Sign in to start exploring Campus Hub.
                            </div>
                         </div>
                      </div>
@@ -298,7 +298,7 @@ function VerifyEmail() {
 
                <div className="auth-foot">
                   Need help?
-                  <Link to="/contact">Contact your club coordinator</Link>
+                  <span>Contact your club coordinator</span>
                </div>
             </div>
          </section>

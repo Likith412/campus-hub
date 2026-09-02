@@ -46,7 +46,7 @@ app.use(cookieParser());
 
 // Health/landing route — quick sanity check that the API is up.
 app.get("/", (_req, res) => {
-   res.send({ message: "CampusHub API" });
+   res.send({ message: "Campus Hub API" });
 });
 
 // All API endpoints live under /api (auth, clubs, events, ...).

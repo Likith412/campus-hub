@@ -10,6 +10,10 @@ const EVENT_STATUSES = [
    "cancelled",
 ];
 const VENUE_TYPES = ["online", "offline", "hybrid"];
+// Who the event is for. Public events are browsable campus-wide and open to any
+// student; private ones are visible and open only to the club's own members.
+// Only a verified club may publish public events.
+const EVENT_VISIBILITIES = ["public", "private"];
 
 const eventSchema = new mongoose.Schema(
    {
@@ -25,7 +29,6 @@ const eventSchema = new mongoose.Schema(
       },
 
       title: { type: String, required: true, trim: true },
-      slug: { type: String, lowercase: true, trim: true },
       description: String,
       bannerUrl: String,
 
@@ -56,14 +59,17 @@ const eventSchema = new mongoose.Schema(
          enum: EVENT_STATUSES,
          default: "draft",
       },
+      // Defaults to the safe option: an unverified club can't create public events.
+      visibility: {
+         type: String,
+         enum: EVENT_VISIBILITIES,
+         default: "private",
+      },
 
       tags: { type: [String], default: [] },
 
       stats: {
          registered: { type: Number, default: 0 },
-         attended: { type: Number, default: 0 },
-         feedbackCount: { type: Number, default: 0 },
-         avgRating: { type: Number, default: 0 },
       },
    },
    { timestamps: true, versionKey: false },
@@ -73,9 +79,11 @@ const eventSchema = new mongoose.Schema(
 eventSchema.index({ clubId: 1, startAt: -1 });
 eventSchema.index({ eventType: 1, status: 1, startAt: 1 });
 eventSchema.index({ status: 1, startAt: 1 });
+eventSchema.index({ visibility: 1, status: 1, startAt: 1 });
 eventSchema.index({ tags: 1 });
 
 module.exports = mongoose.model("Event", eventSchema);
 module.exports.EVENT_TYPES = EVENT_TYPES;
 module.exports.EVENT_STATUSES = EVENT_STATUSES;
 module.exports.VENUE_TYPES = VENUE_TYPES;
+module.exports.EVENT_VISIBILITIES = EVENT_VISIBILITIES;

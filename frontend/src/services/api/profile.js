@@ -12,6 +12,22 @@ export async function updateMe(payload) {
    return data;
 }
 
+// Anyone's profile, by username or user id.
+export async function getProfile(handle) {
+   const { data } = await apiClient.get(
+      `/profile/${encodeURIComponent(handle)}`,
+   );
+   return data;
+}
+
+// The profile's event panel pages on its own — page 1 already ships with getProfile().
+export async function getProfileEvents(handle, page) {
+   const { data } = await apiClient.get(
+      `/profile/${encodeURIComponent(handle)}/events?page=${page}`,
+   );
+   return data;
+}
+
 export async function getStats() {
    const { data } = await apiClient.get("/profile/me/stats");
    return data;

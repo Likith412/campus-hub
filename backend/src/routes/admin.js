@@ -12,6 +12,7 @@ const {
    listUsersQuerySchema,
    setUserActiveBodySchema,
    listAllClubsQuerySchema,
+   listAllEventsQuerySchema,
 } = require("../validators/admin");
 
 const router = express.Router();
@@ -22,6 +23,7 @@ router.use(authenticate, requireRole(ROLES.SUPER_ADMIN));
 // ============================================================================
 router.get("/users", validateQuery(listUsersQuerySchema), admin.listUsers);
 router.get("/faculty/stats", admin.getFacultyStats);
+router.get("/students/stats", admin.getStudentStats);
 router.post("/users", validate(createFacultyBodySchema), admin.createFaculty);
 router.patch(
    "/users/:id/active",
@@ -36,6 +38,15 @@ router.get(
    "/clubs",
    validateQuery(listAllClubsQuerySchema),
    admin.listAllClubs,
+);
+
+// ============================================================================
+//  EVENTS  (controllers/admin/events.controller)
+// ============================================================================
+router.get(
+   "/events",
+   validateQuery(listAllEventsQuerySchema),
+   admin.listAllEvents,
 );
 
 module.exports = router;

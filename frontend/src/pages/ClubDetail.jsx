@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
-import { clubsApi, ApiError } from "../services";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { clubsApi, eventsApi, ApiError } from "../services";
+import { clubsListCrumb, clubsListHref } from "../utils/nav";
+import PersonLink from "../components/PersonLink";
 import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
@@ -8,6 +10,14 @@ import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
 import EditClubModal from "../components/EditClubModal";
 import { useToast } from "../contexts/ToastContext";
+import {
+   EVENT_TYPE_LABEL,
+   eventDateParts,
+   eventState,
+   formatEventWhen,
+   formatVenue,
+   registerState,
+} from "../utils/events";
 import { useConfirm } from "../contexts/ConfirmContext";
 
 const CATEGORY_LABEL = {
@@ -40,6 +50,13 @@ const YEAR_LABEL = {
    4: "4th yr",
    postgrad: "PG",
 };
+const EVENT_SORTS = [
+   { id: "soonest", label: "Date · soonest" },
+   { id: "latest", label: "Date · latest" },
+   { id: "popular", label: "Most registered" },
+   { id: "new", label: "Recently created" },
+];
+
 const PAGE_SIZE = 20;
 
 function initials(name = "") {
@@ -72,10 +89,7 @@ function RoleBadge({ slug, roleBySlug }) {
    const name = role?.name || ROLE_LABEL[slug] || slug;
    const color = role?.color || "#94a3b8";
    return (
-      <span
-         className="ml-role"
-         style={{ color, background: `${color}1f` }}
-      >
+      <span className="ml-role" style={{ color, background: `${color}1f` }}>
          {name}
       </span>
    );
@@ -101,7 +115,7 @@ function MemberRow({ row, roleBySlug }) {
             )}
          </div>
          <div>
-            <div className="ml-name">{row.name}</div>
+            <PersonLink user={row} className="ml-name" />
             <div className="ml-meta">{meta}</div>
          </div>
          <RoleBadge slug={row.role} roleBySlug={roleBySlug} />
@@ -111,17 +125,110 @@ function MemberRow({ row, roleBySlug }) {
    );
 }
 
+// Shared register states → this row's button classes.
+const REG_CLASS = {
+   registered: "done",
+   waitlisted: "wait",
+   register: "primary",
+   waitlist: "primary",
+};
+
+function EventRow({ event, canRegister, busy, onRegister, onLeave, onOpen }) {
+   const { month, day } = eventDateParts(event.startAt);
+   const state = eventState(event);
+   // Staff run events, they don't attend them — no register control for them.
+   const reg = canRegister ? registerState(event) : null;
+
+   return (
+      <tr
+         className={`ac-row${state.cls === "cancelled" ? " dim" : ""}`}
+         onClick={() => onOpen(event)}
+      >
+         <td>
+            <div className="fac-cell">
+               <div className="ev-date sm">
+                  <div className="ev-month">{month}</div>
+                  <div className="ev-day">{day}</div>
+               </div>
+               <div>
+                  <div className="et-name">
+                     {event.title}
+                     {event.visibility === "private" && (
+                        <span className="et-private" title="Members only">
+                           <Icon size={10} strokeWidth={2.6}>
+                              <rect x="3" y="11" width="18" height="11" rx="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                           </Icon>
+                        </span>
+                     )}
+                  </div>
+                  <div className="et-meta">
+                     <span className={`badge ${event.eventType}`}>
+                        {EVENT_TYPE_LABEL[event.eventType]}
+                     </span>
+                  </div>
+               </div>
+            </div>
+         </td>
+         <td>{formatEventWhen(event.startAt, event.endAt)}</td>
+         <td>{formatVenue(event.venue)}</td>
+         <td className="ta-right">
+            <span className="et-seats">
+               {event.registeredCount}
+               {event.capacity ? ` / ${event.capacity}` : ""}
+            </span>
+         </td>
+         <td>
+            <span className={`ev-status ${state.cls}`}>{state.label}</span>
+         </td>
+         {canRegister && (
+            <td className="ta-right">
+               {reg && (
+                  <button
+                     type="button"
+                     className={`ev-reg-btn ${REG_CLASS[reg.state] || ""}`}
+                     disabled={!reg.action || busy}
+                     onClick={(ev) => {
+                        // The row navigates; this button does its own thing.
+                        ev.stopPropagation();
+                        reg.action === "leave" ? onLeave(event) : onRegister(event);
+                     }}
+                  >
+                     {busy ? "…" : reg.label}
+                  </button>
+               )}
+            </td>
+         )}
+      </tr>
+   );
+}
+
 export default function ClubDetail() {
    const { slug } = useParams();
+   const navigate = useNavigate();
    const toast = useToast();
    const confirm = useConfirm();
    const { user } = useAuth();
    const isStudent = user?.role === "student";
+   // Where the parent crumb points, and what it's called, depend on the viewer.
+   const clubsCrumb = clubsListCrumb(user?.role);
    const [club, setClub] = useState(null);
    const [clubLoadedSlug, setClubLoadedSlug] = useState(null);
    const [joinBusy, setJoinBusy] = useState(false);
    const [editing, setEditing] = useState(false);
-   const [tab, setTab] = useState("members");
+   const [searchParams] = useSearchParams();
+   // ?tab=events lets the create-event redirect land straight on the events tab.
+   const [tab, setTab] = useState(() =>
+      searchParams.get("tab") === "events" ? "events" : "members",
+   );
+
+   // Events tab state
+   const [eventsWhen, setEventsWhen] = useState("all");
+   const [eventsSort, setEventsSort] = useState("new");
+   const [events, setEvents] = useState(null);
+   const [eventsViewer, setEventsViewer] = useState(null);
+   const [eventsLoadedKey, setEventsLoadedKey] = useState(null);
+   const [regBusyId, setRegBusyId] = useState(null);
 
    // Members tab state
    const [search, setSearch] = useState("");
@@ -184,6 +291,69 @@ export default function ClubDetail() {
    useEffect(() => {
       refetchRoles();
    }, [refetchRoles]);
+
+   const eventsKey = `${slug}|${eventsWhen}|${eventsSort}`;
+   const eventsLoading = eventsLoadedKey !== eventsKey;
+
+   const refetchEvents = useCallback(() => {
+      eventsApi
+         .listClubEvents(slug, { when: eventsWhen, sort: eventsSort, limit: 50 })
+         .then((d) => {
+            setEvents(d);
+            setEventsViewer(d.viewer || null);
+         })
+         .catch((err) => {
+            toast.error(
+               err instanceof ApiError ? err.message : "Couldn't load events",
+            );
+            setEvents({ items: [], pagination: { total: 0 } });
+         })
+         .finally(() => setEventsLoadedKey(`${slug}|${eventsWhen}|${eventsSort}`));
+   }, [slug, eventsWhen, eventsSort, toast]);
+
+   useEffect(() => {
+      refetchEvents();
+   }, [refetchEvents]);
+
+   // Register / leave both refetch — the counters and the waitlist move server-side.
+   async function handleRegister(event) {
+      setRegBusyId(event.id);
+      try {
+         const res = await eventsApi.registerForEvent(event.id);
+         toast.success(
+            res?.registration?.status === "waitlisted"
+               ? "Added to the waitlist"
+               : "You're registered",
+         );
+         refetchEvents();
+      } catch (err) {
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't register",
+         );
+      } finally {
+         setRegBusyId(null);
+      }
+   }
+
+   async function handleLeaveEvent(event) {
+      const ok = await confirm({
+         title: `Cancel your spot at “${event.title}”?`,
+         message: "Your seat goes to the next person on the waitlist.",
+         confirmLabel: "Cancel registration",
+         danger: true,
+      });
+      if (!ok) return;
+      setRegBusyId(event.id);
+      try {
+         await eventsApi.unregisterFromEvent(event.id);
+         toast.success("Registration cancelled");
+         refetchEvents();
+      } catch (err) {
+         toast.error(err instanceof ApiError ? err.message : "Couldn't cancel");
+      } finally {
+         setRegBusyId(null);
+      }
+   }
 
    const fetchMembers = useCallback(() => {
       const myId = ++reqIdRef.current;
@@ -313,7 +483,7 @@ export default function ClubDetail() {
    if (clubLoading && !club) {
       return (
          <AppShell title="Club">
-            <div className="main">
+            <div className="main club-detail">
                <HeaderSkeleton />
             </div>
          </AppShell>
@@ -323,12 +493,17 @@ export default function ClubDetail() {
    if (!club) {
       return (
          <AppShell title="Club">
-            <div className="main">
+            <div className="main club-detail">
                <div className="profile-empty">
                   Club not found.{" "}
-                  <Link to="/clubs" style={{ color: "var(--accent-purple)" }}>
-                     Back to clubs
-                  </Link>
+                  {clubsListHref(user?.role) && (
+                     <Link
+                        to={clubsListHref(user?.role)}
+                        style={{ color: "var(--accent-purple)" }}
+                     >
+                        Back to clubs
+                     </Link>
+                  )}
                </div>
             </div>
          </AppShell>
@@ -343,7 +518,7 @@ export default function ClubDetail() {
    if (isFaculty && !isClubCoordinator) {
       return (
          <AppShell title="Club">
-            <div className="main">
+            <div className="main club-detail">
                <div className="profile-empty">
                   You can only view clubs you coordinate.
                </div>
@@ -386,9 +561,13 @@ export default function ClubDetail() {
 
    return (
       <AppShell title={`Club · ${club.name}`}>
-         <div className="main">
+         <div className="main club-detail">
             <div className="breadcrumb">
-               {isStudent ? <Link to="/clubs">Clubs</Link> : <span>Clubs</span>}
+               {clubsCrumb.to ? (
+                  <Link to={clubsCrumb.to}>{clubsCrumb.label}</Link>
+               ) : (
+                  <span>{clubsCrumb.label}</span>
+               )}
                <span className="sep">›</span>
                <span className="now">{club.name}</span>
             </div>
@@ -455,7 +634,8 @@ export default function ClubDetail() {
                   )}
                </div>
                <div className="club-actions">
-                  {(user?.role === "superAdmin" || rolesViewer?.canEditClub) && (
+                  {(user?.role === "superAdmin" ||
+                     rolesViewer?.canEditClub) && (
                      <button
                         type="button"
                         className="btn btn-secondary"
@@ -520,6 +700,21 @@ export default function ClubDetail() {
                   </Icon>
                   Members
                   <span className="count">{club.memberCount}</span>
+               </div>
+               <div
+                  className={`ct-tab${tab === "events" ? " active" : ""}`}
+                  onClick={() => setTab("events")}
+               >
+                  <Icon size={13} strokeWidth={2.2}>
+                     <rect x="3" y="4" width="18" height="18" rx="2" />
+                     <line x1="16" y1="2" x2="16" y2="6" />
+                     <line x1="8" y1="2" x2="8" y2="6" />
+                     <line x1="3" y1="10" x2="21" y2="10" />
+                  </Icon>
+                  Events
+                  <span className="count">
+                     {events?.pagination?.total ?? 0}
+                  </span>
                </div>
             </div>
 
@@ -609,6 +804,105 @@ export default function ClubDetail() {
                         hasMore={pagination?.hasMore}
                         onChange={setPage}
                      />
+                  )}
+               </div>
+            )}
+
+            {/* EVENTS TAB */}
+            {tab === "events" && (
+               <div className="tab-pane active">
+                  <div className="ev-head">
+                     <div>
+                        <div className="panel-title">
+                           Upcoming &amp; recent events
+                        </div>
+                        <div className="panel-sub">
+                           {events?.pagination?.total ?? 0} event
+                           {events?.pagination?.total === 1 ? "" : "s"}
+                           {eventsViewer?.canCreate
+                              ? " · drafts are visible to you only"
+                              : ""}
+                        </div>
+                     </div>
+                     <div className="tabs">
+                        {["all", "upcoming", "past"].map((w) => (
+                           <button
+                              key={w}
+                              type="button"
+                              className={`tab${eventsWhen === w ? " active" : ""}`}
+                              onClick={() => setEventsWhen(w)}
+                           >
+                              {w[0].toUpperCase() + w.slice(1)}
+                           </button>
+                        ))}
+                     </div>
+                     <div className="ac-sort">
+                        <Icon size={13} strokeWidth={2.2}>
+                           <line x1="3" y1="6" x2="13" y2="6" />
+                           <line x1="3" y1="12" x2="10" y2="12" />
+                           <line x1="3" y1="18" x2="7" y2="18" />
+                        </Icon>
+                        <span>Sort</span>
+                        <select
+                           value={eventsSort}
+                           onChange={(e) => setEventsSort(e.target.value)}
+                           aria-label="Sort events"
+                        >
+                           {EVENT_SORTS.map((o) => (
+                              <option key={o.id} value={o.id}>
+                                 {o.label}
+                              </option>
+                           ))}
+                        </select>
+                     </div>
+                     {eventsViewer?.canCreate && (
+                        <Link
+                           className="btn btn-primary"
+                           to={`/clubs/${slug}/events/new`}
+                        >
+                           <Icon size={14} strokeWidth={2.5}>
+                              <line x1="12" y1="5" x2="12" y2="19" />
+                              <line x1="5" y1="12" x2="19" y2="12" />
+                           </Icon>
+                           New event
+                        </Link>
+                     )}
+                  </div>
+
+                  {eventsLoading && !events ? (
+                     <LoadingBlock label="Loading events" size={22} />
+                  ) : (events?.items || []).length === 0 ? (
+                     <div className="ev-empty">
+                        No {eventsWhen === "all" ? "" : eventsWhen} events yet.
+                     </div>
+                  ) : (
+                     <div className="fac-table-card ev-table-card">
+                        <table className="fac-dt">
+                           <thead>
+                              <tr>
+                                 <th>Event</th>
+                                 <th>When</th>
+                                 <th>Where</th>
+                                 <th className="ta-right">Registered</th>
+                                 <th>Status</th>
+                                 {isStudent && <th className="ta-right" />}
+                              </tr>
+                           </thead>
+                           <tbody>
+                              {events.items.map((e) => (
+                                 <EventRow
+                                    key={e.id}
+                                    event={e}
+                                    canRegister={isStudent}
+                                    busy={regBusyId === e.id}
+                                    onRegister={handleRegister}
+                                    onLeave={handleLeaveEvent}
+                                    onOpen={(ev) => navigate(`/events/${ev.id}`)}
+                                 />
+                              ))}
+                           </tbody>
+                        </table>
+                     </div>
                   )}
                </div>
             )}

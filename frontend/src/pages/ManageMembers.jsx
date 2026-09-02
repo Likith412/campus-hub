@@ -7,6 +7,8 @@ import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
 import { useToast } from "../contexts/ToastContext";
+import { clubHref } from "../utils/nav";
+import PersonLink from "../components/PersonLink";
 import { useConfirm } from "../contexts/ConfirmContext";
 
 const PAGE_SIZE = 12;
@@ -573,7 +575,7 @@ export default function ManageMembers() {
       <AppShell title="Members">
          <div className="main mm-main">
             <div className="breadcrumb">
-               <Link to={`/clubs/${slug}`}>{club.name}</Link>
+               <Link to={clubHref(user?.role, slug)}>{club.name}</Link>
                <span className="sep">›</span>
                <span className="now">Members</span>
             </div>
@@ -834,7 +836,7 @@ export default function ManageMembers() {
                                     )}
                                  </div>
                                  <div>
-                                    <div className="mm-name">{row.name}</div>
+                                    <PersonLink user={row} className="mm-name" />
                                     {row.email && (
                                        <div className="mm-email">
                                           {row.email}

@@ -9,14 +9,22 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
 import Clubs from "./pages/Clubs";
 import ClubDetail from "./pages/ClubDetail";
 import CreateClub from "./pages/CreateClub";
+import EventForm from "./pages/EventForm";
+import Explore from "./pages/Explore";
+import EventDetail from "./pages/EventDetail";
 import Faculty from "./pages/Faculty";
 import AllClubs from "./pages/AllClubs";
+import AllStudents from "./pages/AllStudents";
+import AllEvents from "./pages/AllEvents";
 import ClubControls from "./pages/ClubControls";
 import ManageMembers from "./pages/ManageMembers";
 import ClubRoles from "./pages/ClubRoles";
+import ClubAdmin from "./pages/ClubAdmin";
+import ClubEvents from "./pages/ClubEvents";
 
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ActiveClubProvider } from "./contexts/ActiveClubProvider";
@@ -44,6 +52,16 @@ function BootGate({ children }) {
 
    if (loading || !minElapsed) return <BootScreen />;
    return children;
+}
+
+// The dashboard at "/" is a personal view (your clubs, your events). SuperAdmins manage
+// the institute rather than take part in it, so they're sent to the admin area instead.
+function HomeRoute() {
+   const { user } = useAuth();
+   if (user?.role === "superAdmin") {
+      return <Navigate to="/admin/faculty" replace />;
+   }
+   return <Home />;
 }
 
 function App() {
@@ -77,7 +95,7 @@ function App() {
                             gate on per-club capabilities (members:moderate / roles:manage), so a
                             delegated non-coordinator (even a student) can use them. */}
                         <Route element={<ProtectedRoute />}>
-                           <Route path="/" element={<Home />} />
+                           <Route path="/" element={<HomeRoute />} />
                            <Route
                               path="/clubs/:slug"
                               element={<ClubDetail />}
@@ -87,23 +105,45 @@ function App() {
                               element={<ManageMembers />}
                            />
                            <Route
+                              path="/clubs/:slug/admin"
+                              element={<ClubAdmin />}
+                           />
+                           <Route
+                              path="/clubs/:slug/events"
+                              element={<ClubEvents />}
+                           />
+                           <Route
                               path="/clubs/:slug/roles"
                               element={<ClubRoles />}
                            />
+                           <Route
+                              path="/clubs/:slug/events/new"
+                              element={<EventForm />}
+                           />
+                           <Route
+                              path="/events/:eventId"
+                              element={<EventDetail />}
+                           />
+                           {/* Profiles are open to any signed-in user — your own at
+                               /profile, anyone else's at /u/:handle. */}
+                           <Route path="/profile" element={<Profile />} />
+                           <Route path="/u/:handle" element={<Profile />} />
                         </Route>
 
                         {/* Club browse/join is a student feature. */}
                         <Route element={<ProtectedRoute roles={["student"]} />}>
                            <Route path="/clubs" element={<Clubs />} />
+                           <Route path="/explore" element={<Explore />} />
                         </Route>
 
-                        {/* Profile is for students + faculty only (super admin has none). */}
+                        {/* Account settings — students + faculty only; a super admin
+                            has no editable profile of their own. */}
                         <Route
                            element={
                               <ProtectedRoute roles={["student", "faculty"]} />
                            }
                         >
-                           <Route path="/profile" element={<Profile />} />
+                           <Route path="/settings" element={<Settings />} />
                         </Route>
 
                         {/* Club creation — faculty + super admins only. */}
@@ -126,7 +166,15 @@ function App() {
                               element={<Navigate to="/admin/faculty" replace />}
                            />
                            <Route path="/admin/faculty" element={<Faculty />} />
+                           <Route
+                              path="/admin/students"
+                              element={<AllStudents />}
+                           />
                            <Route path="/admin/clubs" element={<AllClubs />} />
+                           <Route
+                              path="/admin/events"
+                              element={<AllEvents />}
+                           />
                            <Route
                               path="/admin/clubs/:slug"
                               element={<ClubControls />}

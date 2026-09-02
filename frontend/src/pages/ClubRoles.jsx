@@ -9,6 +9,8 @@ import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
+import { useAuth } from "../contexts/AuthContext";
+import { clubHref } from "../utils/nav";
 
 const PALETTE = [
    "#6c63ff",
@@ -38,6 +40,7 @@ function LockIcon({ size = 13 }) {
 
 export default function ClubRoles() {
    const { slug } = useParams();
+   const { user } = useAuth();
    const toast = useToast();
    const confirm = useConfirm();
 
@@ -191,9 +194,7 @@ export default function ClubRoles() {
       <AppShell title="Roles & Permissions">
          <div className="main cr-main">
             <div className="breadcrumb">
-               <Link to={`/clubs/${slug}`}>{club?.name || "Club"}</Link>
-               <span className="sep">›</span>
-               <Link to={`/clubs/${slug}/members`}>Members</Link>
+               <Link to={clubHref(user?.role, slug)}>{club?.name || "Club"}</Link>
                <span className="sep">›</span>
                <span className="now">Roles</span>
             </div>

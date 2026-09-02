@@ -2,6 +2,7 @@
 const express = require("express");
 
 const clubs = require("../controllers/clubs");
+const events = require("../controllers/events");
 const authenticate = require("../middlewares/authenticate");
 const requireRole = require("../middlewares/requireRole");
 const requireClubPermission = require("../middlewares/requireClubPermission");
@@ -23,6 +24,13 @@ const {
    createRoleBodySchema,
    updateRoleBodySchema,
 } = require("../validators/clubs");
+const {
+   createEventBodySchema,
+   updateEventBodySchema,
+   eventStatusBodySchema,
+   listEventsQuerySchema,
+   listAttendeesQuerySchema,
+} = require("../validators/events");
 
 const router = express.Router();
 router.use(authenticate);
@@ -150,6 +158,56 @@ router.delete(
    "/:slug/roles/:roleSlug",
    requireClubPermission("roles", "manage"),
    clubs.deleteRole,
+);
+
+// ============================================================================
+//  EVENTS  (controllers/events)
+// ============================================================================
+// Listing is open to any viewer (drafts are filtered out for non-managers by the
+// controller). The rest are gated per-club by requireClubPermission:
+//   events:create → create   events:edit    → edit, attendee roster
+//   events:publish → publish  events:cancel → cancel, delete a draft
+router.get(
+   "/:slug/events",
+   validateQuery(listEventsQuerySchema),
+   events.listClubEvents,
+);
+router.post(
+   "/:slug/events",
+   requireClubPermission("events", "create"),
+   validate(createEventBodySchema),
+   events.createEvent,
+);
+router.patch(
+   "/:slug/events/:eventId",
+   requireClubPermission("events", "edit"),
+   validate(updateEventBodySchema),
+   events.updateEvent,
+);
+// One route, two transitions with their own permissions — events:publish to take a
+// draft live, events:cancel to call one off. The body has to be parsed before the gate
+// can pick which permission to demand, so validate runs first.
+function requireStatusPermission(req, res, next) {
+   const action = req.body.status === "cancelled" ? "cancel" : "publish";
+   return requireClubPermission("events", action)(req, res, next);
+}
+router.patch(
+   "/:slug/events/:eventId/status",
+   validate(eventStatusBodySchema),
+   requireStatusPermission,
+   events.setEventStatus,
+);
+router.delete(
+   "/:slug/events/:eventId",
+   requireClubPermission("events", "cancel"),
+   events.deleteEvent,
+);
+// Who signed up — the roster behind one event.
+router.get(
+   "/:slug/events/:eventId/attendees",
+   requireClubPermission("events", "edit"),
+   validateQuery(listAttendeesQuerySchema),
+   events.listAttendees,
 );
 
 module.exports = router;

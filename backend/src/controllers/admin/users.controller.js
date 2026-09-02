@@ -82,6 +82,9 @@ async function listUsers(req, res) {
       filter.$or = [{ name: rx }, { email: rx }];
    }
 
+   // clubCount is role-relative: clubs a faculty coordinates, clubs a student belongs to.
+   const coordinatorOnly = role !== ROLES.STUDENT;
+
    const sortStage =
       sort === "name"
          ? { name: 1 }
@@ -111,16 +114,20 @@ async function listUsers(req, res) {
                      },
                   },
                   // Coordinator is a per-club ClubRole — join it and match the slug.
-                  {
-                     $lookup: {
-                        from: "clubroles",
-                        localField: "roleId",
-                        foreignField: "_id",
-                        as: "r",
-                     },
-                  },
-                  { $unwind: "$r" },
-                  { $match: { "r.slug": "coordinator" } },
+                  ...(coordinatorOnly
+                     ? [
+                          {
+                             $lookup: {
+                                from: "clubroles",
+                                localField: "roleId",
+                                foreignField: "_id",
+                                as: "r",
+                             },
+                          },
+                          { $unwind: "$r" },
+                          { $match: { "r.slug": "coordinator" } },
+                       ]
+                     : []),
                   { $count: "n" },
                ],
                as: "cc",
@@ -190,6 +197,43 @@ async function getFacultyStats(req, res) {
       active,
       pending,
       coordinatingClubs,
+   });
+}
+
+// GET /api/admin/students/stats — headline counts for the students page.
+async function getStudentStats(req, res) {
+   const students = { role: ROLES.STUDENT };
+   const [total, active, pending, inClubs] = await Promise.all([
+      User.countDocuments(students),
+      User.countDocuments({
+         ...students,
+         isActive: true,
+         lastLoginAt: { $ne: null },
+      }),
+      User.countDocuments({ ...students, isActive: true, lastLoginAt: null }),
+      // Students holding at least one approved membership.
+      ClubMembership.aggregate([
+         { $match: { status: "approved" } },
+         { $group: { _id: "$userId" } },
+         {
+            $lookup: {
+               from: "users",
+               localField: "_id",
+               foreignField: "_id",
+               as: "u",
+            },
+         },
+         { $unwind: "$u" },
+         { $match: { "u.role": ROLES.STUDENT } },
+         { $count: "n" },
+      ]).then((rows) => rows[0]?.n || 0),
+   ]);
+
+   return successResponse(res, 200, "Student stats", {
+      total,
+      active,
+      pending,
+      inClubs,
    });
 }
 
@@ -267,5 +311,6 @@ module.exports = {
    createFaculty,
    listUsers,
    getFacultyStats,
+   getStudentStats,
    setUserActive,
 };

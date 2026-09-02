@@ -79,6 +79,13 @@ const updatePreferencesSchema = z
    })
    .strict();
 
+// GET /profile/:handle/events — the profile page's event panel pages on its own.
+const listProfileEventsQuerySchema = z
+   .object({
+      page: z.coerce.number().int().min(1).default(1),
+   })
+   .strict();
+
 const changePasswordSchema = z.object({
    currentPassword: z.string().min(1),
    newPassword: passwordRule,
@@ -86,6 +93,7 @@ const changePasswordSchema = z.object({
 
 module.exports = {
    updateProfileSchema,
+   listProfileEventsQuerySchema,
    updateSkillsSchema,
    updatePreferencesSchema,
    changePasswordSchema,

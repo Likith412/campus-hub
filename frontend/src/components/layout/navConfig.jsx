@@ -34,6 +34,12 @@ const I = {
          <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
       </Icon>
    ),
+   profile: (
+      <Icon>
+         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+         <circle cx="12" cy="7" r="4" />
+      </Icon>
+   ),
    user: (
       <Icon>
          <circle cx="12" cy="12" r="3" />
@@ -46,6 +52,27 @@ const I = {
          <circle cx="9" cy="7" r="4" />
          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </Icon>
+   ),
+   // Mortarboard — matches the icon the Faculty page uses on its own stat card.
+   faculty: (
+      <Icon>
+         <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+         <path d="M6 12v5c3 3 9 3 12 0v-5" />
+      </Icon>
+   ),
+   // Layers — matches the icon the Roles links already use on the club pages.
+   roles: (
+      <Icon>
+         <path d="M12 2 2 7l10 5 10-5-10-5Z" />
+         <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
+      </Icon>
+   ),
+   // Briefcase — a club as an organisation, distinct from the people icon.
+   org: (
+      <Icon>
+         <rect x="2" y="7" width="20" height="14" rx="2" />
+         <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
       </Icon>
    ),
    plus: (
@@ -95,45 +122,19 @@ export const NAV_BY_ROLE = {
       { section: "Discover" },
       { id: "dashboard", label: "Dashboard", to: "/", icon: I.dashboard },
       { id: "discovery", label: "Explore", to: "/explore", icon: I.discover },
-      { id: "clubs", label: "Clubs", to: "/clubs", icon: I.admin },
-      { id: "contests", label: "Contests", to: "/contests", icon: I.contests },
+      { id: "clubs", label: "Clubs", to: "/clubs", icon: I.org },
       { section: "Your Hub" },
-      {
-         id: "messages",
-         label: "Messages",
-         to: "/messages",
-         icon: I.chat,
-      },
-      {
-         id: "certs",
-         label: "Certificates",
-         to: "/certificates",
-         icon: I.cert,
-      },
-      {
-         id: "profile",
-         label: "Profile & Settings",
-         to: "/profile",
-         icon: I.user,
-      },
+      { id: "profile", label: "Profile", to: "/profile", icon: I.profile },
+      { id: "settings", label: "Settings", to: "/settings", icon: I.user },
    ],
    // faculty nav is built per active club — see getFacultyNav() below.
    faculty: [],
    superAdmin: [
       { section: "Institute" },
-      { id: "super", label: "Overview", to: "/", icon: I.shield },
-      { id: "faculty", label: "All Faculties", to: "/admin/faculty", icon: I.admin },
-      { id: "clubs", label: "All Clubs", to: "/admin/clubs", icon: I.admin },
-      { id: "users", label: "All Users", to: "/users", icon: I.admin },
-      { id: "events", label: "All Events", to: "/events", icon: I.calendar },
-      { section: "System" },
-      {
-         id: "analytics",
-         label: "Institute Analytics",
-         to: "/analytics",
-         icon: I.analytics,
-      },
-      { id: "audit", label: "Audit Log", to: "/audit", icon: I.log },
+      { id: "faculty", label: "All Faculties", to: "/admin/faculty", icon: I.faculty },
+      { id: "students", label: "All Students", to: "/admin/students", icon: I.admin },
+      { id: "clubs", label: "All Clubs", to: "/admin/clubs", icon: I.org },
+      { id: "events", label: "All Events", to: "/admin/events", icon: I.calendar },
    ],
 };
 
@@ -143,22 +144,42 @@ export function getFacultyNav(slug) {
    const clubItems = slug
       ? [
            { section: "This Club" },
-           { id: "home", label: "Club Home", to: `/clubs/${slug}`, icon: I.dashboard },
+           {
+              id: "home",
+              label: "Club Home",
+              to: `/clubs/${slug}/admin`,
+              icon: I.dashboard,
+           },
            {
               id: "members",
               label: "Members",
               to: `/clubs/${slug}/members`,
               icon: I.admin,
            },
-           { id: "wizard", label: "Create Event", to: "/events/new", icon: I.plus },
-           { id: "analytics", label: "Analytics", to: "/analytics", icon: I.analytics },
+           {
+              id: "roles",
+              label: "Roles",
+              to: `/clubs/${slug}/roles`,
+              icon: I.roles,
+           },
+           {
+              id: "events",
+              label: "Events",
+              to: `/clubs/${slug}/events`,
+              icon: I.calendar,
+           },
+           {
+              id: "wizard",
+              label: "Create Event",
+              to: `/clubs/${slug}/events/new`,
+              icon: I.plus,
+           },
         ]
       : [];
    return [
       ...clubItems,
-      { section: "Engage" },
-      { id: "messages", label: "Messages", to: "/messages", icon: I.chat },
-      { id: "certs", label: "Certificates", to: "/certificates", icon: I.cert },
-      { id: "profile", label: "Settings", to: "/profile", icon: I.user },
+      { section: "You" },
+      { id: "profile", label: "Profile", to: "/profile", icon: I.profile },
+      { id: "settings", label: "Settings", to: "/settings", icon: I.user },
    ];
 }

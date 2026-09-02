@@ -123,7 +123,7 @@ function ResetPassword() {
             <div className="brand-top">
                <div className="brand-mark-big">C</div>
                <div className="brand-name-big">
-                  CampusHub <span>AI</span>
+                  Campus Hub
                </div>
             </div>
 
