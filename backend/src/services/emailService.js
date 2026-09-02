@@ -1,13 +1,20 @@
-// Email service. Three transports, tried in order:
-//   RESEND_API_KEY → Resend's HTTPS API. The only one that works on hosts that block
-//                    outbound SMTP, which most free PaaS tiers (Render included) do.
-//   SMTP_HOST      → plain SMTP via nodemailer. Fine locally.
-//   neither        → print the message, so the flow still works without any provider.
+// Email service. Two transports, chosen by environment:
+//   production  → Brevo's HTTPS API. Render and most free hosts block outbound SMTP,
+//                 so nodemailer simply cannot work there.
+//   development → SMTP via nodemailer, which is easy to point at a real inbox.
+// Neither configured → the message is printed, so signup and reset stay usable.
 const nodemailer = require("nodemailer");
 const { addToQueue } = require("../config/queue");
 
-const from = process.env.SMTP_FROM || "Campus Hub <no-reply@campushub.local>";
-const resendKey = process.env.RESEND_API_KEY;
+// The sender is kept as two values because Brevo wants them apart, and the SMTP
+// header is trivially composed from them.
+const fromName = process.env.MAIL_FROM_NAME || "Campus Hub";
+const fromEmail = process.env.MAIL_FROM_EMAIL || "no-reply@campushub.local";
+const fromHeader = `${fromName} <${fromEmail}>`;
+
+const useBrevo = process.env.NODE_ENV === "production";
+const brevoKey = process.env.BREVO_API_KEY;
+
 const host = process.env.SMTP_HOST;
 const port = Number(process.env.SMTP_PORT) || 587;
 const user = process.env.SMTP_USER;
@@ -30,24 +37,32 @@ function getTransporter() {
    return transporter;
 }
 
-// Resend over HTTPS. Errors carry the API's own message so the queue log is useful.
-async function sendViaResend(to, subject, html, text) {
-   const res = await fetch("https://api.resend.com/emails", {
+async function sendViaBrevo(to, subject, html, text) {
+   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
-         Authorization: `Bearer ${resendKey}`,
-         "Content-Type": "application/json",
+         "api-key": brevoKey,
+         "content-type": "application/json",
+         accept: "application/json",
       },
-      body: JSON.stringify({ from, to, subject, html, text }),
+      body: JSON.stringify({
+         sender: { name: fromName, email: fromEmail },
+         to: [{ email: to }],
+         subject,
+         htmlContent: html,
+         textContent: text,
+      }),
    });
+
    if (!res.ok) {
+      // Brevo puts the reason in the body — carry it so the queue log is useful.
       const detail = await res.text();
-      throw new Error(`Resend ${res.status}: ${detail.slice(0, 300)}`);
+      throw new Error(`Brevo ${res.status}: ${detail.slice(0, 300)}`);
    }
 }
 
 async function sendEmail(to, subject, html, text) {
-   if (resendKey) return sendViaResend(to, subject, html, text);
+   if (useBrevo) return sendViaBrevo(to, subject, html, text);
 
    const t = getTransporter();
    if (!t) {
@@ -57,7 +72,7 @@ async function sendEmail(to, subject, html, text) {
       return;
    }
 
-   await t.sendMail({ from, to, subject, html, text });
+   await t.sendMail({ from: fromHeader, to, subject, html, text });
 }
 
 // Sends the "verify your email" message used after registration / resend-verification.

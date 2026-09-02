@@ -33,7 +33,7 @@ async function issueVerificationToken(userId) {
 }
 
 // Issue a token, compose the link, and queue the email. Logged in dev so the flow works
-// without SMTP configured.
+// without an email provider configured.
 async function sendVerificationLink(userId, email) {
    const token = await issueVerificationToken(userId);
    const link = `${FRONTEND_URL}/verify-email?token=${token}`;
