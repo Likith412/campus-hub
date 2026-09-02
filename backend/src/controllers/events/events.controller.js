@@ -17,6 +17,7 @@ const {
 } = require("../clubs/helpers");
 const {
    EVENT_SORT,
+   LIVE_REGISTRATION_STATUSES,
    assertCanBePublic,
    publicEvent,
    findClubEvent,
@@ -110,6 +111,16 @@ async function listPublicEvents(req, res) {
       visibility: "public",
       endAt: when === "past" ? { $lt: now } : { $gte: now },
    };
+   // Explore is for finding something new: anything you already hold a seat or a
+   // waitlist place on drops out. Your own list lives on /my-events.
+   const taken = await EventRegistration.find({
+      userId: req.user._id,
+      status: { $in: LIVE_REGISTRATION_STATUSES },
+   })
+      .select("eventId")
+      .lean();
+   if (taken.length) match._id = { $nin: taken.map((r) => r.eventId) };
+
    if (type) match.eventType = type;
    if (q) {
       const rx = { $regex: escapeRegex(q), $options: "i" };

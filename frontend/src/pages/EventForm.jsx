@@ -3,14 +3,12 @@
 // (see the `create-club` class below). Editing happens in EditEventModal, not here.
 // Gated on events:create (the route is open, the page and the controller both check).
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { clubsApi, eventsApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
-import { useAuth } from "../contexts/AuthContext";
-import { clubHref } from "../utils/nav";
 import {
    EVENT_TYPE_LABEL,
    EVENT_COVER_CLASS,
@@ -67,7 +65,6 @@ function defaultStart() {
 export default function EventForm() {
    const { slug } = useParams();
    const navigate = useNavigate();
-   const { user } = useAuth();
    const toast = useToast();
 
    const [club, setClub] = useState(null);
@@ -214,7 +211,7 @@ export default function EventForm() {
 
    if (!loaded) {
       return (
-         <AppShell title="Create event">
+         <AppShell title="Create event" subtitle={club?.name}>
             <div className="main">
                <LoadingBlock label="Loading" size={24} />
             </div>
@@ -224,7 +221,7 @@ export default function EventForm() {
 
    if (!allowed) {
       return (
-         <AppShell title="Create event">
+         <AppShell title="Create event" subtitle={club?.name}>
             <div className="main">
                <div className="profile-empty">
                   You don't have permission to create events in this club.
@@ -246,21 +243,10 @@ export default function EventForm() {
 
    return (
       /* Reuses the club wizard's chrome — same stepper, panel, side and footer. */
-      <AppShell title="Create event">
+      <AppShell title="Create event" subtitle={club?.name}>
          <div className="create-club create-event">
             <div className="wizard">
                <div className="wizard-head">
-                  <div className="breadcrumb">
-                     <Link to={clubHref(user?.role, slug)}>
-                        {club?.name || "Club"}
-                     </Link>
-                     <span className="sep">›</span>
-                     {/* The club's events management page — anyone who can reach this
-                         wizard can reach that, so it's the right parent for both. */}
-                     <Link to={`/clubs/${slug}/events`}>Events</Link>
-                     <span className="sep">›</span>
-                     <span className="now">New event</span>
-                  </div>
                   <div className="wizard-title">Create an event</div>
                   <div className="wizard-sub">
                      Publish it now and registration opens straight away, or save a
@@ -708,9 +694,6 @@ export default function EventForm() {
                               <div className="event-spots">
                                  {seats > 0 ? (
                                     <>
-                                       <span className="progress-mini">
-                                          <span style={{ width: "0%" }} />
-                                       </span>
                                        <b>{seats}</b> spots left
                                     </>
                                  ) : (

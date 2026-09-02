@@ -10,7 +10,7 @@ function formatNow() {
    });
 }
 
-export default function Topbar({ title, rightSlot }) {
+export default function Topbar({ title, subtitle, rightSlot }) {
    const [now, setNow] = useState(formatNow);
    useEffect(() => {
       const id = setInterval(() => setNow(formatNow()), 30000);
@@ -19,9 +19,19 @@ export default function Topbar({ title, rightSlot }) {
 
    return (
       <div className="topbar">
-         <div className="topbar-title">{title}</div>
-         <div className="topbar-time">{now}</div>
+         <div className="topbar-title">
+            {title}
+            {/* Which club you're in. The pages lost their breadcrumbs, so this is
+                the only place that still says it. */}
+            {subtitle && (
+               <>
+                  <span className="topbar-dot">·</span>
+                  <span className="topbar-sub">{subtitle}</span>
+               </>
+            )}
+         </div>
          <div className="topbar-divider"></div>
+         <div className="topbar-time">{now}</div>
          {rightSlot}
          <div className="topbar-right">
             <button className="icon-btn" title="Notifications">

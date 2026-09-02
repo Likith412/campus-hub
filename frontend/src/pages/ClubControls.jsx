@@ -382,7 +382,7 @@ export default function ClubControls() {
 
    if (loading) {
       return (
-         <AppShell title="Club Controls">
+         <AppShell title="Club Controls" subtitle={club?.name}>
             <div className="main cctl-main">
                <LoadingBlock label="Loading club controls" size={24} />
             </div>
@@ -392,7 +392,7 @@ export default function ClubControls() {
 
    if (!club) {
       return (
-         <AppShell title="Club Controls">
+         <AppShell title="Club Controls" subtitle={club?.name}>
             <div className="main cctl-main">
                <div className="profile-empty">
                   Club not found.{" "}
@@ -406,14 +406,8 @@ export default function ClubControls() {
    }
 
    return (
-      <AppShell title="Club Controls">
+      <AppShell title="Club Controls" subtitle={club?.name}>
          <div className="main cctl-main">
-            <div className="breadcrumb">
-               <Link to="/admin/clubs">All Clubs</Link>
-               <span className="sep">›</span>
-               <span className="now">{club.name}</span>
-            </div>
-
             {/* CLUB HEADER */}
             <div className="cctl-header">
                <div

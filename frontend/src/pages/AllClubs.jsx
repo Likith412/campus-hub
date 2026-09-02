@@ -232,10 +232,6 @@ export default function AllClubs() {
       >
          <div className="main faculty-page">
             <div className="fac-pagehead">
-               <div className="breadcrumb">
-                  Institute <span className="sep">›</span>{" "}
-                  <span className="now">All Clubs</span>
-               </div>
                <h1 className="fac-page-title">All clubs</h1>
                <p className="fac-page-sub">
                   Every club across the campus — its coordinators, membership and

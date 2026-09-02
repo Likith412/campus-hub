@@ -79,6 +79,13 @@ const updatePreferencesSchema = z
    })
    .strict();
 
+// GET /profile/me/clubs — "member" keeps the original behaviour for existing callers.
+const listMyClubsQuerySchema = z
+   .object({
+      relation: z.enum(["member", "following", "all"]).default("member"),
+   })
+   .strict();
+
 // GET /profile/:handle/events — the profile page's event panel pages on its own.
 const listProfileEventsQuerySchema = z
    .object({
@@ -94,6 +101,7 @@ const changePasswordSchema = z.object({
 module.exports = {
    updateProfileSchema,
    listProfileEventsQuerySchema,
+   listMyClubsQuerySchema,
    updateSkillsSchema,
    updatePreferencesSchema,
    changePasswordSchema,

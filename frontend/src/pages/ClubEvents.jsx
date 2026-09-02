@@ -3,23 +3,16 @@
 // this is the management view the faculty sidebar points at.
 // Gated in-page on any events permission, so a delegated student gets in too.
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { clubsApi, eventsApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import EditEventModal from "../components/EditEventModal";
+import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
-import { useAuth } from "../contexts/AuthContext";
-import { clubHref } from "../utils/nav";
 import { useConfirm } from "../contexts/ConfirmContext";
-import {
-   EVENT_TYPE_LABEL,
-   eventDateParts,
-   eventState,
-   formatEventWhen,
-   formatVenue,
-} from "../utils/events";
+import { eventState } from "../utils/events";
 
 const EVENT_SORTS = [
    { id: "soonest", label: "Date · soonest" },
@@ -37,8 +30,6 @@ const FILTERS = [
 
 export default function ClubEvents() {
    const { slug } = useParams();
-   const navigate = useNavigate();
-   const { user } = useAuth();
    const toast = useToast();
    const confirm = useConfirm();
 
@@ -133,7 +124,7 @@ export default function ClubEvents() {
 
    if (loading && !data) {
       return (
-         <AppShell title="Events">
+         <AppShell title="Events" subtitle={club?.name}>
             <div className="main club-events">
                <LoadingBlock label="Loading events" size={26} />
             </div>
@@ -143,7 +134,7 @@ export default function ClubEvents() {
 
    if (!canManage) {
       return (
-         <AppShell title="Events">
+         <AppShell title="Events" subtitle={club?.name}>
             <div className="main club-events">
                <div className="profile-empty">
                   You don't have permission to manage this club's events.{" "}
@@ -159,17 +150,10 @@ export default function ClubEvents() {
    const items = data?.items || [];
 
    return (
-      <AppShell title="Events">
+      <AppShell title="Events" subtitle={club?.name}>
          <div className="main club-events">
             <div className="page-header">
                <div>
-                  <div className="breadcrumb">
-                     <Link to={clubHref(user?.role, slug)}>
-                        {club?.name || "Club"}
-                     </Link>
-                     <span className="sep">›</span>
-                     <span className="now">Events</span>
-                  </div>
                   <h1 className="page-title">Events</h1>
                   <div className="page-sub">
                      Everything {club?.name || "this club"} has scheduled — drafts
@@ -234,139 +218,76 @@ export default function ClubEvents() {
                   )}
                </div>
             ) : (
-               <div className="fac-table-card">
-                  <table className="fac-dt">
-                     <thead>
-                        <tr>
-                           <th>Event</th>
-                           <th>When</th>
-                           <th>Where</th>
-                           <th className="ta-right">Registered</th>
-                           <th>Status</th>
-                           {showRowActions && <th className="ta-right" />}
-                        </tr>
-                     </thead>
-                     <tbody>
-                        {items.map((e) => {
-                           const { month, day } = eventDateParts(e.startAt);
-                           const state = eventState(e);
-                           const busy = busyId === e.id;
-                           // A finished event is a record — the server refuses both.
-                           const over = state.cls === "past";
-                           return (
-                              <tr
-                                 key={e.id}
-                                 className={`ac-row${state.cls === "cancelled" ? " dim" : ""}`}
-                                 onClick={() => navigate(`/events/${e.id}`)}
-                              >
-                                 <td>
-                                    <div className="fac-cell">
-                                       <div className="ev-date sm">
-                                          <div className="ev-month">{month}</div>
-                                          <div className="ev-day">{day}</div>
-                                       </div>
-                                       <div>
-                                          <div className="et-name">
-                                             {e.title}
-                                             {e.visibility === "private" && (
-                                                <span
-                                                   className="et-private"
-                                                   title="Members only"
-                                                >
-                                                   <Icon size={10} strokeWidth={2.6}>
-                                                      <rect x="3" y="11" width="18" height="11" rx="2" />
-                                                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                                                   </Icon>
-                                                </span>
-                                             )}
-                                          </div>
-                                          <div className="et-meta">
-                                             <span className={`badge ${e.eventType}`}>
-                                                {EVENT_TYPE_LABEL[e.eventType]}
-                                             </span>
-                                          </div>
-                                       </div>
-                                    </div>
-                                 </td>
-                                 <td>{formatEventWhen(e.startAt, e.endAt)}</td>
-                                 <td>{formatVenue(e.venue)}</td>
-                                 <td className="ta-right">
-                                    <span className="et-seats">
-                                       {e.registeredCount}
-                                       {e.capacity ? ` / ${e.capacity}` : ""}
-                                    </span>
-                                 </td>
-                                 <td>
-                                    <span className={`ev-status ${state.cls}`}>
-                                       {state.label}
-                                    </span>
-                                 </td>
-                                 {showRowActions && (
-                                    <td className="ta-right">
-                                       {/* The row navigates; these do their own thing. */}
-                                       <div
-                                          className="et-actions"
-                                          onClick={(ev) => ev.stopPropagation()}
+               <div className="event-grid">
+                  {items.map((e) => {
+                     const state = eventState(e);
+                     const busy = busyId === e.id;
+                     // A finished event is a record — the server refuses both.
+                     const over = state.cls === "past";
+                     return (
+                        <EventCard
+                           key={e.id}
+                           event={e}
+                           showStatus
+                           busy={busy}
+                           actions={
+                              showRowActions ? (
+                                 <>
+                                    {viewer?.canEdit &&
+                                       !over &&
+                                       e.status !== "cancelled" && (
+                                          <button
+                                             type="button"
+                                             className="btn-mini"
+                                             disabled={busy}
+                                             onClick={() => setEditing(e)}
+                                          >
+                                             Edit
+                                          </button>
+                                       )}
+                                    {viewer?.canPublish && e.status === "draft" && (
+                                       <button
+                                          type="button"
+                                          className="btn-mini on"
+                                          disabled={busy || over}
+                                          title={
+                                             over
+                                                ? "This event has already ended"
+                                                : undefined
+                                          }
+                                          onClick={() => setStatus(e, "published")}
                                        >
-                                          {viewer?.canEdit &&
-                                             !over &&
-                                             e.status !== "cancelled" && (
-                                                <button
-                                                   type="button"
-                                                   className="btn btn-secondary btn-sm"
-                                                   disabled={busy}
-                                                   onClick={() => setEditing(e)}
-                                                >
-                                                   Edit
-                                                </button>
-                                             )}
-                                          {viewer?.canPublish && e.status === "draft" && (
-                                             <button
-                                                type="button"
-                                                className="btn btn-primary btn-sm"
-                                                disabled={busy || over}
-                                                title={
-                                                   over
-                                                      ? "This event has already ended"
-                                                      : undefined
-                                                }
-                                                onClick={() => setStatus(e, "published")}
-                                             >
-                                                Publish
-                                             </button>
-                                          )}
-                                          {viewer?.canCancel &&
-                                             !over &&
-                                             e.status === "published" && (
-                                                <button
-                                                   type="button"
-                                                   className="btn btn-danger btn-sm"
-                                                   disabled={busy}
-                                                   onClick={() =>
-                                                      setStatus(e, "cancelled")
-                                                   }
-                                                >
-                                                   Cancel
-                                                </button>
-                                             )}
-                                          {viewer?.canCancel && e.status === "draft" && (
-                                             <button
-                                                type="button"
-                                                className="btn btn-ghost btn-sm"
-                                                disabled={busy}
-                                                onClick={() => removeDraft(e)}
-                                             >
-                                                Delete
-                                             </button>
-                                          )}
-                                       </div>
-                                    </td>
-                                 )}
-                              </tr>
-                           );
-                        })}
-                     </tbody>
-                  </table>
+                                          Publish
+                                       </button>
+                                    )}
+                                    {viewer?.canCancel &&
+                                       !over &&
+                                       e.status === "published" && (
+                                          <button
+                                             type="button"
+                                             className="btn-mini danger"
+                                             disabled={busy}
+                                             onClick={() => setStatus(e, "cancelled")}
+                                          >
+                                             Cancel
+                                          </button>
+                                       )}
+                                    {viewer?.canCancel && e.status === "draft" && (
+                                       <button
+                                          type="button"
+                                          className="btn-mini danger"
+                                          disabled={busy}
+                                          onClick={() => removeDraft(e)}
+                                       >
+                                          Delete
+                                       </button>
+                                    )}
+                                 </>
+                              ) : null
+                           }
+                        />
+                     );
+                  })}
                </div>
             )}
          </div>

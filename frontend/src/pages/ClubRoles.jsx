@@ -2,15 +2,13 @@
 // Roles list on the left, a sticky create/edit editor on the right (mirrors
 // .design/Club Roles.html). Gated to coordinators (roles:manage) in the controller.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { clubsApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
-import { useAuth } from "../contexts/AuthContext";
-import { clubHref } from "../utils/nav";
 
 const PALETTE = [
    "#6c63ff",
@@ -40,7 +38,6 @@ function LockIcon({ size = 13 }) {
 
 export default function ClubRoles() {
    const { slug } = useParams();
-   const { user } = useAuth();
    const toast = useToast();
    const confirm = useConfirm();
 
@@ -180,7 +177,7 @@ export default function ClubRoles() {
    // The route is open to any authenticated user, so non-managers are turned away here.
    if (loaded && !canManage) {
       return (
-         <AppShell title="Roles & Permissions">
+         <AppShell title="Roles & Permissions" subtitle={club?.name}>
             <div className="main cr-main">
                <div className="profile-empty">
                   You don't have permission to manage this club's roles.
@@ -191,14 +188,8 @@ export default function ClubRoles() {
    }
 
    return (
-      <AppShell title="Roles & Permissions">
+      <AppShell title="Roles & Permissions" subtitle={club?.name}>
          <div className="main cr-main">
-            <div className="breadcrumb">
-               <Link to={clubHref(user?.role, slug)}>{club?.name || "Club"}</Link>
-               <span className="sep">›</span>
-               <span className="now">Roles</span>
-            </div>
-
             <div className="cr-head">
                <div>
                   <h1 className="cr-title">Roles &amp; permissions</h1>

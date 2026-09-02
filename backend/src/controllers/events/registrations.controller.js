@@ -175,17 +175,31 @@ async function unregisterFromEvent(req, res) {
 
 // GET /api/events/me — the caller's own registrations, upcoming or past.
 async function listMyEvents(req, res) {
-   const { when, page, limit } = req.validatedQuery;
+   const { when, q, type, status, sort, page, limit } = req.validatedQuery;
    const now = new Date();
    const skip = (page - 1) * limit;
 
+   // `status` filters the registration row, so it goes in the first $match — before
+   // the join, where the index on { userId, status } can still serve it.
+   const regMatch = {
+      userId: req.user._id,
+      status: status ? status : { $in: LIVE_REGISTRATION_STATUSES },
+   };
+
+   // The rest describe the event, so they can only run once the lookup has landed.
+   const eventMatch = {
+      "event.endAt": when === "past" ? { $lt: now } : { $gte: now },
+   };
+   if (type) eventMatch["event.eventType"] = type;
+   if (q) {
+      eventMatch["event.title"] = { $regex: escapeRegex(q), $options: "i" };
+   }
+
+   // Past defaults to most-recent-first, upcoming to soonest — overridable.
+   const order = sort ? (sort === "latest" ? -1 : 1) : when === "past" ? -1 : 1;
+
    const [agg] = await EventRegistration.aggregate([
-      {
-         $match: {
-            userId: req.user._id,
-            status: { $in: LIVE_REGISTRATION_STATUSES },
-         },
-      },
+      { $match: regMatch },
       {
          $lookup: {
             from: "events",
@@ -195,11 +209,7 @@ async function listMyEvents(req, res) {
          },
       },
       { $unwind: "$event" },
-      {
-         $match: {
-            "event.endAt": when === "past" ? { $lt: now } : { $gte: now },
-         },
-      },
+      { $match: eventMatch },
       {
          $lookup: {
             from: "clubs",
@@ -212,10 +222,7 @@ async function listMyEvents(req, res) {
       {
          $facet: {
             rows: [
-               {
-                  $sort:
-                     when === "past" ? { "event.startAt": -1 } : { "event.startAt": 1 },
-               },
+               { $sort: { "event.startAt": order } },
                { $skip: skip },
                { $limit: limit },
             ],

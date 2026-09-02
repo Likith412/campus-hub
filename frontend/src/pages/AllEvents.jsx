@@ -2,19 +2,15 @@
 // status, including drafts and cancelled ones, which the student feed never shows.
 // Read-only: managing an event happens inside its club.
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { adminApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
-import {
-   EVENT_TYPE_LABEL,
-   eventDateParts,
-   eventState,
-   formatEventWhen,
-} from "../utils/events";
+import { EVENT_TYPE_LABEL } from "../utils/events";
 
 const PAGE_SIZE = 20;
 const EVENT_SORTS = [
@@ -116,10 +112,6 @@ export default function AllEvents() {
       <AppShell title="All Events">
          <div className="main all-events">
             <div className="fac-pagehead">
-               <div className="breadcrumb">
-                  Institute <span className="sep">›</span>{" "}
-                  <span className="now">All Events</span>
-               </div>
                <h1 className="fac-page-title">All events</h1>
                <p className="fac-page-sub">
                   Every event across the campus, at every status — drafts and cancelled
@@ -202,90 +194,23 @@ export default function AllEvents() {
                </div>
             </div>
 
-            <div className="fac-table-card">
-               {loading && !data ? (
-                  <LoadingBlock label="Loading events" size={24} />
-               ) : items.length === 0 ? (
-                  <div className="ev-empty">No events match those filters.</div>
-               ) : (
-                  <table className={`fac-dt${loading ? " is-refetching" : ""}`}>
-                     <thead>
-                        <tr>
-                           <th>Event</th>
-                           <th>Club</th>
-                           <th>When</th>
-                           <th className="ta-center">Registered</th>
-                           <th>Status</th>
-                        </tr>
-                     </thead>
-                     <tbody>
-                        {items.map((e) => {
-                           const { month, day } = eventDateParts(e.startAt);
-                           const state = eventState(e);
-                           return (
-                              <tr
-                                 key={e.id}
-                                 className={`ac-row${state.cls === "cancelled" ? " dim" : ""}`}
-                                 onClick={() => navigate(`/events/${e.id}`)}
-                              >
-                                 <td>
-                                    <div className="fac-cell">
-                                       <div className="ev-date sm">
-                                          <div className="ev-month">{month}</div>
-                                          <div className="ev-day">{day}</div>
-                                       </div>
-                                       <div>
-                                          <div className="et-name">
-                                             {e.title}
-                                             {e.visibility === "private" && (
-                                                <span
-                                                   className="et-private"
-                                                   title="Members only"
-                                                >
-                                                   <Icon size={10} strokeWidth={2.6}>
-                                                      <rect x="3" y="11" width="18" height="11" rx="2" />
-                                                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                                                   </Icon>
-                                                </span>
-                                             )}
-                                          </div>
-                                          <div className="et-meta">
-                                             <span className={`badge ${e.eventType}`}>
-                                                {EVENT_TYPE_LABEL[e.eventType]}
-                                             </span>
-                                          </div>
-                                       </div>
-                                    </div>
-                                 </td>
-                                 <td>
-                                    {/* Its own destination — don't let the row steal it. */}
-                                    <Link
-                                       className="ae-club"
-                                       to={`/clubs/${e.club?.slug || ""}`}
-                                       onClick={(ev) => ev.stopPropagation()}
-                                    >
-                                       {e.club?.name || "—"}
-                                    </Link>
-                                 </td>
-                                 <td>{formatEventWhen(e.startAt, e.endAt)}</td>
-                                 <td className="ta-center">
-                                    <span className="et-seats">
-                                       {e.registeredCount}
-                                       {e.capacity ? ` / ${e.capacity}` : ""}
-                                    </span>
-                                 </td>
-                                 <td>
-                                    <span className={`ev-status ${state.cls}`}>
-                                       {state.label}
-                                    </span>
-                                 </td>
-                              </tr>
-                           );
-                        })}
-                     </tbody>
-                  </table>
-               )}
-            </div>
+            {loading && !data ? (
+               <LoadingBlock label="Loading events" size={24} />
+            ) : items.length === 0 ? (
+               <div className="ev-empty">No events match those filters.</div>
+            ) : (
+               <div className={`event-grid${loading ? " is-refetching" : ""}`}>
+                  {items.map((e) => (
+                     <EventCard
+                        key={e.id}
+                        event={e}
+                        showClub
+                        showStatus
+                        onOpen={(ev) => navigate(`/events/${ev.id}`)}
+                     />
+                  ))}
+               </div>
+            )}
 
             {items.length > 0 && totalPages > 1 && (
                <Pagination

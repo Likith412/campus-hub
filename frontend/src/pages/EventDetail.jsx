@@ -3,7 +3,7 @@
 // breadcrumb/block conventions from ClubRoles and ClubDetail.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { eventsApi, ApiError } from "../services";
+import { eventsApi, announcementsApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -73,6 +73,7 @@ export default function EventDetail() {
    const [loaded, setLoaded] = useState(false);
    const [busy, setBusy] = useState(false);
    const [attendees, setAttendees] = useState(null);
+   const [notices, setNotices] = useState(null);
    const [editing, setEditing] = useState(false);
    const [siblings, setSiblings] = useState([]);
    const [attSearch, setAttSearch] = useState("");
@@ -132,6 +133,18 @@ export default function EventDetail() {
    useEffect(() => {
       loadAttendees();
    }, [loadAttendees]);
+
+   // Notices the club has posted about this event. Members see the private ones too.
+   useEffect(() => {
+      let cancelled = false;
+      announcementsApi
+         .listEventAnnouncements(eventId)
+         .then((d) => !cancelled && setNotices(d))
+         .catch(() => !cancelled && setNotices({ items: [] }));
+      return () => {
+         cancelled = true;
+      };
+   }, [eventId]);
 
    // "More from this club" — the next few events besides this one.
    useEffect(() => {
@@ -266,9 +279,6 @@ export default function EventDetail() {
    // Staff run events, they don't attend them — no register control for them.
    const reg = user?.role === "student" ? registerState(event) : null;
    const cover = EVENT_COVER_CLASS[event.eventType] || event.eventType;
-   const pct = event.capacity
-      ? Math.min(100, Math.round((event.registeredCount / event.capacity) * 100))
-      : 0;
    const isPast = state.cls === "past";
    // Which manage actions actually apply right now — the block is hidden when none do.
    const canEditNow =
@@ -279,12 +289,6 @@ export default function EventDetail() {
    const canDeleteNow = viewer?.canCancel && event.status === "draft";
    const isManager =
       !!viewer && (viewer.canEdit || viewer.canPublish || viewer.canCancel);
-   const isSuperAdmin = user?.role === "superAdmin";
-   const eventsCrumb = isSuperAdmin
-      ? { to: "/admin/events", label: "All Events" }
-      : user?.role === "student"
-        ? { to: "/explore", label: "Events" }
-        : { to: `/clubs/${clubSlug}/events`, label: "Events" };
    // A superAdmin manages a club from the admin surface, not its public page.
    const clubLink = clubHref(user?.role, clubSlug);
    const showManage =
@@ -293,26 +297,9 @@ export default function EventDetail() {
       canCancelNow ||
       canDeleteNow ||
       (isManager && event.status === "cancelled");
-   // The bar only turns amber/red once seats actually get scarce.
-   const barTone = !event.capacity
-      ? "unlimited"
-      : pct >= 100
-        ? "full"
-        : pct >= 80
-          ? "filling"
-          : "";
-
    return (
-      <AppShell title={event.title}>
+      <AppShell title="Event" subtitle={event.title}>
          <div className="main event-detail">
-            <div className="breadcrumb">
-               <Link to={eventsCrumb.to}>{eventsCrumb.label}</Link>
-               <span className="sep">›</span>
-               <Link to={clubLink}>{event.club?.name || "Club"}</Link>
-               <span className="sep">›</span>
-               <span className="now">{event.title}</span>
-            </div>
-
             {/* HERO */}
             <div className={`ed-hero ${cover}`}>
                <div className="ed-hero-inner">
@@ -362,12 +349,6 @@ export default function EventDetail() {
                            {event.registeredCount}
                            {event.capacity ? ` / ${event.capacity}` : ""}
                         </b>
-                     </div>
-                     <div className="ed-bar">
-                        <div
-                           className={`ed-bar-fill ${barTone}`}
-                           style={{ width: `${event.capacity ? pct : 100}%` }}
-                        />
                      </div>
                      <div className="ed-seat-meta">
                         <div>
@@ -431,6 +412,45 @@ export default function EventDetail() {
                         </div>
                      )}
                   </div>
+
+                  {/* Notices the club posted about this event. Members also see the
+                      private ones; everyone else gets the public ones only. */}
+                  {(notices?.items || []).length > 0 && (
+                     <div className="ed-block">
+                        <div className="ed-block-title">
+                           Announcements
+                           <span className="ed-count">{notices.items.length}</span>
+                        </div>
+                        <div className="an-list">
+                           {notices.items.map((a) => (
+                              <article
+                                 key={a.id}
+                                 className={`an-card${a.pinned ? " pinned" : ""}`}
+                              >
+                                 <div className="an-card-head">
+                                    <div className="an-byline">
+                                       <div className="an-title">{a.title}</div>
+                                       <div className="an-meta">
+                                          <span
+                                             className={`an-vis-tag ${a.visibility}`}
+                                          >
+                                             {a.visibility === "public"
+                                                ? "Everyone"
+                                                : "Members only"}
+                                          </span>
+                                          <span className="sep">·</span>
+                                          {a.author?.name || "Unknown"}
+                                          <span className="sep">·</span>
+                                          {formatFullDate(a.createdAt)}
+                                       </div>
+                                    </div>
+                                 </div>
+                                 <div className="an-body compact">{a.body}</div>
+                              </article>
+                           ))}
+                        </div>
+                     </div>
+                  )}
 
                   {/* Roster — visible to whoever can edit the event. */}
                   {canEdit && (

@@ -81,6 +81,21 @@ export async function deleteClub(slug) {
    return data;
 }
 
+// Following is students-only; it subscribes you to the club's public announcements.
+export async function followClub(slug) {
+   const { data } = await apiClient.post(
+      `/clubs/${encodeURIComponent(slug)}/follow`,
+   );
+   return data;
+}
+
+export async function unfollowClub(slug) {
+   const { data } = await apiClient.delete(
+      `/clubs/${encodeURIComponent(slug)}/follow`,
+   );
+   return data;
+}
+
 export async function getClub(slug) {
    const { data } = await apiClient.get(`/clubs/${encodeURIComponent(slug)}`);
    return data;

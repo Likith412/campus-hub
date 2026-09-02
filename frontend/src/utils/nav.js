@@ -10,14 +10,6 @@ export function clubsListHref(role) {
    return null;
 }
 
-// The same destination as a breadcrumb: label included, since a superAdmin lands on a
-// page called "All Clubs". `to: null` means render plain text — faculty have no listing.
-export function clubsListCrumb(role) {
-   if (role === "superAdmin") return { to: "/admin/clubs", label: "All Clubs" };
-   if (role === "student") return { to: "/clubs", label: "Clubs" };
-   return { to: null, label: "Clubs" };
-}
-
 // A single club. A superAdmin manages one from the admin surface; everyone else uses
 // its public page.
 export function clubHref(role, slug) {

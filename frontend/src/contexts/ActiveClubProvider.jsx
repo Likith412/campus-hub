@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router";
 import { profileApi, ApiError } from "../services";
 import { useAuth } from "./AuthContext";
 import { ActiveClubContext } from "./ActiveClubContext";
@@ -11,8 +12,17 @@ const storageKey = (user) =>
 // How long the branded splash overlays the app while switching clubs.
 const SWITCH_MS = 2000;
 
+// Any /clubs/<slug>/... URL names the club the page is about.
+function slugFromPath(pathname) {
+   const m = /^\/clubs\/([^/]+)/.exec(pathname);
+   const slug = m?.[1];
+   // "new" is the creation wizard, not a club.
+   return slug && slug !== "new" ? slug : null;
+}
+
 export function ActiveClubProvider({ children }) {
    const { user } = useAuth();
+   const { pathname } = useLocation();
    const isFaculty = user?.role === "faculty";
 
    const [clubs, setClubs] = useState([]);
@@ -108,6 +118,26 @@ export function ActiveClubProvider({ children }) {
       const id = setTimeout(() => setSwitching(false), SWITCH_MS);
       return () => clearTimeout(id);
    }, [switching]);
+
+   // Keep focus in step with the URL. Landing on one of your clubs' pages — from a
+   // link, a bookmark, or the address bar — should move the sidebar with you, or the
+   // nav ends up pointing at a different club than the page you're reading. Slugs you
+   // don't coordinate are ignored, so this can't hand anyone access they lack; the
+   // API decides that, and it already refuses.
+   //
+   // Derived during render (not in an effect) so the sidebar never paints a frame
+   // scoped to the previous club, and without the switch splash — you're already
+   // looking at the page, so there's nothing to cover.
+   // The `urlSlug !== activeSlug` check is what stops this looping: the moment it
+   // persists, the two agree and the branch goes quiet.
+   const urlSlug = isFaculty ? slugFromPath(pathname) : null;
+   if (
+      urlSlug &&
+      urlSlug !== activeSlug &&
+      clubs.some((c) => c.slug === urlSlug)
+   ) {
+      persist(urlSlug);
+   }
 
    const activeClub = useMemo(
       () => clubs.find((c) => c.slug === activeSlug) || null,

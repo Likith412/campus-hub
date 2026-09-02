@@ -206,10 +206,6 @@ export default function AllStudents() {
       <AppShell title="All Students">
          <div className="main faculty-page">
             <div className="fac-pagehead">
-               <div className="breadcrumb">
-                  Institute <span className="sep">›</span>{" "}
-                  <span className="now">All Students</span>
-               </div>
                <h1 className="fac-page-title">All Students</h1>
                <p className="fac-page-sub">
                   Every student account on the platform. Students sign themselves up —

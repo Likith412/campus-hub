@@ -1,44 +1,45 @@
 {
-   "name": "backend",
-   "version": "1.0.0",
-   "description": "",
-   "main": "server.js",
-   "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1",
-      "dev": "nodemon src/server.js",
-      "db:init": "node src/scripts/dbInit.js",
-      "db:seed:clubs": "node src/scripts/seedClubs.js",
-      "db:seed:users": "node src/scripts/seedUsers.js",
-      "db:seed:roles": "node src/scripts/seedRoles.js",
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon src/server.js",
+    "db:init": "node src/scripts/dbInit.js",
+    "db:seed:clubs": "node src/scripts/seedClubs.js",
+    "db:seed:users": "node src/scripts/seedUsers.js",
+    "db:seed:roles": "node src/scripts/seedRoles.js",
     "db:seed:events": "node src/scripts/seedEvents.js",
-      "db:seed": "npm run db:seed:clubs && npm run db:seed:users && npm run db:seed:roles && npm run db:seed:events",
-      "db:drop": "node src/scripts/dbReset.js",
-      "db:reset": "npm run db:drop && npm run db:init && npm run db:seed"
-   },
-   "keywords": [],
-   "author": "",
-   "license": "ISC",
-   "type": "commonjs",
-   "dependencies": {
-      "bcrypt": "^6.0.0",
-      "bull": "^4.16.5",
-      "cookie-parser": "^1.4.7",
-      "cors": "^2.8.6",
-      "dotenv": "^17.4.2",
-      "express": "^5.2.1",
-      "express-rate-limit": "^8.5.1",
-      "geoip-lite": "^2.0.2",
-      "jsonwebtoken": "^9.0.3",
-      "mongoose": "^9.6.1",
-      "morgan": "^1.10.1",
-      "nodemailer": "^8.0.7",
-      "rate-limit-redis": "^5.0.0",
-      "redis": "^5.12.1",
-      "ua-parser-js": "^2.0.10",
-      "uuid": "^11.1.1",
-      "zod": "^4.4.3"
-   },
-   "devDependencies": {
-      "nodemon": "^3.1.14"
-   }
+    "db:seed": "npm run db:seed:clubs && npm run db:seed:users && npm run db:seed:roles && npm run db:seed:events && npm run db:seed:announcements",
+    "db:drop": "node src/scripts/dbReset.js",
+    "db:reset": "npm run db:drop && npm run db:init && npm run db:seed",
+    "db:seed:announcements": "node src/scripts/seedAnnouncements.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bull": "^4.16.5",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.1",
+    "geoip-lite": "^2.0.2",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.1",
+    "morgan": "^1.10.1",
+    "nodemailer": "^8.0.7",
+    "rate-limit-redis": "^5.0.0",
+    "redis": "^5.12.1",
+    "ua-parser-js": "^2.0.10",
+    "uuid": "^11.1.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
 }

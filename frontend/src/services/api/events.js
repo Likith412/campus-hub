@@ -82,8 +82,18 @@ export async function listEvents({ q, type, when, sort, page, limit } = {}) {
 }
 
 // The caller's own registrations — drives the dashboard widget.
-export async function listMyEvents({ when, page, limit } = {}) {
-   const { data } = await apiClient.get(`/events/me${qs({ when, page, limit })}`);
+export async function listMyEvents({
+   when,
+   q,
+   type,
+   status,
+   sort,
+   page,
+   limit,
+} = {}) {
+   const { data } = await apiClient.get(
+      `/events/me${qs({ when, q, type, status, sort, page, limit })}`,
+   );
    return data;
 }
 

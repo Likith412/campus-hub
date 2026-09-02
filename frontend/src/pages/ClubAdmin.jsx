@@ -11,8 +11,6 @@ import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
-import { useAuth } from "../contexts/AuthContext";
-import { clubHref } from "../utils/nav";
 import { EVENT_TYPE_LABEL, eventDateParts, formatEventWhen } from "../utils/events";
 
 function initials(name = "") {
@@ -33,19 +31,8 @@ function Kpi({ tone, icon, label, value, sub }) {
    );
 }
 
-function ActionCard({ to, tone, icon, title, sub }) {
-   return (
-      <Link className="action-card" to={to}>
-         <div className={`action-icon ${tone}`}>{icon}</div>
-         <div className="action-title">{title}</div>
-         <div className="action-sub">{sub}</div>
-      </Link>
-   );
-}
-
 export default function ClubAdmin() {
    const { slug } = useParams();
-   const { user } = useAuth();
    const toast = useToast();
 
    const [club, setClub] = useState(null);
@@ -112,7 +99,7 @@ export default function ClubAdmin() {
 
    if (!loaded) {
       return (
-         <AppShell title="Club Home">
+         <AppShell title="Club Home" subtitle={club?.name}>
             <div className="main club-admin">
                <LoadingBlock label="Loading club" size={26} />
             </div>
@@ -122,7 +109,7 @@ export default function ClubAdmin() {
 
    if (!canManage) {
       return (
-         <AppShell title="Club Home">
+         <AppShell title="Club Home" subtitle={club?.name}>
             <div className="main club-admin">
                <div className="profile-empty">
                   You don't have permission to manage this club.{" "}
@@ -140,15 +127,10 @@ export default function ClubAdmin() {
    const roleHolders = roles.reduce((n, r) => n + (r.memberCount || 0), 0);
 
    return (
-      <AppShell title="Club Home">
+      <AppShell title="Club Home" subtitle={club?.name}>
          <div className="main club-admin">
             <div className="page-header">
                <div>
-                  <div className="breadcrumb">
-                     <Link to={clubHref(user?.role, slug)}>{club?.name || "Club"}</Link>
-                     <span className="sep">›</span>
-                     <span className="now">Club Home</span>
-                  </div>
                   <h1 className="page-title">{club?.name || "Club"}</h1>
                   <div className="page-sub">
                      {club?.tagline || "Everything you run for this club, in one place."}
@@ -292,7 +274,9 @@ export default function ClubAdmin() {
                               Seats filled across everything you have scheduled.
                            </div>
                         </div>
-                        <Link className="link-btn" to={`/clubs/${slug}?tab=events`}>
+                        {/* Club Home is the management view, so this goes to the
+                            management events page, not the public club page. */}
+                        <Link className="link-btn" to={`/clubs/${slug}/events`}>
                            All events →
                         </Link>
                      </div>
@@ -308,25 +292,19 @@ export default function ClubAdmin() {
                      ) : (
                         upcoming.map((e) => {
                            const { month, day } = eventDateParts(e.startAt);
-                           const pct = e.capacity
-                              ? Math.min(
-                                   100,
-                                   Math.round((e.registeredCount / e.capacity) * 100),
-                                )
-                              : 0;
                            return (
-                              <div key={e.id} className="ca-row">
+                              <Link
+                                 key={e.id}
+                                 to={`/events/${e.id}`}
+                                 className="ca-row"
+                              >
                                  <div className="ev-date">
                                     <div className="ev-month">{month}</div>
                                     <div className="ev-day">{day}</div>
                                  </div>
                                  <div>
-                                    <Link className="ca-name" to={`/events/${e.id}`}>
+                                    <div className="ca-name">
                                        {e.title}
-                                    </Link>
-                                    <div className="ca-meta">
-                                       {formatEventWhen(e.startAt, e.endAt)}
-                                       {" · "}
                                        <span
                                           className={`badge ${e.eventType}`}
                                           style={{ fontSize: 9.5 }}
@@ -337,19 +315,19 @@ export default function ClubAdmin() {
                                           <span className="ev-status draft">Draft</span>
                                        )}
                                     </div>
+                                    <div className="ca-meta">
+                                       <span>
+                                          {formatEventWhen(e.startAt, e.endAt)}
+                                       </span>
+                                    </div>
                                  </div>
                                  <div className="ca-seats">
                                     <div className="ca-seat-num">
                                        {e.registeredCount}
                                        {e.capacity ? ` / ${e.capacity}` : ""}
                                     </div>
-                                    {e.capacity > 0 && (
-                                       <span className="progress-mini">
-                                          <span style={{ width: `${pct}%` }} />
-                                       </span>
-                                    )}
                                  </div>
-                              </div>
+                              </Link>
                            );
                         })
                      )}
@@ -378,63 +356,6 @@ export default function ClubAdmin() {
                            <span className="ca-role-count">{r.memberCount}</span>
                         </div>
                      ))}
-                  </div>
-
-                  <div className="actions-grid">
-                     {eventsViewer?.canCreate && (
-                        <ActionCard
-                           to={`/clubs/${slug}/events/new`}
-                           tone="purple"
-                           title="Create event"
-                           sub="Publish or save a draft"
-                           icon={
-                              <Icon size={16} strokeWidth={2.3}>
-                                 <line x1="12" y1="5" x2="12" y2="19" />
-                                 <line x1="5" y1="12" x2="19" y2="12" />
-                              </Icon>
-                           }
-                        />
-                     )}
-                     {(viewer?.canModerate || viewer?.canAssignRole) && (
-                        <ActionCard
-                           to={`/clubs/${slug}/members`}
-                           tone="blue"
-                           title="Members"
-                           sub="Approve, remove, assign"
-                           icon={
-                              <Icon size={16} strokeWidth={2.3}>
-                                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                                 <circle cx="9" cy="7" r="4" />
-                              </Icon>
-                           }
-                        />
-                     )}
-                     {viewer?.canManageRoles && (
-                        <ActionCard
-                           to={`/clubs/${slug}/roles`}
-                           tone="green"
-                           title="Roles"
-                           sub="Permissions per role"
-                           icon={
-                              <Icon size={16} strokeWidth={2.3}>
-                                 <path d="M12 2 2 7l10 5 10-5-10-5Z" />
-                                 <path d="M2 17l10 5 10-5M2 12l10 5 10-5" />
-                              </Icon>
-                           }
-                        />
-                     )}
-                     <ActionCard
-                        to={`/clubs/${slug}`}
-                        tone="orange"
-                        title="Public page"
-                        sub="What members see"
-                        icon={
-                           <Icon size={16} strokeWidth={2.3}>
-                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
-                              <circle cx="12" cy="12" r="3" />
-                           </Icon>
-                        }
-                     />
                   </div>
                </div>
             </div>

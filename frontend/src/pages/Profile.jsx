@@ -305,33 +305,53 @@ function EventsPanel({ handle, initial, sub, emptyText, cta }) {
                {cta}
             </div>
          ) : (
-            <div className="pr-ev-list">
+            <>
                {events.map((e) => {
                   const { month, day } = eventDateParts(e.startAt);
                   return (
-                     <Link key={e.id} to={`/events/${e.id}`} className="pr-ev">
-                        <div className="pr-ev-date">
-                           <span>{month}</span>
-                           <b>{day}</b>
+                     <Link
+                        key={e.id}
+                        to={`/events/${e.id}`}
+                        className="ca-row"
+                     >
+                        <div className="ev-date">
+                           <div className="ev-month">{month}</div>
+                           <div className="ev-day">{day}</div>
                         </div>
-                        <div className="pr-ev-body">
-                           <div className="pr-ev-title">{e.title}</div>
-                           <div className="pr-ev-meta">
+                        <div>
+                           <div className="ca-name">
+                              {e.title}
+                              {e.visibility === "private" && (
+                                 <span className="et-private" title="Members only">
+                                    <Icon size={10} strokeWidth={2.6}>
+                                       <rect x="3" y="11" width="18" height="11" rx="2" />
+                                       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </Icon>
+                                 </span>
+                              )}
+                              <span
+                                 className={`badge ${e.eventType}`}
+                                 style={{ fontSize: 9.5 }}
+                              >
+                                 {EVENT_TYPE_LABEL[e.eventType]}
+                              </span>
+                           </div>
+                           <div className="ca-meta">
                               <span>{formatEventWhen(e.startAt, e.endAt)}</span>
                               <span>{formatVenue(e.venue)}</span>
                               {e.club && <span>{e.club.name}</span>}
                            </div>
                         </div>
-                        <span
-                           className={`badge ${e.eventType}`}
-                           style={{ fontSize: 9.5 }}
-                        >
-                           {EVENT_TYPE_LABEL[e.eventType]}
-                        </span>
+                        <div className="ca-seats">
+                           <div className="ca-seat-num">
+                              {e.registeredCount}
+                              {e.capacity ? ` / ${e.capacity}` : ""}
+                           </div>
+                        </div>
                      </Link>
                   );
                })}
-            </div>
+            </>
          )}
          {totalPages > 1 && (
             <Pagination
@@ -541,19 +561,8 @@ export default function Profile() {
    const firstName = (user.name || "").split(" ")[0];
 
    return (
-      <AppShell title={isSelf ? "Your profile" : user.name}>
+      <AppShell title="Profile" subtitle={user.name}>
          <div className="main">
-            <div className="breadcrumb" style={{ marginBottom: 14 }}>
-               {isSelf ? (
-                  <span className="now">Your profile</span>
-               ) : (
-                  <>
-                     People <span className="sep">›</span>{" "}
-                     <span className="now">{user.name}</span>
-                  </>
-               )}
-            </div>
-
             <div className="profile-hero">
                <div
                   className="profile-cover"

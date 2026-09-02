@@ -15,6 +15,8 @@ import ClubDetail from "./pages/ClubDetail";
 import CreateClub from "./pages/CreateClub";
 import EventForm from "./pages/EventForm";
 import Explore from "./pages/Explore";
+import MyEvents from "./pages/MyEvents";
+import MyClubs from "./pages/MyClubs";
 import EventDetail from "./pages/EventDetail";
 import Faculty from "./pages/Faculty";
 import AllClubs from "./pages/AllClubs";
@@ -25,6 +27,7 @@ import ManageMembers from "./pages/ManageMembers";
 import ClubRoles from "./pages/ClubRoles";
 import ClubAdmin from "./pages/ClubAdmin";
 import ClubEvents from "./pages/ClubEvents";
+import ClubAnnouncements from "./pages/ClubAnnouncements";
 
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ActiveClubProvider } from "./contexts/ActiveClubProvider";
@@ -117,6 +120,10 @@ function App() {
                               element={<ClubRoles />}
                            />
                            <Route
+                              path="/clubs/:slug/announcements"
+                              element={<ClubAnnouncements />}
+                           />
+                           <Route
                               path="/clubs/:slug/events/new"
                               element={<EventForm />}
                            />
@@ -134,6 +141,8 @@ function App() {
                         <Route element={<ProtectedRoute roles={["student"]} />}>
                            <Route path="/clubs" element={<Clubs />} />
                            <Route path="/explore" element={<Explore />} />
+                           <Route path="/my-events" element={<MyEvents />} />
+                           <Route path="/my-clubs" element={<MyClubs />} />
                         </Route>
 
                         {/* Account settings — students + faculty only; a super admin

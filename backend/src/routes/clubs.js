@@ -3,6 +3,7 @@ const express = require("express");
 
 const clubs = require("../controllers/clubs");
 const events = require("../controllers/events");
+const announcements = require("../controllers/announcements");
 const authenticate = require("../middlewares/authenticate");
 const requireRole = require("../middlewares/requireRole");
 const requireClubPermission = require("../middlewares/requireClubPermission");
@@ -24,6 +25,11 @@ const {
    createRoleBodySchema,
    updateRoleBodySchema,
 } = require("../validators/clubs");
+const {
+   createAnnouncementBodySchema,
+   pinAnnouncementBodySchema,
+   listAnnouncementsQuerySchema,
+} = require("../validators/announcements");
 const {
    createEventBodySchema,
    updateEventBodySchema,
@@ -77,6 +83,10 @@ router.patch(
 router.delete("/:slug", requireRole(ROLES.SUPER_ADMIN), clubs.deleteClub);
 router.post("/:slug/join", clubs.joinClub);
 router.delete("/:slug/membership", clubs.leaveClub);
+// Following is students-only and needs no approval — it just subscribes you to the
+// club's public announcements.
+router.post("/:slug/follow", clubs.followClub);
+router.delete("/:slug/follow", clubs.unfollowClub);
 
 // ============================================================================
 //  MEMBERS + COORDINATORS  (controllers/clubs/members.controller)
@@ -158,6 +168,37 @@ router.delete(
    "/:slug/roles/:roleSlug",
    requireClubPermission("roles", "manage"),
    clubs.deleteRole,
+);
+
+// ============================================================================
+//  ANNOUNCEMENTS  (controllers/announcements)
+// ============================================================================
+// The board is members-only, so reading is gated in the controller (which knows
+// whether the caller is a member) rather than by a permission. Writes:
+//   announcements:create → post, and take your own note down
+//   announcements:pin    → pin / unpin
+//   announcements:delete → take anyone else's note down
+router.get(
+   "/:slug/announcements",
+   validateQuery(listAnnouncementsQuerySchema),
+   announcements.listClubAnnouncements,
+);
+router.post(
+   "/:slug/announcements",
+   requireClubPermission("announcements", "create"),
+   validate(createAnnouncementBodySchema),
+   announcements.createAnnouncement,
+);
+router.patch(
+   "/:slug/announcements/:id/pin",
+   requireClubPermission("announcements", "pin"),
+   validate(pinAnnouncementBodySchema),
+   announcements.setAnnouncementPinned,
+);
+router.delete(
+   "/:slug/announcements/:id",
+   requireClubPermission("announcements", "create"),
+   announcements.deleteAnnouncement,
 );
 
 // ============================================================================

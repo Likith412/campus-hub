@@ -47,7 +47,13 @@ const CATEGORIES = [
       to: "#818cf8",
    },
    { id: "media", label: "Media", emoji: "📷", from: "#831843", to: "#ec4899" },
-   { id: "social", label: "Social", emoji: "🤝", from: "#0e7490", to: "#22d3ee" },
+   {
+      id: "social",
+      label: "Social",
+      emoji: "🤝",
+      from: "#0e7490",
+      to: "#22d3ee",
+   },
    { id: "other", label: "Other", emoji: "✨", from: "#475569", to: "#94a3b8" },
 ];
 
@@ -112,7 +118,35 @@ function CalendarIcon() {
    );
 }
 
-function ClubCard({ club, onJoin, onLeave, busy }) {
+// Sits next to Join on both the card and the row. Stops the click reaching the
+// surrounding <Link> so following doesn't also navigate into the club.
+function FollowButton({ club, onFollow, busy }) {
+   return (
+      <button
+         type="button"
+         className={`follow-btn sm${club.isFollowing ? " on" : ""}`}
+         disabled={busy}
+         title={
+            club.isFollowing
+               ? "You get emails about this club's public announcements"
+               : "Get emails about this club's public announcements"
+         }
+         onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!busy) onFollow(club);
+         }}
+      >
+         <Icon size={12} strokeWidth={2.4}>
+            <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" />
+            <path d="M16 9a3 3 0 0 1 0 6" />
+         </Icon>
+         {busy ? "…" : club.isFollowing ? "Following" : "Follow"}
+      </button>
+   );
+}
+
+function ClubCard({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
    const btn = joinButtonState(club);
    const cat = categoryMeta(club.category);
    const handleClick = (e) => {
@@ -161,7 +195,9 @@ function ClubCard({ club, onJoin, onLeave, busy }) {
                   </span>
                )}
             </div>
-            <div className="club-tagline">{club.tagline || club.description}</div>
+            <div className="club-tagline">
+               {club.tagline || club.description}
+            </div>
             <div className="club-meta">
                <span>
                   <MemberIcon /> <b>{club.memberCount}</b> members
@@ -189,6 +225,11 @@ function ClubCard({ club, onJoin, onLeave, busy }) {
                   <span className="dot" />
                   {POLICY_LABEL[club.joinPolicy] || club.joinPolicy}
                </span>
+               <FollowButton
+                  club={club}
+                  onFollow={onFollow}
+                  busy={followBusy}
+               />
                <button
                   type="button"
                   className={`join-btn ${btn.cls}`}
@@ -207,7 +248,7 @@ function ClubCard({ club, onJoin, onLeave, busy }) {
    );
 }
 
-function ClubRow({ club, onJoin, onLeave, busy }) {
+function ClubRow({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
    const btn = joinButtonState(club);
    const cat = categoryMeta(club.category);
    const handleClick = (e) => {
@@ -258,6 +299,7 @@ function ClubRow({ club, onJoin, onLeave, busy }) {
          <div className="cr-stat">
             Events<b>{club.eventCount}</b>
          </div>
+         <FollowButton club={club} onFollow={onFollow} busy={followBusy} />
          <button
             type="button"
             className={`join-btn ${btn.cls}`}
@@ -284,6 +326,7 @@ export default function Clubs() {
    const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
    const [data, setData] = useState(null);
    const [busyId, setBusyId] = useState(null);
+   const [followBusyId, setFollowBusyId] = useState(null);
    const [loadedKey, setLoadedKey] = useState(null);
    const toast = useToast();
    const confirm = useConfirm();
@@ -375,6 +418,27 @@ export default function Clubs() {
       });
    }
 
+   // Follow is a one-tap subscription — no confirm, no approval. It only decides
+   // whether you get emailed about the club's public announcements.
+   async function handleFollow(club) {
+      setFollowBusyId(club.id);
+      try {
+         const res = club.isFollowing
+            ? await clubsApi.unfollowClub(club.slug)
+            : await clubsApi.followClub(club.slug);
+         patchClub(club.slug, {
+            isFollowing: res.following,
+            followerCount: res.followerCount,
+         });
+      } catch (err) {
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't update follow",
+         );
+      } finally {
+         setFollowBusyId(null);
+      }
+   }
+
    async function handleJoin(club) {
       const isRequest = club.joinPolicy === "request";
       const ok = await confirm({
@@ -445,18 +509,13 @@ export default function Clubs() {
             {/* HERO */}
             <div className="clubs-hero">
                <div className="hero-inner">
-                  <div className="hero-tag">
-                     <span className="dot" />
-                     {categoryCounts.all || pagination?.total || 0} clubs · find
-                     your people
-                  </div>
                   <h1>
                      Find your <em>people</em>.
                   </h1>
                   <p>
-                     From coding to culture, photography to physics — every
-                     interest has a home on campus. Join one, lead one, or start
-                     your own.
+                     From coding to culture, photography to physics — clubs you
+                     haven't joined yet. The ones you're in live on{" "}
+                     <Link to="/my-clubs">My Clubs</Link>.
                   </p>
                   <div className="hero-search">
                      <Icon size={16}>
@@ -581,7 +640,9 @@ export default function Clubs() {
                         club={c}
                         onJoin={handleJoin}
                         onLeave={handleLeave}
+                        onFollow={handleFollow}
                         busy={busyId === c.id}
+                        followBusy={followBusyId === c.id}
                      />
                   ))}
                </div>
@@ -593,7 +654,9 @@ export default function Clubs() {
                         club={c}
                         onJoin={handleJoin}
                         onLeave={handleLeave}
+                        onFollow={handleFollow}
                         busy={busyId === c.id}
+                        followBusy={followBusyId === c.id}
                      />
                   ))}
                </div>

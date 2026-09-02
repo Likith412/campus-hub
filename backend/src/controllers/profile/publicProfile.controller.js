@@ -78,6 +78,9 @@ function publicEventRow(e) {
       eventType: e.eventType,
       venue: e.venue,
       club: e.clubId ? { name: e.clubId.name, slug: e.clubId.slug } : null,
+      // The profile row shows seats the same way Club Home does.
+      capacity: e.capacity || 0,
+      registeredCount: e.stats?.registered || 0,
    };
 }
 
@@ -94,7 +97,8 @@ async function upcomingEventsOf(userId, includePrivate, page = 1) {
       .populate({
          path: "eventId",
          model: Event,
-         select: "title startAt endAt eventType venue status visibility clubId",
+         select:
+            "title startAt endAt eventType venue status visibility clubId capacity stats.registered",
          populate: { path: "clubId", model: Club, select: "name slug" },
       })
       .lean();
@@ -133,7 +137,7 @@ async function upcomingClubEventsOf(clubIds, includePrivate, page = 1) {
    const skip = (page - 1) * EVENTS_PAGE;
    const [rows, total] = await Promise.all([
       Event.find(filter)
-         .select("title startAt endAt eventType venue clubId")
+         .select("title startAt endAt eventType venue clubId capacity stats.registered")
          .populate({ path: "clubId", model: Club, select: "name slug" })
          .sort({ startAt: 1 })
          .skip(skip)

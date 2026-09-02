@@ -4,6 +4,7 @@ const authRoutes = require("./auth");
 const profileRoutes = require("./profile");
 const clubRoutes = require("./clubs");
 const eventRoutes = require("./events");
+const announcementRoutes = require("./announcements");
 const adminRoutes = require("./admin");
 const permissionRoutes = require("./permissions");
 const accountSecurityRoutes = require("./accountSecurity");
@@ -19,6 +20,7 @@ router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
 router.use("/clubs", clubRoutes);
 router.use("/events", eventRoutes);
+router.use("/announcements", announcementRoutes);
 router.use("/admin", adminRoutes);
 router.use("/permissions", permissionRoutes);
 

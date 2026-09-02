@@ -3,6 +3,7 @@
 const express = require("express");
 
 const events = require("../controllers/events");
+const announcements = require("../controllers/announcements");
 const authenticate = require("../middlewares/authenticate");
 const { validateQuery } = require("../middlewares/validate");
 const {
@@ -22,6 +23,9 @@ router.get(
 // The caller's own registrations — declared before /:eventId so "me" isn't read as an id.
 router.get("/me", validateQuery(listMyEventsQuerySchema), events.listMyEvents);
 router.get("/:eventId", events.getEvent);
+
+// Notices posted about this event, for its detail page.
+router.get("/:eventId/announcements", announcements.listEventAnnouncements);
 
 // Take a seat / give it up. Membership of the host club is enforced in the controller.
 router.post("/:eventId/register", events.registerForEvent);

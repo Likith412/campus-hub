@@ -53,8 +53,11 @@ export async function getRecentActivity() {
    return data;
 }
 
-export async function getClubs() {
-   const { data } = await apiClient.get("/profile/me/clubs");
+// relation: "member" (default) | "following" | "all"
+export async function getClubs({ relation } = {}) {
+   const { data } = await apiClient.get(
+      `/profile/me/clubs${relation ? `?relation=${relation}` : ""}`,
+   );
    return data;
 }
 

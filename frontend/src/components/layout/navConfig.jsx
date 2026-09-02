@@ -99,6 +99,13 @@ const I = {
          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
       </Icon>
    ),
+   megaphone: (
+      <Icon>
+         <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" />
+         <path d="M16 9a3 3 0 0 1 0 6" />
+         <path d="M19 6a7 7 0 0 1 0 12" />
+      </Icon>
+   ),
    calendar: (
       <Icon>
          <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -124,6 +131,8 @@ export const NAV_BY_ROLE = {
       { id: "discovery", label: "Explore", to: "/explore", icon: I.discover },
       { id: "clubs", label: "Clubs", to: "/clubs", icon: I.org },
       { section: "Your Hub" },
+      { id: "my-events", label: "My Events", to: "/my-events", icon: I.calendar },
+      { id: "my-clubs", label: "My Clubs", to: "/my-clubs", icon: I.org },
       { id: "profile", label: "Profile", to: "/profile", icon: I.profile },
       { id: "settings", label: "Settings", to: "/settings", icon: I.user },
    ],
@@ -167,6 +176,12 @@ export function getFacultyNav(slug) {
               label: "Events",
               to: `/clubs/${slug}/events`,
               icon: I.calendar,
+           },
+           {
+              id: "announcements",
+              label: "Announcements",
+              to: `/clubs/${slug}/announcements`,
+              icon: I.megaphone,
            },
            {
               id: "wizard",

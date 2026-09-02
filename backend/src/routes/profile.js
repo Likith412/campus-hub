@@ -12,6 +12,7 @@ const {
    updateSkillsSchema,
    updatePreferencesSchema,
    listProfileEventsQuerySchema,
+   listMyClubsQuerySchema,
 } = require("../validators/profile");
 
 const router = express.Router();
@@ -29,7 +30,11 @@ router.patch("/me", validate(updateProfileSchema), profile.updateMe);
 router.get("/me/stats", profile.getStats);
 router.get("/me/recent-activity", profile.getRecentActivity); // Pending. Need to develop.
 router.get("/me/heatmap", profile.getHeatmap); // Pending. Need to develop.
-router.get("/me/clubs", profile.getClubs);
+router.get(
+   "/me/clubs",
+   validateQuery(listMyClubsQuerySchema),
+   profile.getClubs,
+);
 router.get("/me/achievements/summary", profile.getAchievementsSummary);
 
 // ============================================================================

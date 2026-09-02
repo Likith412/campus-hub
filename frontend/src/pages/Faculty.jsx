@@ -409,10 +409,6 @@ export default function Faculty() {
       >
          <div className="main faculty-page">
             <div className="fac-pagehead">
-               <div className="breadcrumb">
-                  Institute <span className="sep">›</span>{" "}
-                  <span className="now">All Faculties</span>
-               </div>
                <h1 className="fac-page-title">All Faculties</h1>
                <p className="fac-page-sub">
                   Mint faculty accounts. Each gets an email with login credentials.

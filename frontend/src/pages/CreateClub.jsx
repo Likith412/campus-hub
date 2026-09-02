@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { clubsApi, adminApi, ApiError } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
@@ -303,15 +303,6 @@ export default function CreateClub() {
          <div className="create-club">
             <div className="wizard">
                <div className="wizard-head">
-                  <div className="breadcrumb">
-                     {isSuperAdmin ? (
-                        <Link to="/admin/clubs">Clubs</Link>
-                     ) : (
-                        <span>Clubs</span>
-                     )}
-                     <span className="sep">›</span>
-                     <span className="now">Create a club</span>
-                  </div>
                   <div className="wizard-title">Create a new club</div>
                   <div className="wizard-sub">
                      {isSuperAdmin

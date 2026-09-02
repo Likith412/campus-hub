@@ -695,10 +695,6 @@ export default function Settings() {
       <AppShell title="Settings">
          <div className="main">
             <div className="fac-pagehead">
-               <div className="breadcrumb">
-                  <Link to="/profile">Profile</Link> <span className="sep">›</span>{" "}
-                  <span className="now">Settings</span>
-               </div>
                <h1 className="fac-page-title">Settings</h1>
                <p className="fac-page-sub">
                   Your account details, what we notify you about, and the devices

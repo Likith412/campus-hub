@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { clubsApi, ApiError } from "../services";
 import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
@@ -7,7 +7,6 @@ import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
 import { useToast } from "../contexts/ToastContext";
-import { clubHref } from "../utils/nav";
 import PersonLink from "../components/PersonLink";
 import { useConfirm } from "../contexts/ConfirmContext";
 
@@ -539,7 +538,7 @@ export default function ManageMembers() {
    // ---- access ----
    if (!clubLoaded || !rolesLoaded) {
       return (
-         <AppShell title="Members">
+         <AppShell title="Members" subtitle={club?.name}>
             <div className="main mm-main">
                <LoadingBlock label="Loading" size={24} />
             </div>
@@ -548,7 +547,7 @@ export default function ManageMembers() {
    }
    if (!club) {
       return (
-         <AppShell title="Members">
+         <AppShell title="Members" subtitle={club?.name}>
             <div className="main mm-main">
                <div className="profile-empty">Club not found.</div>
             </div>
@@ -559,7 +558,7 @@ export default function ManageMembers() {
    // superAdmin hold both). Moderation-only features are hidden below for assign-role-only users.
    if (!canModerate && !canAssignRole) {
       return (
-         <AppShell title="Members">
+         <AppShell title="Members" subtitle={club?.name}>
             <div className="main mm-main">
                <div className="profile-empty">
                   You don't have permission to manage members of this club.
@@ -572,13 +571,8 @@ export default function ManageMembers() {
    const items = rows || [];
 
    return (
-      <AppShell title="Members">
+      <AppShell title="Members" subtitle={club?.name}>
          <div className="main mm-main">
-            <div className="breadcrumb">
-               <Link to={clubHref(user?.role, slug)}>{club.name}</Link>
-               <span className="sep">›</span>
-               <span className="now">Members</span>
-            </div>
             <h1 className="mm-title">Manage members</h1>
             <p className="mm-sub">
                {canModerate

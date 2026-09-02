@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { clubsApi, eventsApi, ApiError } from "../services";
-import { clubsListCrumb, clubsListHref } from "../utils/nav";
+import { clubsApi, eventsApi, announcementsApi, ApiError } from "../services";
+import { clubsListHref } from "../utils/nav";
 import PersonLink from "../components/PersonLink";
+import EventCard from "../components/EventCard";
 import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
@@ -10,14 +11,6 @@ import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
 import EditClubModal from "../components/EditClubModal";
 import { useToast } from "../contexts/ToastContext";
-import {
-   EVENT_TYPE_LABEL,
-   eventDateParts,
-   eventState,
-   formatEventWhen,
-   formatVenue,
-   registerState,
-} from "../utils/events";
 import { useConfirm } from "../contexts/ConfirmContext";
 
 const CATEGORY_LABEL = {
@@ -58,6 +51,7 @@ const EVENT_SORTS = [
 ];
 
 const PAGE_SIZE = 20;
+const NOTICES_PAGE = 8;
 
 function initials(name = "") {
    const parts = name.trim().split(/\s+/);
@@ -67,6 +61,24 @@ function initials(name = "") {
 function gradient(club) {
    const [a, b] = CATEGORY_GRADIENT[club?.category] || CATEGORY_GRADIENT.other;
    return `linear-gradient(135deg, ${club?.coverFrom || a}, ${club?.coverTo || b})`;
+}
+
+// Announcement timestamps want more precision than a join month — same relative
+// format the board page uses.
+function postedAt(iso) {
+   const diff = Date.now() - new Date(iso).getTime();
+   const m = 60000,
+      h = 3600000,
+      d = 86400000;
+   if (diff < m) return "just now";
+   if (diff < h) return `${Math.floor(diff / m)}m ago`;
+   if (diff < d) return `${Math.floor(diff / h)}h ago`;
+   if (diff < 7 * d) return `${Math.floor(diff / d)}d ago`;
+   return new Date(iso).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+   });
 }
 
 function formatJoined(d) {
@@ -125,84 +137,6 @@ function MemberRow({ row, roleBySlug }) {
    );
 }
 
-// Shared register states → this row's button classes.
-const REG_CLASS = {
-   registered: "done",
-   waitlisted: "wait",
-   register: "primary",
-   waitlist: "primary",
-};
-
-function EventRow({ event, canRegister, busy, onRegister, onLeave, onOpen }) {
-   const { month, day } = eventDateParts(event.startAt);
-   const state = eventState(event);
-   // Staff run events, they don't attend them — no register control for them.
-   const reg = canRegister ? registerState(event) : null;
-
-   return (
-      <tr
-         className={`ac-row${state.cls === "cancelled" ? " dim" : ""}`}
-         onClick={() => onOpen(event)}
-      >
-         <td>
-            <div className="fac-cell">
-               <div className="ev-date sm">
-                  <div className="ev-month">{month}</div>
-                  <div className="ev-day">{day}</div>
-               </div>
-               <div>
-                  <div className="et-name">
-                     {event.title}
-                     {event.visibility === "private" && (
-                        <span className="et-private" title="Members only">
-                           <Icon size={10} strokeWidth={2.6}>
-                              <rect x="3" y="11" width="18" height="11" rx="2" />
-                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                           </Icon>
-                        </span>
-                     )}
-                  </div>
-                  <div className="et-meta">
-                     <span className={`badge ${event.eventType}`}>
-                        {EVENT_TYPE_LABEL[event.eventType]}
-                     </span>
-                  </div>
-               </div>
-            </div>
-         </td>
-         <td>{formatEventWhen(event.startAt, event.endAt)}</td>
-         <td>{formatVenue(event.venue)}</td>
-         <td className="ta-right">
-            <span className="et-seats">
-               {event.registeredCount}
-               {event.capacity ? ` / ${event.capacity}` : ""}
-            </span>
-         </td>
-         <td>
-            <span className={`ev-status ${state.cls}`}>{state.label}</span>
-         </td>
-         {canRegister && (
-            <td className="ta-right">
-               {reg && (
-                  <button
-                     type="button"
-                     className={`ev-reg-btn ${REG_CLASS[reg.state] || ""}`}
-                     disabled={!reg.action || busy}
-                     onClick={(ev) => {
-                        // The row navigates; this button does its own thing.
-                        ev.stopPropagation();
-                        reg.action === "leave" ? onLeave(event) : onRegister(event);
-                     }}
-                  >
-                     {busy ? "…" : reg.label}
-                  </button>
-               )}
-            </td>
-         )}
-      </tr>
-   );
-}
-
 export default function ClubDetail() {
    const { slug } = useParams();
    const navigate = useNavigate();
@@ -211,16 +145,26 @@ export default function ClubDetail() {
    const { user } = useAuth();
    const isStudent = user?.role === "student";
    // Where the parent crumb points, and what it's called, depend on the viewer.
-   const clubsCrumb = clubsListCrumb(user?.role);
    const [club, setClub] = useState(null);
    const [clubLoadedSlug, setClubLoadedSlug] = useState(null);
    const [joinBusy, setJoinBusy] = useState(false);
+   const [followBusy, setFollowBusy] = useState(false);
    const [editing, setEditing] = useState(false);
-   const [searchParams] = useSearchParams();
-   // ?tab=events lets the create-event redirect land straight on the events tab.
-   const [tab, setTab] = useState(() =>
-      searchParams.get("tab") === "events" ? "events" : "members",
-   );
+   // ?tab= is the source of truth, not just a starting value — switching tabs
+   // writes it back, so the URL stays shareable and the back button works.
+   const [searchParams, setSearchParams] = useSearchParams();
+   const urlTab = searchParams.get("tab");
+   const tab =
+      urlTab === "events" || urlTab === "announcements" ? urlTab : "members";
+   const setTab = (id) =>
+      // "members" is the default — no param needed for it.
+      setSearchParams(id === "members" ? {} : { tab: id }, { replace: true });
+
+   // Announcements tab state — fetched lazily, only once the tab is opened.
+   const [notices, setNotices] = useState(null);
+   const [noticesViewer, setNoticesViewer] = useState(null);
+   const [noticesPage, setNoticesPage] = useState(1);
+   const [noticesLoadedKey, setNoticesLoadedKey] = useState(null);
 
    // Events tab state
    const [eventsWhen, setEventsWhen] = useState("all");
@@ -291,6 +235,26 @@ export default function ClubDetail() {
    useEffect(() => {
       refetchRoles();
    }, [refetchRoles]);
+
+   // Only fetched once the tab is opened — most visitors never look at the board.
+   const noticesKey = `${slug}|${noticesPage}`;
+   const noticesLoading = tab === "announcements" && noticesLoadedKey !== noticesKey;
+
+   const refetchNotices = useCallback(() => {
+      announcementsApi
+         .listClubAnnouncements(slug, { page: noticesPage, limit: NOTICES_PAGE })
+         .then((d) => {
+            setNotices(d);
+            setNoticesViewer(d.viewer || null);
+         })
+         .catch(() => setNotices({ items: [], pagination: { total: 0 } }))
+         .finally(() => setNoticesLoadedKey(`${slug}|${noticesPage}`));
+   }, [slug, noticesPage]);
+
+   useEffect(() => {
+      if (tab !== "announcements") return;
+      refetchNotices();
+   }, [tab, refetchNotices]);
 
    const eventsKey = `${slug}|${eventsWhen}|${eventsSort}`;
    const eventsLoading = eventsLoadedKey !== eventsKey;
@@ -547,6 +511,27 @@ export default function ClubDetail() {
       joinLabel = "Request to join";
    }
    const joinDisabled = joinBusy || joinKind === "noop";
+
+   // Following is separate from joining: no approval, and all it does is put you on
+   // the club's email list for public announcements.
+   async function toggleFollow() {
+      setFollowBusy(true);
+      try {
+         const d = club.isFollowing
+            ? await clubsApi.unfollowClub(slug)
+            : await clubsApi.followClub(slug);
+         setClub((c) =>
+            c
+               ? { ...c, isFollowing: d.following, followerCount: d.followerCount }
+               : c,
+         );
+         toast.success(d.following ? "Following this club" : "Unfollowed");
+      } catch (err) {
+         toast.error(err instanceof ApiError ? err.message : "Couldn't update");
+      } finally {
+         setFollowBusy(false);
+      }
+   }
    function onJoinClick() {
       if (joinKind === "leave") handleLeave();
       else if (joinKind === "join") handleJoin();
@@ -560,18 +545,8 @@ export default function ClubDetail() {
    const items = members?.items || [];
 
    return (
-      <AppShell title={`Club · ${club.name}`}>
+      <AppShell title="Club" subtitle={club.name}>
          <div className="main club-detail">
-            <div className="breadcrumb">
-               {clubsCrumb.to ? (
-                  <Link to={clubsCrumb.to}>{clubsCrumb.label}</Link>
-               ) : (
-                  <span>{clubsCrumb.label}</span>
-               )}
-               <span className="sep">›</span>
-               <span className="now">{club.name}</span>
-            </div>
-
             {/* BANNER */}
             <div
                className="club-banner"
@@ -663,6 +638,21 @@ export default function ClubDetail() {
                         Manage members
                      </Link>
                   )}
+                  {/* The board is members-only, so the link only shows to members
+                      (a superAdmin oversees every club and gets it too). */}
+                  {(memberStatus === "approved" ||
+                     user?.role === "superAdmin") && (
+                     <Link
+                        className="btn btn-secondary"
+                        to={`/clubs/${slug}/announcements`}
+                     >
+                        <Icon size={14} strokeWidth={2.2}>
+                           <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" />
+                           <path d="M16 9a3 3 0 0 1 0 6" />
+                        </Icon>
+                        Announcements
+                     </Link>
+                  )}
                   {rolesViewer?.canManageRoles && (
                      <Link
                         className="btn btn-secondary"
@@ -674,6 +664,35 @@ export default function ClubDetail() {
                         </Icon>
                         Roles
                      </Link>
+                  )}
+                  {/* Students only — staff run clubs rather than subscribe to them. */}
+                  {isStudent && (
+                     <button
+                        type="button"
+                        className={`follow-btn${club.isFollowing ? " on" : ""}`}
+                        disabled={followBusy}
+                        onClick={toggleFollow}
+                        title={
+                           club.isFollowing
+                              ? "You get emails about this club's public announcements"
+                              : "Get emails about this club's public announcements"
+                        }
+                     >
+                        <Icon size={13} strokeWidth={2.4}>
+                           <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" />
+                           <path d="M16 9a3 3 0 0 1 0 6" />
+                        </Icon>
+                        {followBusy
+                           ? "…"
+                           : club.isFollowing
+                             ? "Following"
+                             : "Follow"}
+                        {club.followerCount > 0 && (
+                           <span className="follow-count">
+                              {club.followerCount}
+                           </span>
+                        )}
+                     </button>
                   )}
                   {showJoinButton && (
                      <button
@@ -715,6 +734,19 @@ export default function ClubDetail() {
                   <span className="count">
                      {events?.pagination?.total ?? 0}
                   </span>
+               </div>
+               <div
+                  className={`ct-tab${tab === "announcements" ? " active" : ""}`}
+                  onClick={() => setTab("announcements")}
+               >
+                  <Icon size={13} strokeWidth={2.2}>
+                     <path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z" />
+                     <path d="M16 9a3 3 0 0 1 0 6" />
+                  </Icon>
+                  Announcements
+                  {notices?.pagination?.total > 0 && (
+                     <span className="count">{notices.pagination.total}</span>
+                  )}
                </div>
             </div>
 
@@ -809,6 +841,93 @@ export default function ClubDetail() {
             )}
 
             {/* EVENTS TAB */}
+            {/* ANNOUNCEMENTS TAB — read-only here; posting lives on the board page. */}
+            {tab === "announcements" && (
+               <div className="tab-pane active">
+                  <div className="ev-head">
+                     <div>
+                        <div className="panel-title">Announcements</div>
+                        <div className="panel-sub">
+                           {noticesViewer && !noticesViewer.isMember
+                              ? "Public notices — join the club to see members-only ones."
+                              : "Everything this club has posted, pinned first."}
+                        </div>
+                     </div>
+                     {noticesViewer?.canPost && (
+                        <Link
+                           className="btn btn-secondary"
+                           to={`/clubs/${slug}/announcements`}
+                        >
+                           Manage board
+                        </Link>
+                     )}
+                  </div>
+
+                  {noticesLoading && !notices ? (
+                     <LoadingBlock label="Loading announcements" size={22} />
+                  ) : (notices?.items || []).length === 0 ? (
+                     <div className="ev-empty">
+                        {noticesViewer && !noticesViewer.isMember
+                           ? "No public announcements yet."
+                           : "Nothing posted yet."}
+                     </div>
+                  ) : (
+                     <div className="an-list">
+                        {notices.items.map((a) => (
+                           <article
+                              key={a.id}
+                              className={`an-card${a.pinned ? " pinned" : ""}`}
+                           >
+                              <div className="an-card-head">
+                                 <div className="an-avatar">
+                                    {initials(a.author?.name || "?")}
+                                 </div>
+                                 <div className="an-byline">
+                                    <div className="an-title">
+                                       {a.pinned && (
+                                          <span className="an-pin" title="Pinned">
+                                             <Icon size={13} strokeWidth={2.2}>
+                                                <line x1="12" y1="17" x2="12" y2="22" />
+                                                <path d="M9 2h6l-1 6 3 3v2H7v-2l3-3z" />
+                                             </Icon>
+                                          </span>
+                                       )}
+                                       {a.title}
+                                    </div>
+                                    <div className="an-meta">
+                                       <span className={`an-vis-tag ${a.visibility}`}>
+                                          {a.visibility === "public"
+                                             ? "Everyone"
+                                             : "Members only"}
+                                       </span>
+                                       <span className="sep">·</span>
+                                       {a.author?.name || "Unknown"}
+                                       <span className="sep">·</span>
+                                       {postedAt(a.createdAt)}
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="an-body">{a.body}</div>
+                           </article>
+                        ))}
+                     </div>
+                  )}
+
+                  {(notices?.pagination?.total ?? 0) > NOTICES_PAGE && (
+                     <Pagination
+                        page={noticesPage}
+                        totalPages={Math.max(
+                           1,
+                           Math.ceil(notices.pagination.total / NOTICES_PAGE),
+                        )}
+                        perPage={NOTICES_PAGE}
+                        hasMore={notices.pagination.hasMore}
+                        onChange={setNoticesPage}
+                     />
+                  )}
+               </div>
+            )}
+
             {tab === "events" && (
                <div className="tab-pane active">
                   <div className="ev-head">
@@ -876,32 +995,18 @@ export default function ClubDetail() {
                         No {eventsWhen === "all" ? "" : eventsWhen} events yet.
                      </div>
                   ) : (
-                     <div className="fac-table-card ev-table-card">
-                        <table className="fac-dt">
-                           <thead>
-                              <tr>
-                                 <th>Event</th>
-                                 <th>When</th>
-                                 <th>Where</th>
-                                 <th className="ta-right">Registered</th>
-                                 <th>Status</th>
-                                 {isStudent && <th className="ta-right" />}
-                              </tr>
-                           </thead>
-                           <tbody>
-                              {events.items.map((e) => (
-                                 <EventRow
-                                    key={e.id}
-                                    event={e}
-                                    canRegister={isStudent}
-                                    busy={regBusyId === e.id}
-                                    onRegister={handleRegister}
-                                    onLeave={handleLeaveEvent}
-                                    onOpen={(ev) => navigate(`/events/${ev.id}`)}
-                                 />
-                              ))}
-                           </tbody>
-                        </table>
+                     <div className="event-grid">
+                        {events.items.map((e) => (
+                           <EventCard
+                              key={e.id}
+                              event={e}
+                              showStatus
+                              busy={regBusyId === e.id}
+                              onRegister={isStudent ? handleRegister : undefined}
+                              onLeave={isStudent ? handleLeaveEvent : undefined}
+                              onOpen={(ev) => navigate(`/events/${ev.id}`)}
+                           />
+                        ))}
                      </div>
                   )}
                </div>

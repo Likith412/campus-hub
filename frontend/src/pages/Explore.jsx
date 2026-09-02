@@ -7,15 +7,10 @@ import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
-import {
-   EVENT_TYPE_LABEL,
-   EVENT_COVER_CLASS,
-   eventDateParts,
-   formatDuration,
-   registerState,
-} from "../utils/events";
+import { EVENT_TYPE_LABEL, formatDuration } from "../utils/events";
 
 const PAGE_SIZE = 9;
 const EVENT_SORTS = [
@@ -35,13 +30,6 @@ const CATEGORIES = [
 ];
 
 // Each pill just seeds the real keyword/type filters below — no hidden magic.
-const QUICK_PILLS = [
-   { label: "🛠️ Workshops", type: "workshop" },
-   { label: "🏆 Hackathons", type: "hackathon" },
-   { label: "⚡ Contests", type: "contest" },
-   { label: "🎉 Something fun", type: "fun" },
-];
-
 function initials(name = "") {
    const parts = name.trim().split(/\s+/);
    return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
@@ -60,7 +48,9 @@ function rankRecommendations(events) {
          const closesIn = daysUntil(e.registrationClosesAt);
          const startsIn = daysUntil(e.startAt);
          const scarce =
-            e.capacity > 0 && e.seatsLeft !== null && e.seatsLeft <= e.capacity * 0.25;
+            e.capacity > 0 &&
+            e.seatsLeft !== null &&
+            e.seatsLeft <= e.capacity * 0.25;
 
          let score = 0;
          let signal = "Open now";
@@ -81,91 +71,6 @@ function rankRecommendations(events) {
       });
    scored.sort((a, b) => b.score - a.score);
    return scored.slice(0, 3);
-}
-
-// Shared register states → this card's pill classes.
-const REG_CLASS = {
-   registered: "registered",
-   waitlisted: "waitlisted",
-};
-
-function EventCard({ event, busy, onRegister, onLeave }) {
-   const { day, month, time } = eventDateParts(event.startAt);
-   const cover = EVENT_COVER_CLASS[event.eventType] || event.eventType;
-   const taken = event.registeredCount;
-   const pct = event.capacity ? Math.round((taken / event.capacity) * 100) : 0;
-   const left = event.seatsLeft;
-   const low = left !== null && left <= 5;
-   const reg = registerState(event);
-
-   return (
-      <div className="event-card">
-         <Link to={`/events/${event.id}`}>
-            <div className={`event-cover ${cover}`}>
-               <span className="ec-badge">{EVENT_TYPE_LABEL[event.eventType]}</span>
-               <div className="ec-date">
-                  <div className="ec-day">{day}</div>
-                  <div className="ec-month">{month}</div>
-               </div>
-            </div>
-         </Link>
-         <div className="event-body">
-            <Link className="event-title" to={`/events/${event.id}`}>
-               {event.title}
-            </Link>
-            <div className="event-club">{event.club?.name || "—"}</div>
-            <div className="event-meta">
-               <span>🕐 {time}</span>
-               <span>⏱️ {formatDuration(event.startAt, event.endAt)}</span>
-               <span>
-                  {event.venue?.type === "online"
-                     ? "💻 Online"
-                     : `📍 ${event.venue?.location || "TBA"}`}
-               </span>
-            </div>
-            <div className="event-foot">
-               <div className="event-spots">
-                  {event.capacity ? (
-                     <>
-                        <span className="progress-mini">
-                           <span style={{ width: `${Math.min(pct, 100)}%` }} />
-                        </span>
-                        <b className={low ? "low" : ""}>{left}</b> spots left
-                     </>
-                  ) : (
-                     <>
-                        <b>{taken}</b> registered
-                     </>
-                  )}
-               </div>
-               {!reg ? null : reg.action ? (
-                  <button
-                     type="button"
-                     className={`btn-mini ${REG_CLASS[reg.state] || ""}`}
-                     disabled={busy}
-                     onClick={() =>
-                        reg.action === "leave" ? onLeave(event) : onRegister(event)
-                     }
-                     /* Holding a seat, the button gives it up — hence the hint. */
-                     title={
-                        reg.action === "leave" ? "Cancel your registration" : undefined
-                     }
-                  >
-                     {busy
-                        ? "…"
-                        : reg.state === "registered"
-                          ? "✓ In"
-                          : reg.label}
-                  </button>
-               ) : (
-                  <span className={`btn-mini ${REG_CLASS[reg.state] || "muted"}`}>
-                     {reg.state === "registered" ? "✓ In" : reg.label}
-                  </span>
-               )}
-            </div>
-         </div>
-      </div>
-   );
 }
 
 export default function Explore() {
@@ -205,17 +110,27 @@ export default function Explore() {
             );
             setFeed({ items: [], pagination: { total: 0 } });
          })
-         .finally(() => setFeedKey(`${search}|${type}|${when}|${sort}|${page}`));
+         .finally(() =>
+            setFeedKey(`${search}|${type}|${when}|${sort}|${page}`),
+         );
    }, [search, type, when, sort, page, toast]);
 
    useEffect(() => {
       fetchFeed();
    }, [fetchFeed]);
 
+   // Typing commits on its own after a beat — same as the Clubs page.
+   useEffect(() => {
+      const id = setTimeout(() => setSearch(query.trim()), 300);
+      return () => clearTimeout(id);
+   }, [query]);
+
    // A wider unfiltered slice feeds the recommendations and the trending rail.
    const fetchAside = useCallback(() => {
       Promise.all([
-         eventsApi.listEvents({ when: "upcoming", limit: 50 }).catch(() => null),
+         eventsApi
+            .listEvents({ when: "upcoming", limit: 50 })
+            .catch(() => null),
          clubsApi.listClubs({ sort: "popular", limit: 5 }).catch(() => null),
       ]).then(([ev, cl]) => {
          setPool(ev?.items || []);
@@ -229,7 +144,10 @@ export default function Explore() {
 
    const recommendations = useMemo(() => rankRecommendations(pool), [pool]);
    const trending = useMemo(
-      () => [...pool].sort((a, b) => b.registeredCount - a.registeredCount).slice(0, 5),
+      () =>
+         [...pool]
+            .sort((a, b) => b.registeredCount - a.registeredCount)
+            .slice(0, 5),
       [pool],
    );
 
@@ -251,10 +169,6 @@ export default function Explore() {
       Math.ceil((pagination?.total || 0) / (pagination?.limit || PAGE_SIZE)),
    );
 
-   function runSearch() {
-      setSearch(query.trim());
-   }
-
    async function register(event) {
       setBusyId(event.id);
       try {
@@ -267,7 +181,9 @@ export default function Explore() {
          fetchFeed();
          fetchAside();
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't register");
+         toast.error(
+            err instanceof ApiError ? err.message : "Couldn't register",
+         );
       } finally {
          setBusyId(null);
       }
@@ -303,47 +219,39 @@ export default function Explore() {
                {/* HERO */}
                <div className="hero">
                   <div className="hero-inner">
-                     <div className="hero-eyebrow">
-                        <span className="pulse" />
-                        Discovery
-                     </div>
                      <h1>
                         Find your next <em>thing to be obsessed with</em>.
                      </h1>
                      <p>
-                        Every workshop, contest, hackathon and seminar running across
-                        campus — searchable in one place.
+                        Workshops, contests, hackathons and seminars you haven't
+                        signed up for yet. Your own are on{" "}
+                        <Link to="/my-events">My Events</Link>.
                      </p>
 
-                     <div className="ex-search">
-                        <div className="ex-search-ic">
-                           <Icon size={16} strokeWidth={2.2}>
-                              <circle cx="11" cy="11" r="8" />
-                              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                           </Icon>
-                        </div>
+                     {/* Same control as the Clubs page: live, debounced, clearable. */}
+                     <div className="hero-search">
+                        <Icon size={16}>
+                           <circle cx="11" cy="11" r="8" />
+                           <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </Icon>
                         <input
                            value={query}
                            onChange={(e) => setQuery(e.target.value)}
-                           onKeyDown={(e) => e.key === "Enter" && runSearch()}
-                           placeholder="Search events by name or tag — “rag”, “graph algorithms”, “design”"
+                           placeholder="Search events by name or tag…"
                         />
-                        <button type="button" onClick={runSearch}>
-                           Search
-                        </button>
-                     </div>
-
-                     <div className="quick-pills">
-                        {QUICK_PILLS.map((p) => (
+                        {query && (
                            <button
-                              key={p.label}
                               type="button"
-                              className="quick-pill"
-                              onClick={() => setType(p.type)}
+                              className="hero-search-clear"
+                              onClick={() => setQuery("")}
+                              aria-label="Clear"
                            >
-                              {p.label}
+                              <Icon size={14}>
+                                 <line x1="18" y1="6" x2="6" y2="18" />
+                                 <line x1="6" y1="6" x2="18" y2="18" />
+                              </Icon>
                            </button>
-                        ))}
+                        )}
                      </div>
                   </div>
                </div>
@@ -400,13 +308,21 @@ export default function Explore() {
                                  <div className="rec-meta">
                                     <span>
                                        📅{" "}
-                                       {new Date(event.startAt).toLocaleDateString(
-                                          "en-IN",
-                                          { weekday: "short", day: "numeric", month: "short" },
-                                       )}
+                                       {new Date(
+                                          event.startAt,
+                                       ).toLocaleDateString("en-IN", {
+                                          weekday: "short",
+                                          day: "numeric",
+                                          month: "short",
+                                       })}
                                     </span>
                                     <span>
-                                       <b>{formatDuration(event.startAt, event.endAt)}</b>
+                                       <b>
+                                          {formatDuration(
+                                             event.startAt,
+                                             event.endAt,
+                                          )}
+                                       </b>
                                     </span>
                                  </div>
                                  <span className="rec-cta">View →</span>
@@ -422,11 +338,15 @@ export default function Explore() {
                   <div>
                      <div className="section-head">
                         <div>
-                           <div className="section-title">Browse all events</div>
+                           <div className="section-title">
+                              Browse all events
+                           </div>
                            <div className="section-sub">
                               {pagination?.total ?? 0} event
                               {pagination?.total === 1 ? "" : "s"}
-                              {when === "upcoming" ? " coming up" : " already run"}
+                              {when === "upcoming"
+                                 ? " coming up"
+                                 : " already run"}
                               {search ? ` matching “${search}”` : ""}
                            </div>
                         </div>
@@ -480,6 +400,7 @@ export default function Explore() {
                               <EventCard
                                  key={e.id}
                                  event={e}
+                                 showClub
                                  busy={busyId === e.id}
                                  onRegister={register}
                                  onLeave={unregister}
@@ -507,7 +428,9 @@ export default function Explore() {
                            <span className="live-dot">Live</span>
                         </div>
                         {trending.length === 0 ? (
-                           <div className="rail-empty">Nothing scheduled yet.</div>
+                           <div className="rail-empty">
+                              Nothing scheduled yet.
+                           </div>
                         ) : (
                            trending.map((e, i) => (
                               <Link
@@ -517,7 +440,9 @@ export default function Explore() {
                               >
                                  <div className="trending-rank">{i + 1}</div>
                                  <div>
-                                    <div className="trending-title">{e.title}</div>
+                                    <div className="trending-title">
+                                       {e.title}
+                                    </div>
                                     <div className="trending-meta">
                                        <span className="heat">
                                           🔥 {e.registeredCount} registered

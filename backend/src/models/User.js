@@ -88,7 +88,9 @@ const studentSchema = new mongoose.Schema({
       notifications: {
          eventReminders: { type: Boolean, default: true },
          contestInvitations: { type: Boolean, default: true },
-         clubAnnouncements: { type: Boolean, default: false },
+         // On by default: following a club is an explicit opt-in, and announcements
+         // are how a club reaches its followers. The Settings toggle opts out.
+         clubAnnouncements: { type: Boolean, default: true },
          emailDigest: { type: Boolean, default: true },
          channels: {
             email: { type: Boolean, default: true },

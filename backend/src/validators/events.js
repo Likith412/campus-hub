@@ -127,6 +127,11 @@ const listPublicEventsQuerySchema = z
 const listMyEventsQuerySchema = z
    .object({
       when: z.enum(["upcoming", "past"]).default("upcoming"),
+      q: z.string().trim().max(100).optional(),
+      type: z.enum(EVENT_TYPES).optional(),
+      // Your standing on the event, not the event's own status.
+      status: z.enum(["registered", "waitlisted"]).optional(),
+      sort: z.enum(["soonest", "latest"]).optional(),
       page: z.coerce.number().int().min(1).default(1),
       limit: z.coerce.number().int().min(1).max(50).default(10),
    })

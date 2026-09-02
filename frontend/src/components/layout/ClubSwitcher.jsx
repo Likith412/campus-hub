@@ -90,10 +90,13 @@ export default function ClubSwitcher() {
       );
    }
 
+   // Switching focus lands on that club's home — the switcher scopes the whole
+   // sidebar to the new club, so staying on a page belonging to the old one would
+   // leave the nav and the content disagreeing.
    const pick = (slug) => {
       setActiveSlug(slug);
       setOpen(false);
-      navigate(`/clubs/${slug}`);
+      navigate(`/clubs/${slug}/admin`);
    };
 
    return (
