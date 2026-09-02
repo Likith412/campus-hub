@@ -5,6 +5,10 @@
 # below, so Render prompts for it instead of committing it).
 #
 # Deploy: push this file, then Render Dashboard → New → Blueprint → pick this repo.
+#
+# Two passes are needed. The services don't have URLs until they exist, and Render's
+# fromService can't pass a URL between them, so after the first deploy set FRONTEND_URL
+# on the API and VITE_API_URL on the site, and let both redeploy.
 
 services:
   # ── API ────────────────────────────────────────────────────────────────────
@@ -31,11 +35,11 @@ services:
           type: keyvalue
           name: campus-hub-kv
           property: connectionString
+      # Render's fromService can't hand over a service's URL (only connectionString /
+      # host / hostport / port), so this is filled in by hand after the first deploy.
+      # Paste the static site's URL, e.g. https://campus-hub-web.onrender.com
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: campus-hub-web
-          property: url
+        sync: false
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -68,12 +72,11 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
     envVars:
+      # Same story as FRONTEND_URL: paste the API service's URL after the first
+      # deploy, e.g. https://campus-hub-api.onrender.com — the client appends /api
+      # itself. Vite bakes this in at build time, so changing it rebuilds the site.
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: campus-hub-api
-          property: url
-        # Vite bakes this in at build time; the API's own path prefix is /api.
+        sync: false
     routes:
       # react-router owns the URLs — every path has to serve index.html.
       - type: rewrite
