@@ -7,7 +7,14 @@ const {
    ConflictError,
    ValidationError,
 } = require("../../utils/errors");
-const { Club, ClubMembership, ClubRole, User, Event } = require("../../models");
+const {
+   Club,
+   ClubMembership,
+   ClubRole,
+   User,
+   Event,
+   EventRegistration,
+} = require("../../models");
 const { systemRoleDocs } = require("../../models/ClubRole");
 const { ROLES } = require("../../constants/roles");
 const {
@@ -20,7 +27,7 @@ const {
 const SORT_MAP = {
    popular: { "stats.memberCount": -1, createdAt: -1 },
    new: { createdAt: -1 },
-   active: { "stats.totalEngagement": -1, "stats.eventCount": -1 },
+   active: { "stats.eventCount": -1, "stats.memberCount": -1 },
    name: { name: 1 },
 };
 
@@ -290,9 +297,12 @@ async function deleteClub(req, res) {
    if (!club) throw new NotFoundError("Club not found");
 
    // Cascade: drop memberships, roles, and events before the club itself.
+   // Registrations hang off the events, so they're collected by id first.
+   const eventIds = await Event.find({ clubId: club._id }).distinct("_id");
    await Promise.all([
       ClubMembership.deleteMany({ clubId: club._id }),
       ClubRole.deleteMany({ clubId: club._id }),
+      EventRegistration.deleteMany({ eventId: { $in: eventIds } }),
       Event.deleteMany({ clubId: club._id }),
    ]);
    await Club.deleteOne({ _id: club._id });
@@ -448,7 +458,6 @@ async function getClub(req, res) {
       socialLinks: club.socialLinks || {},
       memberCount: club.stats?.memberCount ?? 0,
       eventCount: club.stats?.eventCount ?? 0,
-      totalEngagement: club.stats?.totalEngagement ?? 0,
       joinPolicy: club.settings?.joinPolicy || "request",
       isPrivate: !!club.settings?.isPrivate,
       membership: membership

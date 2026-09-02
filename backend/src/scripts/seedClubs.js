@@ -16,7 +16,6 @@ const CLUBS = [
       description:
          "Building production AI, hands-on. Workshops, contests, and talks from industry researchers.",
       tags: ["ML", "LLM", "workshops"],
-      stats: { memberCount: 412, eventCount: 42, totalEngagement: 980 },
       settings: { joinPolicy: "open" },
       foundedYear: 2021,
       coverFrom: "#6c63ff",
@@ -29,7 +28,6 @@ const CLUBS = [
       description:
          "Competitive programming, ICPC training and ByteBlitz contests every month.",
       tags: ["DSA", "contests", "ICPC"],
-      stats: { memberCount: 328, eventCount: 36, totalEngagement: 840 },
       settings: { joinPolicy: "open" },
       foundedYear: 2019,
       coverFrom: "#3b82f6",
@@ -42,7 +40,6 @@ const CLUBS = [
       description:
          "Frontend, backend, full-stack. Real production gigs for the campus.",
       tags: ["React", "Node", "UI"],
-      stats: { memberCount: 154, eventCount: 28, totalEngagement: 560 },
       settings: { joinPolicy: "open" },
       foundedYear: 2020,
       coverFrom: "#ef4444",
@@ -55,7 +52,6 @@ const CLUBS = [
       description:
          "Build a startup, learn from founders, win pitch competitions. 6 alumni in YC.",
       tags: ["startup", "founders", "pitch"],
-      stats: { memberCount: 298, eventCount: 18, totalEngagement: 720 },
       settings: { joinPolicy: "open" },
       foundedYear: 2017,
       coverFrom: "#4338ca",
@@ -68,7 +64,6 @@ const CLUBS = [
       description:
          "Building autonomous bots, drones, and humanoid prototypes for inter-college expos.",
       tags: ["hardware", "ROS", "arduino"],
-      stats: { memberCount: 220, eventCount: 14, totalEngagement: 510 },
       settings: { joinPolicy: "request" },
       foundedYear: 2018,
       coverFrom: "#064e3b",
@@ -81,7 +76,6 @@ const CLUBS = [
       description:
          "Product design, branding, motion. Posters & identity for every event on campus.",
       tags: ["Figma", "branding", "UX"],
-      stats: { memberCount: 186, eventCount: 22, totalEngagement: 620 },
       settings: { joinPolicy: "open" },
       foundedYear: 2020,
       coverFrom: "#f59e0b",
@@ -94,7 +88,6 @@ const CLUBS = [
       description:
          'Poetry slams, debate, creative writing workshops. The "Spinaker" magazine.',
       tags: ["poetry", "debate", "prose"],
-      stats: { memberCount: 142, eventCount: 16, totalEngagement: 440 },
       settings: { joinPolicy: "open" },
       foundedYear: 1992,
       coverFrom: "#991b1b",
@@ -107,7 +100,6 @@ const CLUBS = [
       description:
          "Bands, choir, classical, Western. Open jam every Friday at the open-air amphitheater.",
       tags: ["rock", "classical", "jam"],
-      stats: { memberCount: 178, eventCount: 14, totalEngagement: 480 },
       settings: { joinPolicy: "open" },
       foundedYear: 1985,
       coverFrom: "#be185d",
@@ -120,7 +112,6 @@ const CLUBS = [
       description:
          "Wildlife, street, portrait. Cameras to lend & monthly photowalks.",
       tags: ["DSLR", "street", "wildlife"],
-      stats: { memberCount: 148, eventCount: 9, totalEngagement: 360 },
       settings: { joinPolicy: "request" },
       foundedYear: 2015,
       coverFrom: "#6366f1",
@@ -133,7 +124,6 @@ const CLUBS = [
       description:
          "Brand new! Reading group for Qiskit, Q#, and the foundational textbooks.",
       tags: ["Qiskit", "reading", "new"],
-      stats: { memberCount: 12, eventCount: 0, totalEngagement: 20 },
       settings: { joinPolicy: "request" },
       foundedYear: 2026,
       coverFrom: "#4338ca",
@@ -146,7 +136,6 @@ const CLUBS = [
       description:
          "Shorts, documentaries, fest submissions. Campus film festival in March.",
       tags: ["cinema", "editing", "shoot"],
-      stats: { memberCount: 96, eventCount: 8, totalEngagement: 280 },
       settings: { joinPolicy: "request" },
       foundedYear: 2018,
       coverFrom: "#831843",
@@ -159,7 +148,6 @@ const CLUBS = [
       description:
          "Coordinates all inter-college sports tournaments. Cricket, football, basketball, badminton.",
       tags: ["cricket", "football", "tournament"],
-      stats: { memberCount: 284, eventCount: 24, totalEngagement: 660 },
       settings: { joinPolicy: "invite-only" },
       foundedYear: 2002,
       coverFrom: "#047857",

@@ -120,9 +120,9 @@ async function seed() {
       });
       await upsertMembership(coordinator._id, club._id, sys.coordinator, "approved");
 
-      // Roughly a third of students join each club as approved members (deterministic).
+      // A small, deterministic slice of students joins each club (every 6th).
       for (let si = 0; si < students.length; si++) {
-         if ((si + ci) % 3 === 0) {
+         if ((si + ci) % 6 === 0) {
             await upsertMembership(students[si]._id, club._id, sys.member, "approved");
          }
       }
@@ -130,7 +130,7 @@ async function seed() {
       // A couple of pending requests on approval-required clubs so the admin queue isn't empty.
       if (club.settings?.joinPolicy === "request") {
          for (let si = 0; si < students.length; si++) {
-            if ((si + ci) % 3 !== 0 && (si + ci) % 7 === 1) {
+            if ((si + ci) % 6 !== 0 && (si + ci) % 7 === 1) {
                await upsertMembership(students[si]._id, club._id, sys.member, "pending");
             }
          }

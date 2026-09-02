@@ -3,6 +3,7 @@ const express = require("express");
 const authRoutes = require("./auth");
 const profileRoutes = require("./profile");
 const clubRoutes = require("./clubs");
+const eventRoutes = require("./events");
 const adminRoutes = require("./admin");
 const permissionRoutes = require("./permissions");
 const accountSecurityRoutes = require("./accountSecurity");
@@ -17,6 +18,7 @@ router.use(accountSecurityRoutes);
 router.use("/auth", authRoutes);
 router.use("/profile", profileRoutes);
 router.use("/clubs", clubRoutes);
+router.use("/events", eventRoutes);
 router.use("/admin", adminRoutes);
 router.use("/permissions", permissionRoutes);
 

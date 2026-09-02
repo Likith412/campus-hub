@@ -50,8 +50,8 @@ const CUSTOM_ROLES = [
 // How many members to drop into each custom role per club.
 const ASSIGN_PLAN = [
    { slug: "president", count: 1 },
-   { slug: "tech-lead", count: 2 },
-   { slug: "volunteer", count: 3 },
+   { slug: "tech-lead", count: 1 },
+   { slug: "volunteer", count: 1 },
 ];
 
 async function seed() {
@@ -99,7 +99,7 @@ async function seed() {
          status: "approved",
          roleId: idBySlug.member,
       })
-         .limit(12)
+         .limit(8)
          .lean();
 
       let idx = 0;

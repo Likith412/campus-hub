@@ -10,7 +10,8 @@
       "db:seed:clubs": "node src/scripts/seedClubs.js",
       "db:seed:users": "node src/scripts/seedUsers.js",
       "db:seed:roles": "node src/scripts/seedRoles.js",
-      "db:seed": "npm run db:seed:clubs && npm run db:seed:users && npm run db:seed:roles",
+    "db:seed:events": "node src/scripts/seedEvents.js",
+      "db:seed": "npm run db:seed:clubs && npm run db:seed:users && npm run db:seed:roles && npm run db:seed:events",
       "db:drop": "node src/scripts/dbReset.js",
       "db:reset": "npm run db:drop && npm run db:init && npm run db:seed"
    },
