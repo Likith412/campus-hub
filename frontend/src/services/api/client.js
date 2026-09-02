@@ -1,7 +1,10 @@
 import axios from "axios";
 import { ApiError } from "./errors";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+// VITE_API_URL may be either the API origin or the full /api base — a hosting platform
+// that injects a service URL hands over the bare origin.
+const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+const BASE_URL = API_URL.endsWith("/api") ? API_URL : `${API_URL}/api`;
 
 // withCredentials: send/receive httpOnly auth cookies on every request.
 export const apiClient = axios.create({

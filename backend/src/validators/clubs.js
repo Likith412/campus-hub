@@ -140,8 +140,6 @@ const updateClubBodySchema = z
       tagline: z.string().trim().max(90),
       description: z.string().trim().max(500),
       category: z.enum(CLUB_CATEGORIES),
-      logoUrl: urlOrEmptyKeep,
-      bannerUrl: urlOrEmptyKeep,
       tags: z.array(z.string().trim().max(40)).max(10),
       settings: z
          .object({

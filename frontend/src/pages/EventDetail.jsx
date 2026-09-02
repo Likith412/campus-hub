@@ -22,7 +22,7 @@ import {
    eventState,
    formatDuration,
    formatFullDate,
-   formatVenue,
+   venueText,
    registerState,
 } from "../utils/events";
 
@@ -294,95 +294,130 @@ export default function EventDetail() {
          <div className="main event-detail">
             {/* HERO */}
             <div className={`ed-hero ${cover}`}>
-               <div className="ed-hero-inner">
-                  <div className="ed-hero-l">
-                     <div className="ed-eyebrow">
-                        {state.cls === "live" && <span className="live-dot" />}
+               <div className="ed-hero-l">
+                  <div className="ed-chips">
+                     <span className="ed-chip type">
                         {EVENT_TYPE_LABEL[event.eventType]}
-                        <span className="ed-dot" />
+                     </span>
+                     <span className={`ed-chip state ${state.cls}`}>
+                        {state.cls === "live" && <span className="live-dot" />}
                         {state.label}
-                        {event.visibility === "private" && (
-                           <>
-                              <span className="ed-dot" />
-                              <span className="ed-lock" title="Members only">
-                                 <Icon size={11} strokeWidth={2.4}>
-                                    <rect x="3" y="11" width="18" height="11" rx="2" />
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                                 </Icon>
-                              </span>
-                           </>
-                        )}
-                     </div>
-                     <h1 className="ed-title">{event.title}</h1>
-                     <div className="ed-meta-row">
-                        <span>📅 {formatFullDate(event.startAt)}</span>
-                        <span>
-                           ⏱️ {formatDuration(event.startAt, event.endAt)}
+                     </span>
+                     {event.visibility === "private" && (
+                        <span className="ed-chip lock">
+                           <Icon size={11} strokeWidth={2.4}>
+                              <rect x="3" y="11" width="18" height="11" rx="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                           </Icon>
+                           Members only
                         </span>
-                        <span>{formatVenue(event.venue)}</span>
-                        {event.organiser && <span>👤 {event.organiser}</span>}
-                     </div>
-                     {/* One line saying what actually matters right now. */}
-                     <div className="ed-countdown">
-                        {isPast
-                           ? `Ran ${relativeDays(event.startAt)}`
-                           : event.status === "cancelled"
-                             ? "This event was called off"
-                             : event.registrationOpen
-                               ? `Registration closes ${relativeDays(event.registrationClosesAt)} · starts ${relativeDays(event.startAt)}`
-                               : `Registration closed · starts ${relativeDays(event.startAt)}`}
-                     </div>
-                  </div>
-
-                  <div className="ed-hero-r">
-                     <div className="ed-seat-label">
-                        <span>Registered</span>
-                        <b>
-                           {event.registeredCount}
-                           {event.capacity ? ` / ${event.capacity}` : ""}
-                        </b>
-                     </div>
-                     <div className="ed-seat-meta">
-                        <div>
-                           {event.capacity ? "Seats left" : "Capacity"}
-                           <b>
-                              {event.capacity ? event.seatsLeft : "Unlimited"}
-                           </b>
-                        </div>
-                        <div>
-                           Closes
-                           <b>
-                              {new Date(
-                                 event.registrationClosesAt,
-                              ).toLocaleDateString("en-IN", {
-                                 day: "numeric",
-                                 month: "short",
-                              })}
-                           </b>
-                        </div>
-                        <div>
-                           Waitlist
-                           <b>
-                              {event.waitlistEnabled
-                                 ? `${event.waitlistedCount ?? 0} queued`
-                                 : "Off"}
-                           </b>
-                        </div>
-                     </div>
-
-                     {reg && (
-                        <button
-                           type="button"
-                           className={`ed-cta ${CTA_CLASS[reg.state] || ""}`}
-                           disabled={!reg.action || busy}
-                           onClick={() =>
-                              reg.action === "leave" ? leave() : register()
-                           }
-                        >
-                           {busy ? "…" : reg.label}
-                        </button>
                      )}
                   </div>
+                  <h1 className="ed-title">{event.title}</h1>
+                  <div className="ed-meta-row">
+                     <span>
+                        <Icon size={13}>
+                           <rect x="3" y="4" width="18" height="18" rx="2" />
+                           <line x1="16" y1="2" x2="16" y2="6" />
+                           <line x1="8" y1="2" x2="8" y2="6" />
+                           <line x1="3" y1="10" x2="21" y2="10" />
+                        </Icon>
+                        {formatFullDate(event.startAt)}
+                     </span>
+                     <span>
+                        <Icon size={13}>
+                           <circle cx="12" cy="12" r="9" />
+                           <polyline points="12 7 12 12 15 14" />
+                        </Icon>
+                        {formatDuration(event.startAt, event.endAt)}
+                     </span>
+                     <span>
+                        {event.venue?.type === "online" ? (
+                           <Icon size={13}>
+                              <rect x="2" y="4" width="20" height="13" rx="2" />
+                              <line x1="8" y1="21" x2="16" y2="21" />
+                              <line x1="12" y1="17" x2="12" y2="21" />
+                           </Icon>
+                        ) : (
+                           <Icon size={13}>
+                              <path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z" />
+                              <circle cx="12" cy="10" r="3" />
+                           </Icon>
+                        )}
+                        {venueText(event.venue)}
+                     </span>
+                     {event.organiser && (
+                        <span>
+                           <Icon size={13}>
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                           </Icon>
+                           {event.organiser}
+                        </span>
+                     )}
+                  </div>
+                  {/* One line saying what actually matters right now. */}
+                  <div className={`ed-countdown${isPast || event.status === "cancelled" ? " muted" : ""}`}>
+                     {isPast
+                        ? `Ran ${relativeDays(event.startAt)}`
+                        : event.status === "cancelled"
+                          ? "This event was called off"
+                          : event.registrationOpen
+                            ? `Registration closes ${relativeDays(event.registrationClosesAt)} · starts ${relativeDays(event.startAt)}`
+                            : `Registration closed · starts ${relativeDays(event.startAt)}`}
+                  </div>
+               </div>
+
+               <div className="ed-hero-r">
+                  <div className="ed-seats">
+                     <div className="ed-seats-num">
+                        {event.registeredCount}
+                        {event.capacity ? (
+                           <span> / {event.capacity}</span>
+                        ) : null}
+                     </div>
+                     <div className="ed-seats-label">Registered</div>
+                  </div>
+                  <div className="ed-stat-grid">
+                     <div>
+                        <span>{event.capacity ? "Seats left" : "Capacity"}</span>
+                        <b className={event.capacity && !event.seatsLeft ? "low" : ""}>
+                           {event.capacity ? event.seatsLeft : "Unlimited"}
+                        </b>
+                     </div>
+                     <div>
+                        <span>Closes</span>
+                        <b>
+                           {new Date(
+                              event.registrationClosesAt,
+                           ).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                           })}
+                        </b>
+                     </div>
+                     <div>
+                        <span>Waitlist</span>
+                        <b>
+                           {event.waitlistEnabled
+                              ? `${event.waitlistedCount ?? 0} queued`
+                              : "Off"}
+                        </b>
+                     </div>
+                  </div>
+
+                  {reg && (
+                     <button
+                        type="button"
+                        className={`ed-cta ${CTA_CLASS[reg.state] || ""}`}
+                        disabled={!reg.action || busy}
+                        onClick={() =>
+                           reg.action === "leave" ? leave() : register()
+                        }
+                     >
+                        {busy ? "…" : reg.label}
+                     </button>
+                  )}
                </div>
             </div>
 
@@ -477,11 +512,7 @@ export default function EventDetail() {
                               {attendees.items.map((a) => (
                                  <div key={a.userId} className="ed-person">
                                     <div className="avatar sm">
-                                       {a.avatarUrl ? (
-                                          <img src={a.avatarUrl} alt="" />
-                                       ) : (
-                                          initials(a.name)
-                                       )}
+                                       {initials(a.name)}
                                     </div>
                                     <div>
                                        <PersonLink user={a} className="ed-person-name" />

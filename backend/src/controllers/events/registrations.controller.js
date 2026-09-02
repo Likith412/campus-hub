@@ -319,7 +319,6 @@ async function listAttendees(req, res) {
          userId: r.user?._id || r.userId,
          name: r.user?.name || "Unknown",
          email: r.user?.email || null,
-         avatarUrl: r.user?.avatarUrl || null,
          department: r.user?.profile?.department || null,
          year: r.user?.profile?.year || null,
          status: r.status,

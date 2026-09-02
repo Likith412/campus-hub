@@ -16,7 +16,6 @@ const updateProfileSchema = z
          .optional(),
       // "" clears the field; anything else has to be a real value.
       phone: z.union([z.string().min(6).max(20), z.literal("")]).optional(),
-      avatarUrl: urlOrEmptyKeep,
       profile: z
          .object({
             department: z.string().max(120).optional(),

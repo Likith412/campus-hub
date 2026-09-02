@@ -45,7 +45,6 @@ const userSchema = new mongoose.Schema(
          unique: true,
       },
       phone: { type: String, trim: true },
-      avatarUrl: String,
 
       emailVerified: { type: Boolean, default: false },
       isActive: { type: Boolean, default: true },

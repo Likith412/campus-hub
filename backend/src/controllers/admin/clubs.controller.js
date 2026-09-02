@@ -21,7 +21,7 @@ async function listAllClubs(req, res) {
    const [items, total, statusAgg] = await Promise.all([
       Club.find(filter)
          .select(
-            "slug name tagline category verified status logoUrl coverFrom coverTo stats.memberCount",
+            "slug name tagline category verified status coverFrom coverTo stats.memberCount",
          )
          .sort(CLUB_SORT[sort] || CLUB_SORT.popular)
          .skip(skip)
@@ -85,7 +85,6 @@ async function listAllClubs(req, res) {
       category: c.category,
       verified: !!c.verified,
       status: c.status,
-      logoUrl: c.logoUrl,
       coverFrom: c.coverFrom,
       coverTo: c.coverTo,
       memberCount: c.stats?.memberCount ?? 0,

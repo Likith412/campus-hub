@@ -114,11 +114,7 @@ function MemberRow({ row, roleBySlug }) {
    return (
       <div className="ml-row">
          <div className="avatar sm">
-            {row.avatarUrl ? (
-               <img src={row.avatarUrl} alt="" />
-            ) : (
-               initials(row.name)
-            )}
+            {initials(row.name)}
          </div>
          <div>
             <PersonLink user={row} className="ml-name" />
@@ -548,14 +544,7 @@ export default function ClubDetail() {
       <AppShell title="Club" subtitle={club.name}>
          <div className="main club-detail">
             {/* BANNER */}
-            <div
-               className="club-banner"
-               style={
-                  club.bannerUrl
-                     ? { background: `url(${club.bannerUrl}) center/cover` }
-                     : undefined
-               }
-            />
+            <div className="club-banner" />
 
             {/* IDENTITY */}
             <div className="club-id">
@@ -563,11 +552,7 @@ export default function ClubDetail() {
                   className="club-id-logo"
                   style={{ background: gradient(club) }}
                >
-                  {club.logoUrl ? (
-                     <img src={club.logoUrl} alt="" />
-                  ) : (
-                     initials(club.name)
-                  )}
+                  {initials(club.name)}
                </div>
                <div className="club-id-text">
                   <div className="club-name">

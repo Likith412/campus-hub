@@ -181,20 +181,7 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
                            className="logo-preview"
                            style={{ background: gradient }}
                         >
-                           {club.logoUrl ? (
-                              <img
-                                 src={club.logoUrl}
-                                 alt=""
-                                 style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                    borderRadius: 18,
-                                 }}
-                              />
-                           ) : (
-                              mono
-                           )}
+                           {mono}
                         </div>
                         <div className="identity-controls">
                            <div

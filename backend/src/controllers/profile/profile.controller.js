@@ -14,7 +14,6 @@ function publicProfile(u) {
       name: u.name,
       username: u.username,
       phone: u.phone,
-      avatarUrl: u.avatarUrl,
       role: u.role,
       profile: u.profile,
       interests: u.interests,
@@ -31,7 +30,6 @@ function computeCompletion(u) {
       u.role === ROLES.FACULTY
          ? [
               !!u.name,
-              !!u.avatarUrl,
               !!u.profile?.bio,
               !!u.profile?.department,
               !!u.profile?.designation,
@@ -42,7 +40,6 @@ function computeCompletion(u) {
          : [
               !!u.name,
               !!u.username,
-              !!u.avatarUrl,
               !!u.profile?.bio,
               !!u.profile?.department,
               !!u.profile?.year,

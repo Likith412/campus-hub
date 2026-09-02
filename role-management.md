@@ -42,6 +42,7 @@ Defined in `backend/src/constants/clubPermissions.js` and surfaced to the role e
 | `announcements:delete` | Announcements | Delete announcements |
 | `events:create` | Events | Create events |
 | `events:edit` | Events | Edit events |
+| `events:publish` | Events | Publish a draft event |
 | `events:cancel` | Events | Cancel events |
 
 `CLUB_PERMISSION_KEYS` (the keys array) is the enum used to validate role permissions and the

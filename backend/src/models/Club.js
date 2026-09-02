@@ -33,10 +33,9 @@ const clubSchema = new mongoose.Schema(
       // One-line hook shown on the club card; `description` is the longer about text.
       tagline: String,
       description: String,
-      logoUrl: String,
-      bannerUrl: String,
 
-      // Optional brand colors for the card cover gradient — falls back to category palette.
+      // Brand colours for the card cover gradient — clubs are identified by colour and
+      // initials rather than by an uploaded image.
       coverFrom: String,
       coverTo: String,
 

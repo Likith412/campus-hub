@@ -223,11 +223,7 @@ export default function ClubAdmin() {
                            pending.map((row) => (
                               <div key={row.userId} className="ca-row">
                                  <div className="avatar sm">
-                                    {row.avatarUrl ? (
-                                       <img src={row.avatarUrl} alt="" />
-                                    ) : (
-                                       initials(row.name)
-                                    )}
+                                    {initials(row.name)}
                                  </div>
                                  <div>
                                     <div className="ca-name">{row.name}</div>

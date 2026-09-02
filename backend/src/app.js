@@ -21,17 +21,17 @@ if (trustProxy) {
    app.set("trust proxy", 1); // sensible default: one hop (the immediate reverse proxy)
 }
 
-const writeStream = fs.createWriteStream(
-   path.join(__dirname, "..", "access.log"),
-   { flags: "a" },
-);
-
-// Request logging — concise "dev" format locally, "combined" in production for log aggregation.
-app.use(
-   morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", {
-      stream: writeStream,
-   }),
-);
+// Request logging. In production it goes to stdout, which is what a hosting platform
+// collects; locally it goes to access.log so the terminal stays readable.
+if (process.env.NODE_ENV === "production") {
+   app.use(morgan("combined"));
+} else {
+   const writeStream = fs.createWriteStream(
+      path.join(__dirname, "..", "access.log"),
+      { flags: "a" },
+   );
+   app.use(morgan("dev", { stream: writeStream }));
+}
 
 // Allow the frontend origin and send/receive cookies (needed for refresh-token cookie).
 app.use(

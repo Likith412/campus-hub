@@ -29,7 +29,6 @@ const venueSchema = z
 const eventFields = {
    title: z.string().trim().min(3).max(120),
    description: z.string().trim().max(2000).optional(),
-   bannerUrl: urlOrEmpty,
    eventType: z.enum(EVENT_TYPES),
    startAt: z.coerce.date(),
    endAt: z.coerce.date(),

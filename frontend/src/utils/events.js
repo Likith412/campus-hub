@@ -69,11 +69,16 @@ export function formatFullDate(iso) {
    });
 }
 
+// Just the words — for callers that draw their own icon.
+export function venueText(venue) {
+   if (venue?.type === "online") return "Online";
+   if (venue?.type === "hybrid") return `${venue.location || "Venue TBA"} · hybrid`;
+   return venue?.location || "Venue TBA";
+}
+
+// The same thing with a leading glyph, used on the compact event cards.
 export function formatVenue(venue) {
-   if (venue?.type === "online") return "💻 Online";
-   if (venue?.type === "hybrid")
-      return `📍 ${venue.location || "Venue TBA"} · hybrid`;
-   return `📍 ${venue?.location || "Venue TBA"}`;
+   return `${venue?.type === "online" ? "💻" : "📍"} ${venueText(venue)}`;
 }
 
 // Cancelled/draft win over the clock; otherwise it's past, live or upcoming.

@@ -331,11 +331,7 @@
    overflow: hidden;
    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
-.cs-badge img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-}
+
 .cs-trigger-text {
    min-width: 0;
    flex: 1;
@@ -1655,13 +1651,6 @@
    Profile page — public view (/u/:handle)
    =========================================================== */
 
-.profile-avatar img {
-   width: 100%;
-   height: 100%;
-   border-radius: 9999px;
-   object-fit: cover;
-}
-
 /* Role chip sitting beside the name in the hero. */
 .pr-role {
    font-family: var(--font-mono);
@@ -2797,11 +2786,7 @@ body {
    box-shadow: var(--shadow-sm);
    overflow: hidden;
 }
-.club-logo-lg img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-}
+
 .club-body {
    padding: 30px 18px 16px;
    flex: 1;
@@ -3050,11 +3035,7 @@ body {
    font-size: 14px;
    overflow: hidden;
 }
-.club-row-logo img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-}
+
 .cr-info {
    min-width: 0;
 }
@@ -3412,11 +3393,7 @@ body {
    /* Overlap the banner from the left, mirroring the profile-page avatar. */
    margin-top: -52px;
 }
-.club-id-logo img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-}
+
 .club-id-text {
    grid-area: text;
    min-width: 0;
@@ -4291,11 +4268,7 @@ body {
    flex-shrink: 0;
    overflow: hidden;
 }
-.ac-logo img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-}
+
 .ac-name {
    display: flex;
    align-items: center;
@@ -4408,11 +4381,7 @@ body {
    overflow: hidden;
    box-shadow: var(--shadow-md);
 }
-.cctl-logo img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-}
+
 .cctl-head-meta {
    min-width: 0;
 }
@@ -6099,11 +6068,7 @@ body {
    flex-shrink: 0;
    overflow: hidden;
 }
-.mm-avatar img {
-   width: 100%;
-   height: 100%;
-   object-fit: cover;
-}
+
 .mm-name {
    font-weight: 600;
    font-size: 13.5px;
@@ -7845,91 +7810,104 @@ button.btn-mini.on:hover:not(:disabled) {
 
 /* ── Event detail (/events/:eventId) ──────────────────────────────── */
 /* Hero follows .design/Workshop.html; the body blocks follow the ClubRoles cards. */
-.event-detail .ed-hero {
-   border-radius: 16px;
-   padding: 26px 30px;
-   color: #fff;
-   box-shadow: var(--shadow-lg);
+.event-detail /* Event hero. A light card like every other surface, with the event type carried by a
+   single accent colour rather than a dark slab. */
+.ed-hero {
+   --ed-accent: var(--accent-purple);
+   --ed-accent-soft: var(--accent-purple-light);
    position: relative;
-   overflow: hidden;
-   margin: 8px 0 24px;
-   background: linear-gradient(120deg, #1a1d2a 0%, #22263a 60%, #2a2660 100%);
-}
-/* Tint the hero by event type, matching the Explore covers. */
-.event-detail .ed-hero.coding::after {
-   background: radial-gradient(circle, rgba(59, 130, 246, 0.35), transparent 60%);
-}
-.event-detail .ed-hero.workshop::after {
-   background: radial-gradient(circle, rgba(52, 211, 153, 0.3), transparent 60%);
-}
-.event-detail .ed-hero.hackathon::after {
-   background: radial-gradient(circle, rgba(108, 99, 255, 0.4), transparent 60%);
-}
-.event-detail .ed-hero.seminar::after {
-   background: radial-gradient(circle, rgba(245, 158, 11, 0.3), transparent 60%);
-}
-.event-detail .ed-hero.fun::after {
-   background: radial-gradient(circle, rgba(239, 68, 68, 0.3), transparent 60%);
-}
-.event-detail .ed-hero::before {
-   content: "";
-   position: absolute;
-   top: -40%;
-   right: -10%;
-   width: 460px;
-   height: 460px;
-   background: radial-gradient(circle, rgba(108, 99, 255, 0.35), transparent 60%);
-   pointer-events: none;
-}
-.event-detail .ed-hero::after {
-   content: "";
-   position: absolute;
-   bottom: -30%;
-   left: 25%;
-   width: 360px;
-   height: 360px;
-   background: radial-gradient(circle, rgba(52, 211, 153, 0.25), transparent 60%);
-   pointer-events: none;
-}
-.event-detail .ed-hero-inner {
-   position: relative;
-   z-index: 1;
+   margin: 0 0 20px;
+   padding: 22px 24px;
+   background: var(--bg-base);
+   border: 1px solid var(--border-light);
+   border-radius: 14px;
+   box-shadow: var(--shadow-xs);
    display: flex;
-   align-items: center;
+   align-items: flex-start;
    justify-content: space-between;
-   gap: 24px;
+   gap: 28px;
    flex-wrap: wrap;
+   overflow: hidden;
 }
+/* The type stripe down the leading edge. */
+.ed-hero::before {
+   content: "";
+   position: absolute;
+   inset: 0 auto 0 0;
+   width: 3px;
+   background: var(--ed-accent);
+}
+.event-detail .ed-hero.coding {
+   --ed-accent: var(--accent-blue);
+   --ed-accent-soft: var(--accent-blue-light);
+}
+.event-detail .ed-hero.workshop {
+   --ed-accent: var(--accent-green);
+   --ed-accent-soft: var(--accent-green-light);
+}
+.event-detail .ed-hero.hackathon {
+   --ed-accent: var(--accent-purple);
+   --ed-accent-soft: var(--accent-purple-light);
+}
+.event-detail .ed-hero.seminar {
+   --ed-accent: var(--accent-orange);
+   --ed-accent-soft: var(--accent-orange-light);
+}
+.event-detail .ed-hero.fun {
+   --ed-accent: var(--accent-red);
+   --ed-accent-soft: var(--accent-red-light);
+}
+
 .event-detail .ed-hero-l {
    min-width: 0;
-   flex: 1 1 420px;
+   flex: 1 1 400px;
 }
-.event-detail .ed-eyebrow {
+.event-detail .ed-chips {
+   display: flex;
+   align-items: center;
+   gap: 6px;
+   flex-wrap: wrap;
+}
+.event-detail .ed-chip {
    display: inline-flex;
    align-items: center;
-   gap: 8px;
-   padding: 4px 10px;
-   border-radius: 9999px;
-   background: rgba(255, 255, 255, 0.1);
-   border: 1px solid rgba(255, 255, 255, 0.15);
-   font-size: 11px;
+   gap: 5px;
+   padding: 3px 9px;
+   border-radius: var(--radius-full);
+   font-size: 10.5px;
    font-weight: 700;
-   letter-spacing: 0.5px;
+   letter-spacing: 0.4px;
    text-transform: uppercase;
-   color: rgba(255, 255, 255, 0.85);
 }
-.event-detail .ed-eyebrow .ed-dot {
-   width: 3px;
-   height: 3px;
-   border-radius: 9999px;
-   background: rgba(255, 255, 255, 0.5);
+.event-detail .ed-chip.type {
+   background: var(--ed-accent-soft);
+   color: var(--ed-accent);
 }
-.event-detail .ed-eyebrow .live-dot {
+.event-detail .ed-chip.state {
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
+}
+.event-detail .ed-chip.state.live {
+   background: var(--accent-green-light);
+   color: #0f7a5a;
+}
+.event-detail .ed-chip.state.cancelled {
+   background: var(--accent-red-light);
+   color: var(--accent-red);
+}
+.event-detail .ed-chip.state.draft {
+   background: var(--accent-orange-light);
+   color: #a16207;
+}
+.event-detail .ed-chip.lock {
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
+}
+.event-detail .ed-chip .live-dot {
    width: 6px;
    height: 6px;
-   border-radius: 9999px;
+   border-radius: var(--radius-full);
    background: var(--accent-green);
-   box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.25);
    animation: edPulse 1.6s infinite;
 }
 @keyframes edPulse {
@@ -7938,102 +7916,163 @@ button.btn-mini.on:hover:not(:disabled) {
       opacity: 1;
    }
    50% {
-      opacity: 0.5;
+      opacity: 0.35;
    }
 }
+
 .event-detail .ed-title {
    font-family: var(--font-display);
    font-weight: 800;
-   font-size: 30px;
-   line-height: 38px;
+   font-size: 27px;
+   line-height: 34px;
    letter-spacing: -0.02em;
-   margin: 12px 0 8px;
+   color: var(--text-primary);
+   margin: 10px 0 12px;
    text-wrap: pretty;
 }
 .event-detail .ed-meta-row {
    display: flex;
-   gap: 18px;
+   gap: 8px 18px;
    flex-wrap: wrap;
-   color: rgba(255, 255, 255, 0.7);
-   font-size: 13px;
+   color: var(--text-secondary);
+   font-size: 12.5px;
+}
+.event-detail .ed-meta-row span {
+   display: inline-flex;
+   align-items: center;
+   gap: 6px;
+}
+.event-detail .ed-meta-row svg {
+   color: var(--text-tertiary);
+   flex-shrink: 0;
+}
+.event-detail .ed-countdown {
+   display: inline-block;
+   margin-top: 14px;
+   padding: 5px 11px;
+   border-radius: var(--radius-full);
+   background: var(--ed-accent-soft);
+   color: var(--ed-accent);
+   font-size: 12px;
+   font-weight: 600;
+}
+.event-detail .ed-countdown.muted {
+   background: var(--bg-elevated);
+   color: var(--text-secondary);
 }
 
+/* Seat panel. */
 .event-detail .ed-hero-r {
-   background: rgba(255, 255, 255, 0.06);
-   border: 1px solid rgba(255, 255, 255, 0.12);
-   border-radius: 14px;
-   padding: 18px 22px;
-   min-width: 280px;
-   flex: 0 1 300px;
+   flex: 0 1 260px;
+   min-width: 220px;
+   background: var(--bg-surface);
+   border: 1px solid var(--border-light);
+   border-radius: 12px;
+   padding: 16px 18px;
 }
-.event-detail .ed-seat-label {
+.event-detail .ed-seats {
    display: flex;
-   justify-content: space-between;
    align-items: baseline;
-   margin-bottom: 10px;
-   font-size: 12px;
-   color: rgba(255, 255, 255, 0.65);
+   gap: 8px;
+   padding-bottom: 12px;
+   border-bottom: 1px solid var(--border-light);
 }
-.event-detail .ed-seat-label b {
-   color: #fff;
-   font-family: var(--font-mono);
-   font-weight: 700;
-   font-size: 14px;
+.event-detail .ed-seats-num {
+   font-family: var(--font-display);
+   font-size: 26px;
+   font-weight: 800;
+   line-height: 1;
+   letter-spacing: -0.02em;
+   color: var(--text-primary);
 }
-.event-detail .ed-seat-meta {
+.event-detail .ed-seats-num span {
+   font-size: 16px;
+   font-weight: 600;
+   color: var(--text-tertiary);
+}
+.event-detail .ed-seats-label {
+   font-size: 11.5px;
+   font-weight: 600;
+   text-transform: uppercase;
+   letter-spacing: 0.4px;
+   color: var(--text-tertiary);
+}
+.event-detail .ed-stat-grid {
+   display: grid;
+   grid-template-columns: repeat(3, 1fr);
+   gap: 10px;
+   padding: 12px 0 14px;
+}
+.event-detail .ed-stat-grid > div {
    display: flex;
-   justify-content: space-between;
-   gap: 12px;
-   margin: 14px 0 16px;
-   font-size: 11px;
-   color: rgba(255, 255, 255, 0.55);
+   flex-direction: column;
+   gap: 3px;
+   min-width: 0;
 }
-.event-detail .ed-seat-meta b {
-   color: #fff;
-   font-size: 13.5px;
+.event-detail .ed-stat-grid span {
+   font-size: 10.5px;
+   font-weight: 600;
+   text-transform: uppercase;
+   letter-spacing: 0.3px;
+   color: var(--text-tertiary);
+}
+.event-detail .ed-stat-grid b {
+   font-size: 13px;
    font-weight: 700;
-   display: block;
-   margin-top: 3px;
+   color: var(--text-primary);
+   white-space: nowrap;
 }
-.event-detail .ed-cta {
+.event-detail .ed-stat-grid b.low {
+   color: var(--accent-red);
+}
+
+/* The register control. Sits on the light seat panel, so it reads like the app's
+   other primary buttons rather than the old on-dark treatment. */
+.ed-cta {
    width: 100%;
-   padding: 10px 16px;
-   border: 1px solid rgba(255, 255, 255, 0.2);
-   border-radius: 9px;
-   background: rgba(255, 255, 255, 0.1);
-   color: #fff;
+   padding: 9px 16px;
+   border: 1px solid var(--border-default);
+   border-radius: var(--radius-lg);
+   background: var(--bg-base);
+   color: var(--text-primary);
    font-family: inherit;
-   font-size: 13.5px;
+   font-size: 13px;
    font-weight: 700;
    cursor: pointer;
    transition: all var(--transition-base);
 }
+.event-detail .ed-cta:hover:not(:disabled) {
+   border-color: var(--border-strong);
+   background: var(--bg-hover);
+}
 .event-detail .ed-cta:disabled {
-   opacity: 0.6;
+   opacity: 0.55;
    cursor: default;
 }
 .event-detail .ed-cta.primary {
-   background: #fff;
-   border-color: #fff;
-   color: #1a1a23;
+   background: var(--accent-purple);
+   border-color: var(--accent-purple);
+   color: var(--text-inverse);
 }
 .event-detail .ed-cta.primary:hover:not(:disabled) {
-   background: #ececec;
+   filter: brightness(1.08);
+   background: var(--accent-purple);
+   border-color: var(--accent-purple);
 }
+/* Held states keep their colour and only deepen on hover, same as the list buttons. */
 .event-detail .ed-cta.done {
-   background: rgba(52, 211, 153, 0.18);
+   background: var(--accent-green-light);
    border-color: rgba(52, 211, 153, 0.45);
-   color: #a7f3d0;
+   color: #0f7a5a;
 }
 .event-detail .ed-cta.wait {
-   background: rgba(245, 158, 11, 0.18);
+   background: var(--accent-orange-light);
    border-color: rgba(245, 158, 11, 0.45);
-   color: #fcd34d;
+   color: #a16207;
 }
-/* Held states deepen rather than change colour, same as the list buttons. */
 .event-detail .ed-cta.done:hover:not(:disabled),
 .event-detail .ed-cta.wait:hover:not(:disabled) {
-   filter: brightness(1.12);
+   filter: brightness(0.97);
 }
 
 /* Body */
@@ -8559,17 +8598,6 @@ button.btn-mini.on:hover:not(:disabled) {
 }
 
 /* ── Event detail: countdown, share actions, related events ───────── */
-.event-detail .ed-countdown {
-   margin-top: 10px;
-   display: inline-block;
-   padding: 5px 11px;
-   border-radius: 9999px;
-   background: rgba(255, 255, 255, 0.1);
-   border: 1px solid rgba(255, 255, 255, 0.15);
-   color: rgba(255, 255, 255, 0.9);
-   font-size: 12px;
-   font-weight: 600;
-}
 
 /* A quiet text action inside the details card, not a competing button — same
    treatment as .link-btn elsewhere. */
@@ -8640,11 +8668,6 @@ button.btn-mini.on:hover:not(:disabled) {
    flex-shrink: 0;
 }
 /* Same marker in the event-detail hero, which sits on the dark banner. */
-.event-detail .ed-lock {
-   display: inline-flex;
-   align-items: center;
-   color: rgba(255, 255, 255, 0.85);
-}
 
 /* Public / members-only picker in the create wizard and the edit modal. */
 .ef-visibility {

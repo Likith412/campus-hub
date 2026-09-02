@@ -7,15 +7,25 @@ const ACCESS_COOKIE_NAME = "access_token";
 // just lets the SPA skip the /auth/me bootstrap call for anonymous visitors.
 const SESSION_HINT_COOKIE_NAME = "has_session";
 
+// In production the SPA and the API are separate origins — two different *.onrender.com
+// hosts are different *sites*, because onrender.com is on the Public Suffix List — so a
+// SameSite=Strict cookie would never be attached to the SPA's requests and every call
+// would 401. None is the only value that travels cross-site, and browsers only honour it
+// over HTTPS. Set COOKIE_SAMESITE=strict when both ends share a registrable domain.
+const isProduction = () => process.env.NODE_ENV === "production";
+const cookieSameSite = () =>
+   process.env.COOKIE_SAMESITE || (isProduction() ? "none" : "strict");
+const cookieSecure = () => cookieSameSite() === "none" || isProduction();
+
 // Scoped to /api so endpoints that need to identify the current session
 // (auth/refresh, auth/logout, profile/sessions, profile/change-password) all receive it.
-// sameSite:strict + httpOnly are the real CSRF defenses; a narrower path would lock those out.
+// httpOnly + a same-site value are the CSRF defences; a narrower path would lock those out.
 function refreshCookieOptions() {
    const days = Number(process.env.JWT_REFRESH_TTL_DAYS || 30);
    return {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: cookieSecure(),
+      sameSite: cookieSameSite(),
       domain: process.env.COOKIE_DOMAIN || undefined,
       path: "/api",
       maxAge: days * 24 * 60 * 60 * 1000,
@@ -26,8 +36,8 @@ function refreshCookieOptions() {
 function accessCookieOptions() {
    return {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: cookieSecure(),
+      sameSite: cookieSameSite(),
       domain: process.env.COOKIE_DOMAIN || undefined,
       path: "/api",
       maxAge: accessTtlSeconds() * 1000,
@@ -61,8 +71,8 @@ function sessionHintCookieOptions() {
    const days = Number(process.env.JWT_REFRESH_TTL_DAYS || 30);
    return {
       httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: cookieSecure(),
+      sameSite: cookieSameSite(),
       domain: process.env.COOKIE_DOMAIN || undefined,
       path: "/",
       maxAge: days * 24 * 60 * 60 * 1000,

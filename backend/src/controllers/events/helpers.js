@@ -35,7 +35,6 @@ function eventClub(club) {
       id: club._id,
       name: club.name,
       slug: club.slug,
-      logoUrl: club.logoUrl || null,
       // The edit form needs this to know whether "public" is allowed.
       verified: !!club.verified,
       coverFrom: club.coverFrom || null,
@@ -52,7 +51,6 @@ function publicEvent(e, { club, viewerStatus } = {}) {
       club: eventClub(club),
       title: e.title,
       description: e.description || null,
-      bannerUrl: e.bannerUrl || null,
       eventType: e.eventType,
       status: e.status,
       visibility: e.visibility || "private",

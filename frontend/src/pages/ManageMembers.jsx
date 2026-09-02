@@ -224,11 +224,7 @@ function AddMemberModal({ slug, onClose, onAdded }) {
                            className="cctl-av sm"
                            style={{ background: colorFor(s.name) }}
                         >
-                           {s.avatarUrl ? (
-                              <img src={s.avatarUrl} alt="" />
-                           ) : (
-                              initials(s.name)
-                           )}
+                           {initials(s.name)}
                         </div>
                         <div className="cctl-picker-meta">
                            <div className="cctl-picker-name">{s.name}</div>
@@ -802,11 +798,7 @@ export default function ManageMembers() {
                                     className="mm-avatar"
                                     style={{ background: colorFor(row.name) }}
                                  >
-                                    {row.avatarUrl ? (
-                                       <img src={row.avatarUrl} alt="" />
-                                    ) : (
-                                       initials(row.name)
-                                    )}
+                                    {initials(row.name)}
                                  </div>
                                  <div>
                                     <PersonLink user={row} className="mm-name" />

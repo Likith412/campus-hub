@@ -16,11 +16,7 @@ function ClubBadge({ club, size = 30 }) {
    };
    return (
       <span className="cs-badge" style={style}>
-         {club.logoUrl ? (
-            <img src={club.logoUrl} alt="" />
-         ) : (
-            initials(club.name)
-         )}
+         {initials(club.name)}
       </span>
    );
 }

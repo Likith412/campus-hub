@@ -14,7 +14,6 @@ function publicUser(u) {
       name: u.name,
       role: u.role,
       emailVerified: u.emailVerified,
-      avatarUrl: u.avatarUrl,
    };
 }
 

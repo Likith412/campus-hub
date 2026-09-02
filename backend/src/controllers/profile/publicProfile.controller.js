@@ -29,7 +29,6 @@ function publicCard(u) {
       username: u.username || null,
       email: u.email,
       role: u.role,
-      avatarUrl: u.avatarUrl,
       profile: u.profile || {},
       interests: u.interests || [],
       skills: u.skills || [],
@@ -44,7 +43,7 @@ async function clubsOf(userId) {
       .populate({
          path: "clubId",
          model: Club,
-         select: "name slug category logoUrl coverFrom coverTo verified status stats.memberCount",
+         select: "name slug category coverFrom coverTo verified status stats.memberCount",
       })
       .populate({ path: "roleId", select: "name slug" })
       .sort({ joinedAt: -1 })
@@ -57,7 +56,6 @@ async function clubsOf(userId) {
          name: m.clubId.name,
          slug: m.clubId.slug,
          category: m.clubId.category,
-         logoUrl: m.clubId.logoUrl,
          coverFrom: m.clubId.coverFrom,
          coverTo: m.clubId.coverTo,
          verified: !!m.clubId.verified,

@@ -8,7 +8,7 @@ const {
 
 // The fields a club card needs, shared by both halves of getClubs.
 const CLUB_CARD_FIELDS =
-   "name slug logoUrl stats.memberCount category coverFrom coverTo verified status tagline";
+   "name slug stats.memberCount category coverFrom coverTo verified status tagline";
 
 // GET /profile/me/clubs?relation=member|following|all — drives the Clubs tab and the
 // My Clubs page. Defaults to memberships, so existing callers (the club switcher) are
@@ -34,7 +34,6 @@ async function getClubs(req, res) {
       slug: c.slug,
       category: c.category,
       tagline: c.tagline || null,
-      logoUrl: c.logoUrl,
       coverFrom: c.coverFrom,
       coverTo: c.coverTo,
       verified: !!c.verified,

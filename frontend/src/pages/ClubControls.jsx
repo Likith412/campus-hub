@@ -396,11 +396,7 @@ export default function ClubControls() {
                   className="cctl-logo"
                   style={{ background: logoGradient(club) }}
                >
-                  {club.logoUrl ? (
-                     <img src={club.logoUrl} alt="" />
-                  ) : (
-                     clubInitials(club.name)
-                  )}
+                  {clubInitials(club.name)}
                </div>
                <div className="cctl-head-meta">
                   <div className="cctl-name">

@@ -180,11 +180,7 @@ function ClubCard({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
                className="club-logo-lg"
                style={{ background: coverGradient(club) }}
             >
-               {club.logoUrl ? (
-                  <img src={club.logoUrl} alt="" />
-               ) : (
-                  clubInitials(club.name)
-               )}
+               {clubInitials(club.name)}
             </div>
          </div>
          <div className="club-body">
@@ -267,11 +263,7 @@ function ClubRow({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
             className="club-row-logo"
             style={{ background: coverGradient(club) }}
          >
-            {club.logoUrl ? (
-               <img src={club.logoUrl} alt="" />
-            ) : (
-               clubInitials(club.name)
-            )}
+            {clubInitials(club.name)}
          </div>
          <div className="cr-info">
             <div className="cr-name-row">

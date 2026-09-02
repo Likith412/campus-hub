@@ -330,11 +330,7 @@ export default function AllClubs() {
                                           className="ac-logo"
                                           style={{ background: logoGradient(c) }}
                                        >
-                                          {c.logoUrl ? (
-                                             <img src={c.logoUrl} alt="" />
-                                          ) : (
-                                             clubInitials(c.name)
-                                          )}
+                                          {clubInitials(c.name)}
                                        </div>
                                        <div>
                                           <div className="ac-name">

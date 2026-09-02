@@ -1,0 +1,99 @@
+# Render Blueprint — deploys the API, the SPA and the Key Value (Redis) store.
+#
+# MongoDB is NOT here: Render has no managed MongoDB. Create a free cluster on
+# MongoDB Atlas and paste its connection string into DATABASE_URI (marked sync:false
+# below, so Render prompts for it instead of committing it).
+#
+# Deploy: push this file, then Render Dashboard → New → Blueprint → pick this repo.
+
+services:
+  # ── API ────────────────────────────────────────────────────────────────────
+  - type: web
+    name: campus-hub-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render terminates TLS at its proxy — one hop — which the rate limiter needs
+      # to read the real client IP and Express needs to mark cookies secure.
+      - key: TRUST_PROXY
+        value: "1"
+      - key: DATABASE_URI
+        sync: false # MongoDB Atlas SRV string, set in the dashboard
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: campus-hub-kv
+          property: connectionString
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: campus-hub-web
+          property: url
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL_DAYS
+        value: "30"
+      - key: SUPERADMIN_EMAIL
+        sync: false
+      - key: SUPERADMIN_PASSWORD
+        sync: false
+      # Leave SMTP_HOST empty and verification links are logged instead of sent.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+  # ── SPA ────────────────────────────────────────────────────────────────────
+  - type: web
+    name: campus-hub-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: campus-hub-api
+          property: url
+        # Vite bakes this in at build time; the API's own path prefix is /api.
+    routes:
+      # react-router owns the URLs — every path has to serve index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+
+  # ── Redis, which Render now calls Key Value ─────────────────────────────────
+  # Holds rate-limit counters, the revoked-token blacklist and the Bull email queue.
+  # The free plan has no persistence: a restart resets rate limits and drops queued
+  # email. Nothing user-facing lives here, so that is survivable for a demo.
+  # (On older Render accounts this type is spelled `redis` rather than `keyvalue`.)
+  - type: keyvalue
+    name: campus-hub-kv
+    plan: free
+    region: singapore
+    ipAllowList: [] # private network only — reachable from the API service alone

@@ -28,7 +28,6 @@ function publicMemberRow(m) {
       userId: u._id || null,
       name: u.name || "Unknown",
       email: u.email || null,
-      avatarUrl: u.avatarUrl || null,
       department: u.profile?.department || null,
       year: u.profile?.year || null,
       role: m.role?.slug || null,
@@ -410,7 +409,7 @@ async function searchAddableStudents(req, res) {
    }
 
    const students = await User.find(filter)
-      .select("name email avatarUrl profile.department profile.year")
+      .select("name email profile.department profile.year")
       .sort({ name: 1 })
       .limit(20)
       .lean();
@@ -420,7 +419,6 @@ async function searchAddableStudents(req, res) {
          userId: u._id,
          name: u.name,
          email: u.email,
-         avatarUrl: u.avatarUrl || null,
          department: u.profile?.department || null,
          year: u.profile?.year || null,
       })),

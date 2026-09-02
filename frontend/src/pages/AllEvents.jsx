@@ -26,7 +26,8 @@ const STATUS_TABS = [
    { id: "", label: "All" },
    { id: "published", label: "Published" },
    { id: "draft", label: "Drafts" },
-   { id: "completed", label: "Past" },
+   // Past is a date range, not a status — nothing ever writes a "completed" event.
+   { id: "past", label: "Past" },
    { id: "cancelled", label: "Cancelled" },
 ];
 
@@ -66,7 +67,8 @@ export default function AllEvents() {
             q: debounced || undefined,
             club: club || undefined,
             type: type || undefined,
-            status: status || undefined,
+            status: status && status !== "past" ? status : undefined,
+            when: status === "past" ? "past" : undefined,
             sort,
             page,
             limit: PAGE_SIZE,

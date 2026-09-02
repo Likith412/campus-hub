@@ -2,15 +2,9 @@
 const mongoose = require("mongoose");
 
 const EVENT_TYPES = ["contest", "workshop", "hackathon", "seminar", "fun"];
-// The app's own lifecycle only ever writes draft → published → cancelled; "ongoing" and
-// "completed" exist because the seed script sets "completed" on its past events.
-const EVENT_STATUSES = [
-   "draft",
-   "published",
-   "ongoing",
-   "completed",
-   "cancelled",
-];
+// draft → published → cancelled. Whether an event has finished is a question about its
+// dates, not its status, so there is no "completed".
+const EVENT_STATUSES = ["draft", "published", "cancelled"];
 const VENUE_TYPES = ["online", "offline", "hybrid"];
 // Who the event is for. Public events are browsable campus-wide and open to any
 // student; private ones are visible and open only to the club's own members.
@@ -32,7 +26,6 @@ const eventSchema = new mongoose.Schema(
 
       title: { type: String, required: true, trim: true },
       description: String,
-      bannerUrl: String,
 
       eventType: {
          type: String,

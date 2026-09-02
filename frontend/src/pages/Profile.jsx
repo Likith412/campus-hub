@@ -573,11 +573,7 @@ export default function Profile() {
                         background: `linear-gradient(135deg, ${from} 0%, ${to} 100%)`,
                      }}
                   >
-                     {user.avatarUrl ? (
-                        <img src={user.avatarUrl} alt="" />
-                     ) : (
-                        initials(user.name)
-                     )}
+                     {initials(user.name)}
                   </div>
                   <div className="profile-meta-block">
                      <div className="profile-name">
