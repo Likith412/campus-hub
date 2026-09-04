@@ -24,8 +24,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # Render terminates TLS at its proxy — one hop — which the rate limiter needs
-      # to read the real client IP and Express needs to mark cookies secure.
+      # Render terminates TLS at its proxy — one hop — which Express needs to mark
+      # cookies secure and to read the real client IP for the session device list.
       - key: TRUST_PROXY
         value: "1"
       - key: DATABASE_URI
@@ -41,8 +41,6 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: JWT_ACCESS_SECRET
-        generateValue: true
-      - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: JWT_ACCESS_TTL
         value: 15m
@@ -89,8 +87,8 @@ services:
         value: nosniff
 
   # ── Redis, which Render now calls Key Value ─────────────────────────────────
-  # Holds rate-limit counters, the revoked-token blacklist and the Bull email queue.
-  # The free plan has no persistence: a restart resets rate limits and drops queued
+  # Holds the revoked-token blacklist and the Bull email queue.
+  # The free plan has no persistence: a restart clears the blacklist and drops queued
   # email. Nothing user-facing lives here, so that is survivable for a demo.
   # (On older Render accounts this type is spelled `redis` rather than `keyvalue`.)
   - type: keyvalue

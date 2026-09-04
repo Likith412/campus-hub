@@ -2,28 +2,32 @@
 // .design/Workshop.html: dark gradient hero, stats panel on the right.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { eventsApi, announcementsApi, ApiError } from "../services";
+import { eventsApi, announcementsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import { PANEL_PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import EditEventModal from "../components/EditEventModal";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { clubHref } from "../utils/nav";
+import useEventActions from "../hooks/useEventActions";
 import PersonLink from "../components/PersonLink";
 import { initials } from "../utils/text";
 import useDebounced from "../hooks/useDebounced";
 import {
+   EVENT_COVER_CLASS,
    EVENT_TYPE_LABEL,
    eventDateParts,
-   EVENT_COVER_CLASS,
    eventState,
    formatDuration,
    formatFullDate,
-   venueText,
+   isOver,
    registerState,
+   statusConfirm,
+   venueText,
 } from "../utils/events";
 
 // Shared register states → this page's CTA classes.
@@ -75,6 +79,9 @@ export default function EventDetail() {
    const [attSearch, setAttSearch] = useState("");
    const attQuery = useDebounced(attSearch.trim());
    const [attPage, setAttPage] = useState(1);
+   const [rosterPerPage, setRosterPerPage] = useState(
+      PANEL_PAGE_SIZE_OPTIONS[1],
+   );
    const [copied, setCopied] = useState(false);
 
    const refetch = useCallback(() => {
@@ -87,7 +94,7 @@ export default function EventDetail() {
          })
          .catch((err) => {
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load event",
+               errMessage(err, "Couldn't load event"),
             );
             setEvent(null);
             return null;
@@ -109,18 +116,17 @@ export default function EventDetail() {
    // The roster is manager-only, so it's a second call made once we know the viewer can.
    const clubSlug = event?.club?.slug;
    const canEdit = !!viewer?.canEdit;
-   const ROSTER_PAGE = 8;
    const loadAttendees = useCallback(() => {
       if (!canEdit || !clubSlug) return;
       eventsApi
          .listAttendees(clubSlug, eventId, {
             q: attQuery || undefined,
             page: attPage,
-            limit: ROSTER_PAGE,
+            limit: rosterPerPage,
          })
          .then(setAttendees)
          .catch(() => setAttendees(null));
-   }, [canEdit, clubSlug, eventId, attQuery, attPage]);
+   }, [canEdit, clubSlug, eventId, attQuery, attPage, rosterPerPage]);
 
    useEffect(() => {
       loadAttendees();
@@ -146,7 +152,13 @@ export default function EventDetail() {
          .listClubEvents(clubSlug, { when: "upcoming", limit: 5 })
          .then((d) => {
             if (cancelled) return;
-            setSiblings((d?.items || []).filter((x) => x.id !== eventId).slice(0, 3));
+            setSiblings(
+               (d?.items || [])
+                  // Managers get drafts and cancellations in this list; the rail
+                  // presents everything as a normal upcoming event.
+                  .filter((x) => x.id !== eventId && x.status === "published")
+                  .slice(0, 3),
+            );
          })
          .catch(() => !cancelled && setSiblings([]));
       return () => {
@@ -164,55 +176,21 @@ export default function EventDetail() {
       }
    }
 
-   async function register() {
-      setBusy(true);
-      try {
-         const res = await eventsApi.registerForEvent(eventId);
-         toast.success(
-            res?.registration?.status === "waitlisted"
-               ? "Added to the waitlist"
-               : "You're registered",
-         );
-         await refetch();
-         loadAttendees();
-      } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't register");
-      } finally {
-         setBusy(false);
-      }
-   }
-
-   async function leave() {
-      const ok = await confirm({
-         title: `Cancel your spot at “${event.title}”?`,
-         message: "Your seat goes to the next person on the waitlist.",
-         confirmLabel: "Cancel registration",
-         danger: true,
-      });
-      if (!ok) return;
-      setBusy(true);
-      try {
-         await eventsApi.unregisterFromEvent(eventId);
-         toast.success("Registration cancelled");
-         await refetch();
-         loadAttendees();
-      } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't cancel");
-      } finally {
-         setBusy(false);
-      }
-   }
+   // Seat controls come from the shared hook; `busy` below still covers the
+   // publish / cancel / delete actions this page owns.
+   const {
+      busyId: seatBusyId,
+      registerEvent,
+      leaveEvent,
+   } = useEventActions(async () => {
+      await refetch();
+      loadAttendees();
+   });
+   const seatBusy = seatBusyId === eventId;
 
    async function setStatus(status) {
-      const ok =
-         status === "published" ||
-         (await confirm({
-            title: `Cancel “${event.title}”?`,
-            message:
-               "Everyone who registered keeps their place on the record, but the event will show as cancelled.",
-            confirmLabel: "Cancel event",
-            danger: true,
-         }));
+      // Publishing used to skip this entirely — an irreversible change on one click.
+      const ok = await confirm(statusConfirm(status, event.title));
       if (!ok) return;
       setBusy(true);
       try {
@@ -221,7 +199,7 @@ export default function EventDetail() {
          await refetch();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update the event",
+            errMessage(err, "Couldn't update the event"),
          );
       } finally {
          setBusy(false);
@@ -241,7 +219,7 @@ export default function EventDetail() {
          toast.success("Draft deleted");
          navigate(`/clubs/${clubSlug}?tab=events`);
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't delete");
+         toast.error(errMessage(err, "Couldn't delete"));
       }
    }
 
@@ -271,7 +249,7 @@ export default function EventDetail() {
    // Staff run events, they don't attend them — no register control for them.
    const reg = user?.role === "student" ? registerState(event) : null;
    const cover = EVENT_COVER_CLASS[event.eventType] || event.eventType;
-   const isPast = state.cls === "past";
+   const isPast = isOver(event);
    // Which manage actions actually apply right now — the block is hidden when none do.
    const canEditNow =
       viewer?.canEdit && !isPast && event.status !== "cancelled";
@@ -362,7 +340,9 @@ export default function EventDetail() {
                         ? `Ran ${relativeDays(event.startAt)}`
                         : event.status === "cancelled"
                           ? "This event was called off"
-                          : event.registrationOpen
+                          : event.status === "draft"
+                            ? "Not published yet — registration opens when you publish"
+                            : event.registrationOpen
                             ? `Registration closes ${relativeDays(event.registrationClosesAt)} · starts ${relativeDays(event.startAt)}`
                             : `Registration closed · starts ${relativeDays(event.startAt)}`}
                   </div>
@@ -410,12 +390,14 @@ export default function EventDetail() {
                      <button
                         type="button"
                         className={`ed-cta ${CTA_CLASS[reg.state] || ""}`}
-                        disabled={!reg.action || busy}
+                        disabled={!reg.action || busy || seatBusy}
                         onClick={() =>
-                           reg.action === "leave" ? leave() : register()
+                           reg.action === "leave"
+                              ? leaveEvent(event)
+                              : registerEvent(event)
                         }
                      >
-                        {busy ? "…" : reg.label}
+                        {busy || seatBusy ? "…" : reg.label}
                      </button>
                   )}
                </div>
@@ -530,14 +512,19 @@ export default function EventDetail() {
                            </div>
                         )}
 
-                        {(attendees?.pagination?.total ?? 0) > ROSTER_PAGE && (
+                        {(attendees?.pagination?.total ?? 0) > 0 && (
                            <Pagination
                               page={attPage}
                               totalPages={Math.max(
                                  1,
-                                 Math.ceil(attendees.pagination.total / ROSTER_PAGE),
+                                 Math.ceil(attendees.pagination.total / rosterPerPage),
                               )}
-                              perPage={ROSTER_PAGE}
+                              perPage={rosterPerPage}
+                              perPageOptions={PANEL_PAGE_SIZE_OPTIONS}
+                              onPerPageChange={(n) => {
+                                 setRosterPerPage(n);
+                                 setAttPage(1);
+                              }}
                               hasMore={attendees.pagination.hasMore}
                               onChange={setAttPage}
                            />

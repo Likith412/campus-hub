@@ -40,10 +40,16 @@ apiClient.interceptors.response.use(
       const original = error.config;
       const status = error.response?.status;
       const isRefreshCall = original?.url?.includes("/auth/refresh");
+      // These never read the access cookie, so a refresh can't turn their 401 into a
+      // success — retrying just doubles every failed login and every dead reset link.
+      const isPublicAuth =
+         /\/auth\/(login|register|verify-email|resend-verification|forgot-password|reset-password)/.test(
+            original?.url || "",
+         );
 
       // On 401, try a silent refresh + retry once. Skip if it's the refresh call itself
       // (would loop) or we've already retried this request.
-      if (status === 401 && !original?._retry && !isRefreshCall) {
+      if (status === 401 && !original?._retry && !isRefreshCall && !isPublicAuth) {
          original._retry = true;
          try {
             await refreshAccessToken();
@@ -63,3 +69,13 @@ apiClient.interceptors.response.use(
       });
    },
 );
+
+// Build a query string, dropping empty values. Shared by the api modules.
+export function qs(params) {
+   const search = new URLSearchParams();
+   Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "") search.set(k, String(v));
+   });
+   const s = search.toString();
+   return s ? `?${s}` : "";
+}

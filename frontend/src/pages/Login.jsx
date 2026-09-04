@@ -1,28 +1,14 @@
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { ApiError } from "../services";
+import { ApiError, errMessage } from "../services";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import Spinner from "../components/Spinner";
 import { redirectAfterLogin } from "../utils/nav";
+import Icon from "../components/Icon";
+import AuthBrand from "../components/AuthBrand";
 
 // Tiny inline SVG wrapper for the small icons scattered through this page.
-function Icon({ size = 14, strokeWidth = 2.2, children }) {
-   return (
-      <svg
-         width={size}
-         height={size}
-         viewBox="0 0 24 24"
-         fill="none"
-         stroke="currentColor"
-         strokeWidth={strokeWidth}
-         strokeLinecap="round"
-         strokeLinejoin="round"
-      >
-         {children}
-      </svg>
-   );
-}
 
 const brandFeats = [
    {
@@ -54,13 +40,6 @@ const brandFeats = [
    },
 ];
 
-const stats = [
-   { num: "4.8k", label: "Students" },
-   { num: "28", label: "Active clubs" },
-   { num: "142/mo", label: "Events" },
-   { num: "1,284", label: "Certificates issued" },
-];
-
 function Login() {
    const navigate = useNavigate();
    const location = useLocation();
@@ -77,6 +56,8 @@ function Login() {
    const [showPassword, setShowPassword] = useState(false);
    const [submitting, setSubmitting] = useState(false);
    const [error, setError] = useState(null);
+   // 403 on login means the account exists but the email isn't verified — offer a resend link.
+   const [unverified, setUnverified] = useState(false);
 
    const handleChange = (e) => {
       const { name, value, type, checked } = e.target;
@@ -90,6 +71,7 @@ function Login() {
       e.preventDefault();
       if (submitting) return; // guard against double-submit while a request is in-flight
       setError(null);
+      setUnverified(false);
       setSubmitting(true);
       try {
          await login({
@@ -101,8 +83,9 @@ function Login() {
          navigate(redirectTo, { replace: true });
       } catch (err) {
          setError(
-            err instanceof ApiError ? err.message : "Something went wrong",
+            errMessage(err, "Something went wrong"),
          );
+         setUnverified(err instanceof ApiError && err.status === 403);
       } finally {
          setSubmitting(false);
       }
@@ -110,52 +93,15 @@ function Login() {
 
    return (
       <div className="auth-shell">
-         <aside className="auth-brand">
-            <div className="brand-top">
-               <div className="brand-mark-big">C</div>
-               <div className="brand-name-big">
-                  Campus Hub
-               </div>
-            </div>
-
-            <div className="brand-content">
-               <div className="brand-eyebrow">
-                  <span className="pulse"></span>Welcome back
-               </div>
-               <h1 className="brand-headline">
+         <AuthBrand
+            headline={
+               <>
                   Your campus, <em>all in one place</em>.
-               </h1>
-               <p className="brand-sub">
-                  Discover events, run clubs, contest with peers, earn verified
-                  certificates — all in one place.
-               </p>
-
-               <ul className="brand-feats">
-                  {brandFeats.map(({ icon, title, body }) => (
-                     <li key={title} className="brand-feat">
-                        <div className="feat-ic">
-                           <Icon>{icon}</Icon>
-                        </div>
-                        <div>
-                           <b>{title}</b> {body}
-                        </div>
-                     </li>
-                  ))}
-               </ul>
-            </div>
-
-            <div className="brand-foot">
-               {stats.map(({ num, label }, i) => (
-                  <Fragment key={label}>
-                     {i > 0 && <div className="stat-divider"></div>}
-                     <div>
-                        <div className="stat-num">{num}</div>
-                        <div>{label}</div>
-                     </div>
-                  </Fragment>
-               ))}
-            </div>
-         </aside>
+               </>
+            }
+            sub="Discover events, run clubs, contest with peers, earn verified certificates — all in one place."
+            feats={brandFeats}
+         />
 
          <section className="auth-form-wrap">
             <div className="auth-form-top">
@@ -172,6 +118,13 @@ function Login() {
                   <div className="auth-banner">
                      Account created — check your inbox to verify your email
                      before signing in.
+                     <Link
+                        className="auth-inline-link"
+                        to="/verify-email"
+                        state={{ email: formData.email }}
+                     >
+                        Didn't get it? Resend
+                     </Link>
                   </div>
                )}
 
@@ -231,7 +184,20 @@ function Login() {
                   </div>
                </div>
 
-               {error && <div className="auth-error">{error}</div>}
+               {error && (
+                  <div className="auth-error">
+                     {error}
+                     {unverified && (
+                        <Link
+                           className="auth-inline-link"
+                           to="/verify-email"
+                           state={{ email: formData.email }}
+                        >
+                           Resend verification email
+                        </Link>
+                     )}
+                  </div>
+               )}
 
                <button
                   type="submit"
@@ -246,18 +212,13 @@ function Login() {
                   ) : (
                      <>
                         Sign in
-                        <Icon strokeWidth={2.5}>
+                        <Icon size={14} strokeWidth={2.5}>
                            <line x1="5" y1="12" x2="19" y2="12" />
                            <polyline points="12 5 19 12 12 19" />
                         </Icon>
                      </>
                   )}
                </button>
-
-               <div className="auth-foot">
-                  Need help signing in?
-                  <span>Contact your club coordinator</span>
-               </div>
             </form>
          </section>
       </div>

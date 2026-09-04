@@ -14,7 +14,13 @@ const DENIED = "You don't have permission to do that in this club";
 // Resolve :slug and the caller's context onto the request. Inactive clubs are invisible
 // to everyone but superAdmin.
 async function loadClubContext(req) {
-   const club = await Club.findOne({ slug: req.params.slug });
+   // Lean + projected: no handler behind this gate mutates req.club. The field list is
+   // the union of what they read directly (_id, slug) and what they hand to helpers —
+   // assertCanBePublic reads verified, evictOutsiders and notifyAnnouncement read name,
+   // eventClub reads name/slug, and the visibility check below reads status.
+   const club = await Club.findOne({ slug: req.params.slug })
+      .select("_id slug name verified status")
+      .lean();
    if (!club || (club.status !== "active" && req.user.role !== ROLES.SUPER_ADMIN)) {
       throw new NotFoundError("Club not found");
    }

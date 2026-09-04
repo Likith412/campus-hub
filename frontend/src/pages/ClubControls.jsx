@@ -1,28 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { clubsApi, adminApi, ApiError } from "../services";
+import { clubsApi, adminApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
 import EditClubModal from "../components/EditClubModal";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
-import { initials } from "../utils/text";
+import { colorFor, initials } from "../utils/text";
 import { CATEGORY_LABEL } from "../utils/clubs";
+import useDebounced from "../hooks/useDebounced";
+import useLatestRequest from "../hooks/useLatestRequest";
+import useModalChrome from "../hooks/useModalChrome";
 
-const AVATAR_COLORS = [
-   "#6c63ff", "#34d399", "#f59e0b", "#3b82f6",
-   "#ef4444", "#a855f7", "#06b6d4", "#ec4899",
-];
-function colorFor(s = "") {
-   let h = 0;
-   for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-   return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-function clubInitials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
 function logoGradient(c) {
    return `linear-gradient(135deg, ${c?.coverFrom || "#6c63ff"}, ${c?.coverTo || "#34d399"})`;
 }
@@ -69,18 +59,13 @@ function FacultyPicker({ slug, clubName, assigned, onClose, onAssigned }) {
    const confirm = useConfirm();
    const [pool, setPool] = useState(null);
    const [query, setQuery] = useState("");
-   const [debounced, setDebounced] = useState("");
    const [busyId, setBusyId] = useState(null);
-   const reqRef = useRef(0);
-
-   useEffect(() => {
-      const id = setTimeout(() => setDebounced(query.trim()), 300);
-      return () => clearTimeout(id);
-   }, [query]);
+   const debounced = useDebounced(query.trim());
+   const startRequest = useLatestRequest();
 
    // Server-side: name/email regex (empty → opening list), ordered by name ascending.
    useEffect(() => {
-      const myReq = ++reqRef.current;
+      const isCurrent = startRequest();
       adminApi
          // No status filter: the admin API's "active" means "has logged in at least
          // once", which would hide a faculty account created moments ago.
@@ -91,24 +76,14 @@ function FacultyPicker({ slug, clubName, assigned, onClose, onAssigned }) {
             limit: 50,
          })
          .then((d) => {
-            if (myReq === reqRef.current)
-               setPool((d?.items || []).filter((u) => u.isActive));
+            if (isCurrent()) setPool((d?.items || []).filter((u) => u.isActive));
          })
          .catch(() => {
-            if (myReq === reqRef.current) setPool([]);
+            if (isCurrent()) setPool([]);
          });
-   }, [debounced]);
+   }, [debounced, startRequest]);
 
-   useEffect(() => {
-      const onKey = (e) => e.key === "Escape" && onClose();
-      document.addEventListener("keydown", onKey);
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-         document.removeEventListener("keydown", onKey);
-         document.body.style.overflow = prev;
-      };
-   }, [onClose]);
+   useModalChrome(onClose);
 
    const assignedIds = useMemo(
       () => new Set(assigned.map((c) => String(c.userId))),
@@ -131,7 +106,7 @@ function FacultyPicker({ slug, clubName, assigned, onClose, onAssigned }) {
          onAssigned();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't assign coordinator",
+            errMessage(err, "Couldn't assign coordinator"),
          );
       } finally {
          setBusyId(null);
@@ -214,10 +189,10 @@ export default function ClubControls() {
    const [busy, setBusy] = useState(false);
    const [editing, setEditing] = useState(false);
    const [pickerOpen, setPickerOpen] = useState(false);
-   const reqRef = useRef(0);
+   const startRequest = useLatestRequest();
 
    const load = useCallback(() => {
-      const myReq = ++reqRef.current;
+      const isCurrent = startRequest();
       Promise.all([
          clubsApi.getClub(slug),
          clubsApi.listMembers(slug, {
@@ -227,23 +202,21 @@ export default function ClubControls() {
          }),
       ])
          .then(([clubRes, memRes]) => {
-            if (myReq !== reqRef.current) return;
+            if (!isCurrent()) return;
             setClub(clubRes);
             setCoords(memRes?.items || []);
          })
          .catch((err) => {
-            if (myReq !== reqRef.current) return;
+            if (!isCurrent()) return;
             toast.error(
-               err instanceof ApiError
-                  ? err.message
-                  : "Couldn't load club controls",
+               errMessage(err, "Couldn't load club controls"),
             );
             setClub(false);
          })
          .finally(() => {
-            if (myReq === reqRef.current) setLoading(false);
+            if (isCurrent()) setLoading(false);
          });
-   }, [slug, toast]);
+   }, [slug, toast, startRequest]);
 
    useEffect(() => {
       load();
@@ -282,7 +255,7 @@ export default function ClubControls() {
          toast.success(next ? "Club verified" : "Verification removed");
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update verification",
+            errMessage(err, "Couldn't update verification"),
          );
       } finally {
          setBusy(false);
@@ -311,7 +284,7 @@ export default function ClubControls() {
          toast.success(next === "active" ? "Club reactivated" : `Club ${next}`);
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update status",
+            errMessage(err, "Couldn't update status"),
          );
       } finally {
          setBusy(false);
@@ -319,12 +292,17 @@ export default function ClubControls() {
    }
 
    async function removeCoord(c) {
+      // The server refuses to leave a club with no coordinator, so don't offer it.
+      if (coords.length === 1) {
+         toast.error(
+            "Assign another coordinator before removing the last one",
+         );
+         return;
+      }
       const ok = await confirm({
          title: `Remove ${c.name}?`,
          message:
-            coords.length === 1
-               ? "This is the only coordinator. Removing leaves the club unmanaged — add another first if possible."
-               : "They'll be removed from the club and lose coordinator access. (Faculty can't stay on as a regular member.)",
+            "They'll be removed from the club and lose coordinator access. (Faculty can't stay on as a regular member.)",
          confirmLabel: "Remove",
          danger: true,
       });
@@ -335,7 +313,7 @@ export default function ClubControls() {
          reloadCoords();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't remove coordinator",
+            errMessage(err, "Couldn't remove coordinator"),
          );
       }
    }
@@ -356,7 +334,7 @@ export default function ClubControls() {
          navigate("/admin/clubs");
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't delete club",
+            errMessage(err, "Couldn't delete club"),
          );
          setBusy(false);
       }
@@ -396,7 +374,7 @@ export default function ClubControls() {
                   className="cctl-logo"
                   style={{ background: logoGradient(club) }}
                >
-                  {clubInitials(club.name)}
+                  {initials(club.name)}
                </div>
                <div className="cctl-head-meta">
                   <div className="cctl-name">
@@ -636,7 +614,12 @@ export default function ClubControls() {
                            <button
                               type="button"
                               className="cctl-coord-remove"
-                              title="Remove coordinator"
+                              disabled={coords.length === 1}
+                              title={
+                                 coords.length === 1
+                                    ? "A club must keep at least one coordinator"
+                                    : "Remove coordinator"
+                              }
                               aria-label={`Remove ${c.name}`}
                               onClick={() => removeCoord(c)}
                            >

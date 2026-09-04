@@ -59,9 +59,20 @@ async function addToQueue(action, payload) {
    await redisQueue.add({ action, payload });
 }
 
+// Same, for a fan-out: one round trip instead of one per payload. Returns how many
+// jobs were accepted.
+async function addBulkToQueue(action, payloads) {
+   if (payloads.length === 0) return 0;
+   const jobs = await redisQueue.addBulk(
+      payloads.map((payload) => ({ data: { action, payload } })),
+   );
+   return jobs.length;
+}
+
 module.exports = {
    redisQueue,
    addToQueue,
+   addBulkToQueue,
    startQueueProcessor,
    stopQueueProcessor,
 };

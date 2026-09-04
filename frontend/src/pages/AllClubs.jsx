@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { adminApi, clubsApi, ApiError } from "../services";
+import { adminApi, clubsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { CATEGORY_LABEL } from "../utils/clubs";
@@ -11,8 +12,10 @@ import useDebounced from "../hooks/useDebounced";
 import useLatestRequest from "../hooks/useLatestRequest";
 import SearchField from "../components/SearchField";
 import FilterSelect from "../components/FilterSelect";
+import StatCard from "../components/StatCard";
+import { initials } from "../utils/text";
+import TableFooter from "../components/TableFooter";
 
-const PAGE_SIZE = 10;
 const FILTER_TABS = [
    { id: "all", label: "All" },
    { id: "active", label: "Active" },
@@ -25,29 +28,12 @@ const SORTS = [
    { id: "name", label: "A → Z" },
 ];
 
-function clubInitials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
 function logoGradient(c) {
    const from = c.coverFrom || "#6c63ff";
    const to = c.coverTo || "#34d399";
    return `linear-gradient(135deg, ${from}, ${to})`;
 }
 
-function StatCard({ tone, label, value, loading, children }) {
-   return (
-      <div className="fac-stat">
-         <div className={`fac-stat-ic ${tone}`}>{children}</div>
-         <div>
-            <div className="fac-stat-label">{label}</div>
-            <div className="fac-stat-value">
-               {loading ? <span className="skeleton fac-stat-skel" /> : value}
-            </div>
-         </div>
-      </div>
-   );
-}
 
 export default function AllClubs() {
    const toast = useToast();
@@ -60,12 +46,13 @@ export default function AllClubs() {
    const [sort, setSort] = useState("popular");
    const [filter, setFilter] = useState("all");
    const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
    const [data, setData] = useState(null);
    const [loadedKey, setLoadedKey] = useState(null);
    const [busyId, setBusyId] = useState(null);
    const startRequest = useLatestRequest();
 
-   const currentKey = `${debounced}|${domain}|${sort}|${filter}|${page}`;
+   const currentKey = `${debounced}|${domain}|${sort}|${filter}|${page}|${perPage}`;
    const loading = loadedKey !== currentKey;
 
 
@@ -88,7 +75,7 @@ export default function AllClubs() {
 
    const fetchClubs = useCallback(() => {
       const isCurrent = startRequest();
-      const myKey = `${debounced}|${domain}|${sort}|${filter}|${page}`;
+      const myKey = `${debounced}|${domain}|${sort}|${filter}|${page}|${perPage}`;
       adminApi
          .listClubs({
             q: debounced || undefined,
@@ -96,7 +83,7 @@ export default function AllClubs() {
             status: filter === "all" ? undefined : filter,
             sort,
             page,
-            limit: PAGE_SIZE,
+            limit: perPage,
          })
          .then((d) => {
             if (!isCurrent()) return;
@@ -105,18 +92,18 @@ export default function AllClubs() {
          .catch((err) => {
             if (!isCurrent()) return;
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load clubs",
+               errMessage(err, "Couldn't load clubs"),
             );
             setData({
                items: [],
                counts: { total: 0, active: 0, suspended: 0, archived: 0 },
-               pagination: { page, limit: PAGE_SIZE, total: 0, hasMore: false },
+               pagination: { page, limit: perPage, total: 0, hasMore: false },
             });
          })
          .finally(() => {
             if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [debounced, domain, sort, filter, page, toast, startRequest]);
+   }, [debounced, domain, sort, filter, page, perPage, toast, startRequest]);
 
    useEffect(() => {
       fetchClubs();
@@ -130,8 +117,6 @@ export default function AllClubs() {
       return Math.max(1, Math.ceil(pagination.total / pagination.limit));
    }, [pagination]);
    const showEmpty = !loading && items.length === 0;
-   const rangeStart = pagination ? (pagination.page - 1) * pagination.limit + 1 : 0;
-   const rangeEnd = pagination ? rangeStart + items.length - 1 : 0;
 
    // Suspend / archive / reactivate a club inline. Refetch so the cards + filtered list stay correct.
    async function handleSetStatus(club, next) {
@@ -160,7 +145,7 @@ export default function AllClubs() {
          fetchClubs();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update status",
+            errMessage(err, "Couldn't update status"),
          );
       } finally {
          setBusyId(null);
@@ -197,7 +182,7 @@ export default function AllClubs() {
          toast.success(next ? "Club verified" : "Verification removed");
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update verification",
+            errMessage(err, "Couldn't update verification"),
          );
       } finally {
          setBusyId(null);
@@ -330,7 +315,7 @@ export default function AllClubs() {
                                           className="ac-logo"
                                           style={{ background: logoGradient(c) }}
                                        >
-                                          {clubInitials(c.name)}
+                                          {initials(c.name)}
                                        </div>
                                        <div>
                                           <div className="ac-name">
@@ -413,45 +398,18 @@ export default function AllClubs() {
                         </tbody>
                      </table>
 
-                     <div className="fac-table-foot">
-                        <div className="fac-page-info">
-                           Showing{" "}
-                           <b>
-                              {rangeStart}–{rangeEnd}
-                           </b>{" "}
-                           of <b>{pagination?.total ?? 0}</b>
-                        </div>
-                        <div className="fac-page-ctrl">
-                           <button
-                              type="button"
-                              className="fac-pg"
-                              disabled={page <= 1}
-                              onClick={() => setPage((p) => Math.max(1, p - 1))}
-                           >
-                              ‹ Prev
-                           </button>
-                           {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                              (n) => (
-                                 <button
-                                    type="button"
-                                    key={n}
-                                    className={`fac-pg${n === page ? " active" : ""}`}
-                                    onClick={() => setPage(n)}
-                                 >
-                                    {n}
-                                 </button>
-                              ),
-                           )}
-                           <button
-                              type="button"
-                              className="fac-pg"
-                              disabled={!(pagination?.hasMore ?? page < totalPages)}
-                              onClick={() => setPage((p) => p + 1)}
-                           >
-                              Next ›
-                           </button>
-                        </div>
-                     </div>
+                     <TableFooter
+                        page={page}
+                        perPage={perPage}
+                        totalPages={totalPages}
+                        pagination={pagination}
+                        shown={items.length}
+                        onPage={setPage}
+                        onPerPage={(n) => {
+                           setPerPage(n);
+                           setPage(1);
+                        }}
+                     />
                   </>
                )}
             </div>

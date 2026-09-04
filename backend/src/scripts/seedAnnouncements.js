@@ -13,6 +13,9 @@ const { CLUBS } = require("./seedData/clubs");
 const DAY = 24 * 60 * 60 * 1000;
 
 async function seed() {
+   if (!process.env.DATABASE_URI) {
+      throw new Error("DATABASE_URI is not set");
+   }
    console.log("→ Connecting to database");
    await connectDatabase();
 

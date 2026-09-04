@@ -5,8 +5,8 @@
 // Gated in-page on holding any club permission, so a delegated student (a President,
 // say) gets in too — the route itself is open to any authenticated user.
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
-import { clubsApi, eventsApi, ApiError } from "../services";
+import { Link, Navigate, useParams } from "react-router";
+import { clubsApi, eventsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -38,14 +38,31 @@ export default function ClubAdmin() {
    const [memberStats, setMemberStats] = useState(null);
    const [pending, setPending] = useState([]);
    const [upcoming, setUpcoming] = useState([]);
+   const [upcomingTotal, setUpcomingTotal] = useState(0);
    const [loaded, setLoaded] = useState(false);
    const [busyId, setBusyId] = useState(null);
+
+   // Moderating a request moves these two and nothing else — the club, its roles and
+   // its events are untouched, so a full reload would be four wasted calls.
+   const loadModeration = useCallback(
+      () =>
+         Promise.all([
+            clubsApi.getMemberStats(slug).catch(() => null),
+            clubsApi
+               .listMembers(slug, { status: "pending", limit: 5 })
+               .catch(() => null),
+         ]).then(([ms, pend]) => {
+            setMemberStats(ms || null);
+            setPending(pend?.items || []);
+         }),
+      [slug],
+   );
 
    const load = useCallback(() => {
       // Each call is independently catchable: a viewer with events:create but no
       // members:moderate gets a 403 on the member calls and should still see the page.
       return Promise.all([
-         clubsApi.getClub(slug).catch(() => null),
+         clubsApi.getClub(slug, { view: "summary" }).catch(() => null),
          clubsApi.listRoles(slug).catch(() => null),
          eventsApi.listClubEvents(slug, { when: "upcoming", limit: 5 }).catch(() => null),
          clubsApi.getMemberStats(slug).catch(() => null),
@@ -58,6 +75,7 @@ export default function ClubAdmin() {
          setViewer(r?.viewer || null);
          setEventsViewer(ev?.viewer || null);
          setUpcoming(ev?.items || []);
+         setUpcomingTotal(ev?.pagination?.total ?? 0);
          setMemberStats(ms || null);
          setPending(pend?.items || []);
       });
@@ -72,10 +90,10 @@ export default function ClubAdmin() {
       try {
          await clubsApi.setMemberStatus(slug, row.userId, status);
          toast.success(status === "approved" ? "Member approved" : "Request rejected");
-         await load();
+         await loadModeration();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update the request",
+            errMessage(err, "Couldn't update the request"),
          );
       } finally {
          setBusyId(null);
@@ -103,18 +121,9 @@ export default function ClubAdmin() {
       );
    }
 
-   if (!canManage) {
-      return (
-         <AppShell title="Club Home" subtitle={club?.name}>
-            <div className="main club-admin">
-               <div className="profile-empty">
-                  You don't have permission to manage this club.{" "}
-                  <Link to={`/clubs/${slug}`}>View the club page instead →</Link>
-               </div>
-            </div>
-         </AppShell>
-      );
-   }
+   // A student with no role in this club has nothing to manage here — send them to the
+   // club's own page rather than rendering the chrome around a refusal.
+   if (!canManage) return <Navigate to={`/clubs/${slug}`} replace />;
 
    const totalRegistrations = upcoming.reduce(
       (n, e) => n + (e.registeredCount || 0),
@@ -148,8 +157,18 @@ export default function ClubAdmin() {
                <Kpi
                   tone="purple"
                   label="Members"
-                  value={club?.memberCount ?? 0}
-                  sub={`${roles.length} roles defined`}
+                  /* memberStats is refetched after every approve/reject; the club
+                     summary is not, so it would sit one approval behind. */
+                  value={memberStats?.active ?? club?.memberCount ?? 0}
+                  /* memberStats already ships coordinators and past — who runs the club
+                     is worth more here than a bare role count. */
+                  sub={
+                     memberStats
+                        ? `${memberStats.coordinators} coordinator${
+                             memberStats.coordinators === 1 ? "" : "s"
+                          } · ${roles.length} roles`
+                        : `${roles.length} roles defined`
+                  }
                   icon={
                      <Icon size={16} strokeWidth={2.2}>
                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -174,7 +193,8 @@ export default function ClubAdmin() {
                <Kpi
                   tone="blue"
                   label="Upcoming events"
-                  value={upcoming.length}
+                  /* the list is capped at 5 — the count is the real total */
+                  value={upcomingTotal}
                   sub={`${club?.eventCount ?? 0} published all time`}
                   icon={
                      <Icon size={16} strokeWidth={2.2}>

@@ -2,16 +2,18 @@
 // /clubs is the browse-everything page; this is only your side of it.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { profileApi, clubsApi, ApiError } from "../services";
+import { profileApi, clubsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import { initials } from "../utils/text";
-import { CATEGORY_LABEL } from "../utils/clubs";
+import { CATEGORY_LABEL, CATEGORY_OPTIONS } from "../utils/clubs";
 import SearchField from "../components/SearchField";
 import FilterSelect from "../components/FilterSelect";
-import { CATEGORY_OPTIONS } from "../utils/clubs";
+import Pagination from "../components/Pagination";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
+import useDebounced from "../hooks/useDebounced";
 
 const TABS = [
    { id: "member", label: "Member" },
@@ -35,30 +37,47 @@ export default function MyClubs() {
       // The default tab needs no param — keeps /my-clubs clean.
       setSearchParams(id === TABS[0].id ? {} : { tab: id }, { replace: true });
 
-   // Filtering happens in the browser on purpose: this endpoint returns every club
-   // you're in — a handful, unpaginated — so a round trip per keystroke would buy
-   // nothing. My Events filters server-side because that list is paginated.
+   // The list is paged, so search/category/sort run server-side — filtering in the
+   // browser would only ever narrow the page you happen to be looking at.
    const [search, setSearch] = useState("");
+   const debounced = useDebounced(search.trim());
    const [category, setCategory] = useState("");
    const [sort, setSort] = useState("recent");
+   const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
 
    const [data, setData] = useState(null);
    const [loadedKey, setLoadedKey] = useState(null);
    const [busySlug, setBusySlug] = useState(null);
    const [reloadNonce, setReloadNonce] = useState(0);
 
-   const key = `${relation}|${reloadNonce}`;
+   const filterKey = `${relation}|${debounced}|${category}|${sort}`;
+   const key = `${filterKey}|${page}|${perPage}|${reloadNonce}`;
    const loading = loadedKey !== key;
+
+   // Reset to page 1 when the filters or the tab change
+   const [prevFilters, setPrevFilters] = useState(filterKey);
+   if (prevFilters !== filterKey) {
+      setPrevFilters(filterKey);
+      setPage(1);
+   }
 
    useEffect(() => {
       let cancelled = false;
       profileApi
-         .getClubs({ relation })
+         .getClubs({
+            relation,
+            q: debounced || undefined,
+            category: category || undefined,
+            sort,
+            page,
+            limit: perPage,
+         })
          .then((d) => !cancelled && setData(d))
          .catch((err) => {
             if (cancelled) return;
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load your clubs",
+               errMessage(err, "Couldn't load your clubs"),
             );
             setData({ items: [] });
          })
@@ -66,7 +85,7 @@ export default function MyClubs() {
       return () => {
          cancelled = true;
       };
-   }, [relation, key, toast]);
+   }, [relation, debounced, category, sort, page, perPage, key, toast]);
 
    const unfollow = useCallback(
       async (club) => {
@@ -77,7 +96,7 @@ export default function MyClubs() {
             setReloadNonce((n) => n + 1);
          } catch (err) {
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't unfollow",
+               errMessage(err, "Couldn't unfollow"),
             );
          } finally {
             setBusySlug(null);
@@ -86,26 +105,16 @@ export default function MyClubs() {
       [toast],
    );
 
-   const all = useMemo(() => data?.items || [], [data]);
+   const items = useMemo(() => data?.items || [], [data]);
+   const total = data?.pagination?.total ?? items.length;
+   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
-   const items = useMemo(() => {
-      const q = search.trim().toLowerCase();
-      const rows = all.filter(
-         (c) =>
-            (!category || c.category === category) &&
-            (!q ||
-               c.name.toLowerCase().includes(q) ||
-               (c.tagline || "").toLowerCase().includes(q)),
-      );
-      const at = (c) => new Date(c.joinedAt || c.followedAt || 0).getTime();
-      return [...rows].sort((a, b) => {
-         if (sort === "name") return a.name.localeCompare(b.name);
-         if (sort === "members") return b.memberCount - a.memberCount;
-         return at(b) - at(a);
-      });
-   }, [all, search, category, sort]);
+   // A mutation can empty the page you're on (cancel the only row on the last page).
+   // Without this the list renders its "nothing here" copy and the pager unmounts,
+   // leaving no way back to page 1.
+   if (!loading && page > totalPages) setPage(totalPages);
 
-   const filtering = !!(search.trim() || category);
+   const filtering = !!(debounced || category);
 
    return (
       <AppShell title="My Clubs">
@@ -124,10 +133,8 @@ export default function MyClubs() {
             <div className="ev-head">
                <div>
                   <div className="panel-title">
-                     {items.length} club{items.length === 1 ? "" : "s"}
-                     {filtering && all.length !== items.length
-                        ? ` of ${all.length}`
-                        : ""}
+                     {total} club{total === 1 ? "" : "s"}
+                     {filtering ? " matching" : ""}
                   </div>
                   <div className="panel-sub">
                      {relation === "member"
@@ -220,6 +227,17 @@ export default function MyClubs() {
                                        </Icon>
                                     </span>
                                  )}
+                                 {c.relation === "member" ? (
+                                    <span
+                                       className={`role-tag${c.role === "coordinator" || c.role === "president" ? " admin" : ""}`}
+                                    >
+                                       {c.roleName || c.role || "member"}
+                                    </span>
+                                 ) : (
+                                    <span className="mc-follow-tag">
+                                       Following
+                                    </span>
+                                 )}
                               </div>
                               <div className="mc-meta">
                                  <span>
@@ -235,24 +253,9 @@ export default function MyClubs() {
                               )}
                            </div>
                         </Link>
-                        <div className="mc-foot">
-                           {c.relation === "member" ? (
-                              <span
-                                 className={`role-tag${c.role === "coordinator" || c.role === "president" ? " admin" : ""}`}
-                              >
-                                 {c.roleName || c.role || "member"}
-                              </span>
-                           ) : (
-                              <span className="mc-follow-tag">Following</span>
-                           )}
-                           <div className="mc-actions">
-                              <Link
-                                 className="btn-mini"
-                                 to={`/clubs/${c.slug}/announcements`}
-                              >
-                                 Announcements
-                              </Link>
-                              {c.relation === "following" && (
+                        {c.relation === "following" && (
+                           <div className="mc-foot">
+                              <div className="mc-actions">
                                  <button
                                     type="button"
                                     className="btn-mini danger"
@@ -261,12 +264,27 @@ export default function MyClubs() {
                                  >
                                     {busySlug === c.slug ? "…" : "Unfollow"}
                                  </button>
-                              )}
+                              </div>
                            </div>
-                        </div>
+                        )}
                      </div>
                   ))}
                </div>
+            )}
+
+            {items.length > 0 && (
+               <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  perPage={perPage}
+                  perPageOptions={PAGE_SIZE_OPTIONS}
+                  onPerPageChange={(n) => {
+                     setPerPage(n);
+                     setPage(1);
+                  }}
+                  hasMore={data?.pagination?.hasMore}
+                  onChange={setPage}
+               />
             )}
          </div>
       </AppShell>

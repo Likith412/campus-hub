@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { profileApi, ApiError } from "../services";
 import { useAuth } from "./AuthContext";
@@ -34,6 +34,9 @@ export function ActiveClubProvider({ children }) {
    // Overlays the branded splash for a beat while switching the focused club.
    const [switching, setSwitching] = useState(false);
 
+   // Drops a clubs response that a newer load — or an account switch — has superseded.
+   const reqRef = useRef(0);
+
    // Logging out doesn't unmount the provider, so a second account signing in on the
    // same tab would keep the first one's clubs until its refetch landed.
    const userKey = user?.id || user?._id || null;
@@ -45,23 +48,32 @@ export function ActiveClubProvider({ children }) {
       setLoaded(false);
    }
 
-   const persist = useCallback(
-      (slug) => {
-         setActiveSlugState(slug);
-         try {
-            if (slug) localStorage.setItem(storageKey(user), slug);
-         } catch {
-            // Private mode / storage disabled — switcher still works in-memory.
-         }
-      },
-      [user],
-   );
+   // Orphan any load still in flight for the previous account. Runs before the load
+   // effect below, so the refetch that follows always wins.
+   useEffect(() => {
+      reqRef.current++;
+   }, [userKey]);
+
+   // Plain setter. The storage write is an effect, not part of this call, because the
+   // URL sync below runs during render and a render must stay side-effect free.
+   const persist = useCallback((slug) => setActiveSlugState(slug), []);
+
+   useEffect(() => {
+      if (!activeSlug) return;
+      try {
+         localStorage.setItem(storageKey(user), activeSlug);
+      } catch {
+         // Private mode / storage disabled — switcher still works in-memory.
+      }
+   }, [activeSlug, user]);
 
    // `preferred` lets a caller (e.g. just-created a club) request which club ends up in focus.
    const fetchClubs = useCallback(
       async (preferred) => {
+         const mine = ++reqRef.current;
          try {
             const data = await profileApi.getClubs();
+            if (mine !== reqRef.current) return;
             // Only the clubs this faculty actually runs (per-club coordinator role).
             const coordinated = (data?.items || [])
                .filter((c) => c.role === "coordinator")
@@ -84,12 +96,13 @@ export function ActiveClubProvider({ children }) {
                null;
             persist(next);
          } catch (err) {
+            if (mine !== reqRef.current) return;
             if (!(err instanceof ApiError) || err.status !== 401) {
                console.error("active-club load failed:", err);
             }
             setClubs([]);
          } finally {
-            setLoaded(true);
+            if (mine === reqRef.current) setLoaded(true);
          }
       },
       [user, persist],

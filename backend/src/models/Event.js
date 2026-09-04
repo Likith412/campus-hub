@@ -70,12 +70,11 @@ const eventSchema = new mongoose.Schema(
    { timestamps: true, versionKey: false },
 );
 
-// Indexes power: "events for a club", "upcoming by type/status", and tag filtering.
+// Indexes power: "events for a club" and "upcoming by type/status".
 eventSchema.index({ clubId: 1, startAt: -1 });
 eventSchema.index({ eventType: 1, status: 1, startAt: 1 });
 eventSchema.index({ status: 1, startAt: 1 });
 eventSchema.index({ visibility: 1, status: 1, startAt: 1 });
-eventSchema.index({ tags: 1 });
 
 module.exports = mongoose.model("Event", eventSchema);
 module.exports.EVENT_TYPES = EVENT_TYPES;

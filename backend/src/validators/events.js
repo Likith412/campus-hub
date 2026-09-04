@@ -6,7 +6,10 @@ const {
    VENUE_TYPES,
    EVENT_VISIBILITIES,
 } = require("../models/Event");
-const { urlOrEmpty } = require("./common");
+const { limitRule, pageRule, searchRule, urlOrEmpty } = require("./common");
+const {
+   REGISTRATION_STATUSES,
+} = require("../models/EventRegistration");
 
 // Where the event happens. Offline/hybrid need a location, online/hybrid need a link.
 const venueSchema = z
@@ -101,20 +104,29 @@ const listEventsQuerySchema = z
       visibility: z.enum(EVENT_VISIBILITIES).optional(),
       when: z.enum(["upcoming", "past", "all"]).default("all"),
       sort: z.enum(["soonest", "latest", "popular", "new"]).optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(12),
+      page: pageRule,
+      limit: limitRule(12),
    })
    .strict();
 
 // GET /api/events — cross-club browse. Published events in active clubs only.
 const listPublicEventsQuerySchema = z
    .object({
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       type: z.enum(EVENT_TYPES).optional(),
+      // Two independent narrowings. "not-mine" drops the clubs you've already joined;
+      // openOnly drops anything you couldn't take a seat or a waitlist place at. The
+      // dashboard rail asks for both; Explore's chip asks only for the first.
+      clubs: z.enum(["all", "not-mine"]).default("all"),
+      openOnly: z.enum(["true", "false"]).default("false"),
       when: z.enum(["upcoming", "past"]).default("upcoming"),
-      sort: z.enum(["soonest", "latest", "popular", "new"]).optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(12),
+      // "filling" ranks by how full an event is, not how many signed up — a 20-seat
+      // workshop with 18 gone is closer to shutting than a 500-seat hall with 200.
+      sort: z
+         .enum(["soonest", "latest", "popular", "new", "filling"])
+         .optional(),
+      page: pageRule,
+      limit: limitRule(12),
    })
    .strict();
 
@@ -122,23 +134,23 @@ const listPublicEventsQuerySchema = z
 const listMyEventsQuerySchema = z
    .object({
       when: z.enum(["upcoming", "past"]).default("upcoming"),
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       type: z.enum(EVENT_TYPES).optional(),
       // Your standing on the event, not the event's own status.
       status: z.enum(["registered", "waitlisted"]).optional(),
       sort: z.enum(["soonest", "latest"]).optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(10),
+      page: pageRule,
+      limit: limitRule(10),
    })
    .strict();
 
 // GET /api/clubs/:slug/events/:eventId/attendees — the roster behind one event.
 const listAttendeesQuerySchema = z
    .object({
-      q: z.string().trim().max(100).optional(),
-      status: z.enum(["registered", "waitlisted", "cancelled"]).optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(20),
+      q: searchRule,
+      status: z.enum(REGISTRATION_STATUSES).optional(),
+      page: pageRule,
+      limit: limitRule(20),
    })
    .strict();
 

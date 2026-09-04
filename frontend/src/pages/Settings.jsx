@@ -1,21 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { profileApi, ApiError } from "../services";
+import { profileApi, errMessage, fieldErrors } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
+import { postedAt } from "../utils/text";
+import { useAuth } from "../contexts/AuthContext";
+
+// Session ages read in the compact style, with the plain locale date past a week.
+const sessionAge = (d) => postedAt(d, (x) => new Date(x).toLocaleDateString());
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 
-// Human-friendly relative time, e.g. "2 minutes ago", "yesterday".
-function timeAgo(date) {
-   const diff = (Date.now() - new Date(date).getTime()) / 1000;
-   if (diff < 60) return "just now";
-   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-   if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-   return new Date(date).toLocaleDateString();
-}
 
 // Icon matching deviceType — phone for mobile, laptop for desktop.
 function DeviceIcon({ type }) {
@@ -41,9 +37,18 @@ function DeviceIcon({ type }) {
 // ──────────────────────────────────────────────────────────────────────────────
 const SECTIONS = [
    { id: "account", label: "Account" },
+   // Students only — a coordinator profile has no skills block.
+   { id: "skills", label: "Skills", studentOnly: true },
+   { id: "password", label: "Password" },
    { id: "sessions", label: "Sessions & devices" },
    { id: "danger", label: "Danger zone", danger: true },
 ];
+
+function levelLabel(level) {
+   if (level >= 75) return "Advanced";
+   if (level >= 50) return "Intermediate";
+   return "Beginner";
+}
 
 // Comma-separated string ⇄ array, used for tags/interests inputs.
 const fromCsv = (s) =>
@@ -72,9 +77,12 @@ function AccountForm({ user, onUserUpdated, isCoordinator }) {
       expertise: (user.profile?.expertise || []).join(", "),
    });
    const [saving, setSaving] = useState(false);
+   // Per-field reasons from the last failed save, cleared as soon as a field is edited.
+   const [errors, setErrors] = useState({});
    const toast = useToast();
 
    const setField = (path, value) => {
+      setErrors((e) => (e[path] ? { ...e, [path]: undefined } : e));
       setForm((f) => {
          if (path.startsWith("profile.")) {
             const key = path.slice("profile.".length);
@@ -121,11 +129,13 @@ function AccountForm({ user, onUserUpdated, isCoordinator }) {
             ...(isCoordinator ? {} : { interests: fromCsv(form.interests) }),
          };
 
+         setErrors({});
          const data = await profileApi.updateMe(payload);
          onUserUpdated?.(data);
          toast.success("Profile saved");
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Save failed");
+         setErrors(fieldErrors(err));
+         toast.error(errMessage(err, "Save failed"));
       } finally {
          setSaving(false);
       }
@@ -153,15 +163,23 @@ function AccountForm({ user, onUserUpdated, isCoordinator }) {
                   onChange={(e) => setField("name", e.target.value)}
                   required
                />
+               {errors.name && (
+                  <div className="form-help error">{errors.name}</div>
+               )}
             </div>
             <div className="form-group">
                <label className="form-label">Username</label>
                <input
                   className="input"
                   value={form.username}
-                  onChange={(e) => setField("username", e.target.value)}
+                  onChange={(e) =>
+                     setField("username", e.target.value.toLowerCase())
+                  }
                   placeholder="lowercase, digits, . _ -"
                />
+               {errors.username && (
+                  <div className="form-help error">{errors.username}</div>
+               )}
             </div>
          </div>
 
@@ -183,6 +201,9 @@ function AccountForm({ user, onUserUpdated, isCoordinator }) {
                   onChange={(e) => setField("phone", e.target.value)}
                   placeholder="+91 …"
                />
+               {errors.phone && (
+                  <div className="form-help error">{errors.phone}</div>
+               )}
             </div>
          </div>
 
@@ -419,7 +440,7 @@ function SessionsPanel() {
          toast.success("Session revoked");
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't revoke session",
+            errMessage(err, "Couldn't revoke session"),
          );
       } finally {
          setBusy(false);
@@ -440,9 +461,7 @@ function SessionsPanel() {
          toast.success("Signed out of other sessions");
       } catch (err) {
          toast.error(
-            err instanceof ApiError
-               ? err.message
-               : "Couldn't sign out other sessions",
+            errMessage(err, "Couldn't sign out other sessions"),
          );
       } finally {
          setBusy(false);
@@ -490,7 +509,7 @@ function SessionsPanel() {
                         )}
                      </div>
                      <div className="sess-meta">
-                        {[s.locationLabel, s.ip, timeAgo(s.lastActiveAt)]
+                        {[s.locationLabel, s.ip, sessionAge(s.lastActiveAt)]
                            .filter(Boolean)
                            .join(" · ")}
                      </div>
@@ -509,8 +528,8 @@ function SessionsPanel() {
          )}
 
          <div className="sess-note">
-            Sessions expire automatically after 30 days of inactivity. We'll
-            email you if we detect a sign-in from a new location.
+            Sessions expire automatically after 30 days of inactivity. Revoke
+            anything you don't recognise.
          </div>
       </div>
    );
@@ -536,7 +555,7 @@ function DangerZone() {
          window.location.href = "/login";
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't delete account",
+            errMessage(err, "Couldn't delete account"),
          );
       } finally {
          setBusy(false);
@@ -562,10 +581,254 @@ function DangerZone() {
    );
 }
 
+
+// Skills the profile page renders. PUT replaces the whole list, so the editor keeps the
+// full array in state and sends it back on save.
+function SkillsPanel() {
+   const [skills, setSkills] = useState(null);
+   const [saving, setSaving] = useState(false);
+   const toast = useToast();
+
+   useEffect(() => {
+      let cancelled = false;
+      profileApi
+         .getSkills()
+         .then((d) => !cancelled && setSkills(d?.skills || []))
+         .catch(() => !cancelled && setSkills([]));
+      return () => {
+         cancelled = true;
+      };
+   }, []);
+
+   const setRow = (i, patch) =>
+      setSkills((rows) =>
+         rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)),
+      );
+
+   const save = async (e) => {
+      e.preventDefault();
+      // The API rejects a blank name, and a blank row just means "I changed my mind".
+      const payload = skills
+         .map((r) => ({ name: r.name.trim(), level: Number(r.level) || 0 }))
+         .filter((r) => r.name);
+      // The profile lists each skill once; the API refuses duplicates too.
+      const seen = new Set(payload.map((r) => r.name.toLowerCase()));
+      if (seen.size !== payload.length) {
+         toast.error("Each skill can only be listed once");
+         return;
+      }
+      setSaving(true);
+      try {
+         const d = await profileApi.updateSkills(payload);
+         setSkills(d?.skills || payload);
+         toast.success("Skills updated");
+      } catch (err) {
+         toast.error(
+            errMessage(err, "Couldn't save skills"),
+         );
+      } finally {
+         setSaving(false);
+      }
+   };
+
+   if (!skills) return <LoadingBlock label="Loading skills" size={26} />;
+
+   return (
+      <form className="panel" onSubmit={save}>
+         <div className="panel-head">
+            <div>
+               <div className="panel-title">Skills</div>
+               <div className="panel-sub">
+                  Self-reported proficiency, shown on your public profile
+               </div>
+            </div>
+         </div>
+
+         {skills.length === 0 ? (
+            <div className="form-help">
+               Nothing here yet — add a skill to show it on your profile.
+            </div>
+         ) : (
+            <div className="skill-edit-list">
+               {skills.map((sk, i) => (
+                  <div className="skill-edit-row" key={i}>
+                     <input
+                        className="input"
+                        value={sk.name}
+                        maxLength={60}
+                        placeholder="e.g. React"
+                        onChange={(e) => setRow(i, { name: e.target.value })}
+                     />
+                     <input
+                        className="skill-range"
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={sk.level ?? 0}
+                        aria-label={`${sk.name || "Skill"} level`}
+                        onChange={(e) =>
+                           setRow(i, { level: Number(e.target.value) })
+                        }
+                     />
+                     <span className="skill-level">
+                        {levelLabel(sk.level ?? 0)}
+                     </span>
+                     <button
+                        type="button"
+                        className="skill-remove"
+                        title="Remove skill"
+                        aria-label={`Remove ${sk.name || "skill"}`}
+                        onClick={() =>
+                           setSkills((rows) => rows.filter((_, idx) => idx !== i))
+                        }
+                     >
+                        <Icon size={15} strokeWidth={2.2}>
+                           <line x1="18" y1="6" x2="6" y2="18" />
+                           <line x1="6" y1="6" x2="18" y2="18" />
+                        </Icon>
+                     </button>
+                  </div>
+               ))}
+            </div>
+         )}
+
+         <div className="form-actions">
+            <button
+               type="button"
+               className="btn btn-secondary"
+               disabled={skills.length >= 50}
+               onClick={() =>
+                  setSkills((rows) => [...rows, { name: "", level: 50 }])
+               }
+            >
+               Add skill
+            </button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+               {saving && <Spinner size={14} />}
+               {saving ? "Saving" : "Save skills"}
+            </button>
+         </div>
+      </form>
+   );
+}
+
+// Authenticated password change. The server keeps this session and revokes every other.
+function PasswordPanel() {
+   const [form, setForm] = useState({
+      currentPassword: "",
+      newPassword: "",
+      confirm: "",
+   });
+   const [saving, setSaving] = useState(false);
+   const [errors, setErrors] = useState({});
+   const toast = useToast();
+
+   const setField = (k, v) => {
+      setErrors((e) => (e[k] ? { ...e, [k]: undefined } : e));
+      setForm((f) => ({ ...f, [k]: v }));
+   };
+   const mismatch = !!form.confirm && form.newPassword !== form.confirm;
+
+   const submit = async (e) => {
+      e.preventDefault();
+      if (mismatch) return;
+      setSaving(true);
+      try {
+         await profileApi.changePassword({
+            currentPassword: form.currentPassword,
+            newPassword: form.newPassword,
+         });
+         setForm({ currentPassword: "", newPassword: "", confirm: "" });
+         setErrors({});
+         toast.success("Password changed — other devices were signed out");
+      } catch (err) {
+         setErrors(fieldErrors(err));
+         toast.error(errMessage(err, "Couldn't change password"));
+      } finally {
+         setSaving(false);
+      }
+   };
+
+   return (
+      <form className="panel" onSubmit={submit}>
+         <div className="panel-head">
+            <div>
+               <div className="panel-title">Password</div>
+               <div className="panel-sub">
+                  Changing it signs you out everywhere else
+               </div>
+            </div>
+         </div>
+
+         <div className="form-group">
+            <label className="form-label">Current password</label>
+            <input
+               className="input"
+               type="password"
+               autoComplete="current-password"
+               value={form.currentPassword}
+               onChange={(e) => setField("currentPassword", e.target.value)}
+               required
+            />
+            {errors.currentPassword && (
+               <div className="form-help error">{errors.currentPassword}</div>
+            )}
+         </div>
+
+         <div className="form-row">
+            <div className="form-group">
+               <label className="form-label">New password</label>
+               <input
+                  className="input"
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.newPassword}
+                  onChange={(e) => setField("newPassword", e.target.value)}
+                  required
+               />
+               <div className={`form-help${errors.newPassword ? " error" : ""}`}>
+                  {errors.newPassword ||
+                     "At least 8 characters, with an uppercase letter, a lowercase letter and a number."}
+               </div>
+            </div>
+            <div className="form-group">
+               <label className="form-label">Confirm new password</label>
+               <input
+                  className="input"
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.confirm}
+                  onChange={(e) => setField("confirm", e.target.value)}
+                  required
+               />
+               {mismatch && (
+                  <div className="form-help error">
+                     Those two don't match.
+                  </div>
+               )}
+            </div>
+         </div>
+
+         <div className="form-actions">
+            <button
+               type="submit"
+               className="btn btn-primary"
+               disabled={saving || mismatch}
+            >
+               {saving && <Spinner size={14} />}
+               {saving ? "Saving" : "Change password"}
+            </button>
+         </div>
+      </form>
+   );
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Page — account settings only. The profile itself lives at /profile.
 // ──────────────────────────────────────────────────────────────────────────────
 export default function Settings() {
+   const { refreshUser } = useAuth();
    const [section, setSection] = useState("account");
    const [user, setUser] = useState(null);
    const [error, setError] = useState(null);
@@ -575,7 +838,7 @@ export default function Settings() {
          .getMe()
          .then((d) => setUser(d?.user || null))
          .catch((err) =>
-            setError(err instanceof ApiError ? err.message : "Failed to load"),
+            setError(errMessage(err, "Failed to load")),
          );
    }, []);
 
@@ -587,8 +850,7 @@ export default function Settings() {
             <div className="fac-pagehead">
                <h1 className="fac-page-title">Settings</h1>
                <p className="fac-page-sub">
-                  Your account details, what we notify you about, and the devices
-                  you're signed in on.{" "}
+                  Your account details and the devices you're signed in on.{" "}
                   <Link to="/profile" className="fac-inline-link">
                      View your profile
                   </Link>
@@ -601,7 +863,9 @@ export default function Settings() {
             ) : (
                <div className="settings-layout">
                   <div className="settings-nav">
-                     {SECTIONS.map((s) => (
+                     {SECTIONS.filter(
+                        (s) => !s.studentOnly || !isCoordinator,
+                     ).map((s) => (
                         <button
                            key={s.id}
                            className={`${section === s.id ? "active" : ""} ${s.danger ? "danger" : ""}`}
@@ -615,10 +879,16 @@ export default function Settings() {
                      {section === "account" && (
                         <AccountForm
                            user={user}
-                           onUserUpdated={(d) => setUser(d?.user || user)}
+                           onUserUpdated={(d) => {
+                              const next = d?.user || user;
+                              setUser(next);
+                              refreshUser(next);
+                           }}
                            isCoordinator={isCoordinator}
                         />
                      )}
+                     {section === "skills" && !isCoordinator && <SkillsPanel />}
+                     {section === "password" && <PasswordPanel />}
                      {section === "sessions" && <SessionsPanel />}
                      {section === "danger" && <DangerZone />}
                   </div>

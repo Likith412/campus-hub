@@ -1,5 +1,5 @@
 // The clubs behind the profile's Clubs tab and the My Clubs page.
-const { successResponse } = require("../../utils/response");
+const { successResponse, pageMeta } = require("../../utils/response");
 const {
    ClubMembership,
    ClubFollow,
@@ -14,19 +14,30 @@ const CLUB_CARD_FIELDS =
 // My Clubs page. Defaults to memberships, so existing callers (the club switcher) are
 // unaffected by the follow half.
 async function getClubs(req, res) {
-   const relation = req.validatedQuery?.relation || "member";
+   const {
+      relation = "member",
+      q,
+      category,
+      sort = "recent",
+      page = 1,
+      limit,
+   } = req.validatedQuery || {};
 
-   const memberships = relation === "following" ? [] : await ClubMembership.find({
+   // Always resolved: the Following tab needs these to know which clubs to leave out.
+   // Following a club you have since joined tells you nothing new — membership is wider.
+   const membershipQuery = ClubMembership.find({
       userId: req.user._id,
       status: "approved",
-   })
-      .populate({
-         path: "clubId",
-         model: Club,
-         select: CLUB_CARD_FIELDS,
-      })
-      .populate({ path: "roleId", select: "slug name" })
-      .lean();
+   }).populate({
+      path: "clubId",
+      model: Club,
+      select: CLUB_CARD_FIELDS,
+   });
+   // The role is a member-row field; the Following tab never prints one.
+   if (relation !== "following") {
+      membershipQuery.populate({ path: "roleId", select: "slug name" });
+   }
+   const memberships = await membershipQuery.lean();
 
    const card = (c) => ({
       clubId: c._id,
@@ -40,6 +51,35 @@ async function getClubs(req, res) {
       memberCount: c.stats?.memberCount || 0,
    });
 
+   // Filtering and ordering happen here rather than in the queries: joinedAt/followedAt
+   // live on the membership and follow rows, and the two lists are merged after the fact,
+   // so no single query can order the combined set. These lists are a handful long.
+   const respond = (rows) => {
+      let all = rows;
+      if (category) all = all.filter((c) => c.category === category);
+      if (q) {
+         const needle = q.toLowerCase();
+         all = all.filter(
+            (c) =>
+               c.name.toLowerCase().includes(needle) ||
+               (c.tagline || "").toLowerCase().includes(needle),
+         );
+      }
+      const at = (c) => new Date(c.joinedAt || c.followedAt || 0).getTime();
+      all = [...all].sort((a, b) => {
+         if (sort === "name") return a.name.localeCompare(b.name);
+         if (sort === "members") return b.memberCount - a.memberCount;
+         return at(b) - at(a);
+      });
+
+      // No limit means no paging — the club switcher reads the whole list.
+      const paged = limit ? all.slice((page - 1) * limit, page * limit) : all;
+      return successResponse(res, 200, "Clubs", {
+         items: paged,
+         pagination: pageMeta(page, limit || all.length, all.length, paged.length),
+      });
+   };
+
    const items = memberships
       // Skip orphaned rows (club deleted) and clubs that aren't active (suspended/archived).
       .filter((m) => m.clubId && m.clubId.status === "active")
@@ -51,11 +91,8 @@ async function getClubs(req, res) {
          joinedAt: m.joinedAt,
       }));
 
-   if (relation === "member") {
-      return successResponse(res, 200, "Clubs", { items, count: items.length });
-   }
+   if (relation === "member") return respond(items);
 
-   // Following a club you're already in tells you nothing new — membership is wider.
    const memberIds = new Set(items.map((i) => String(i.clubId)));
    const follows = await ClubFollow.find({ userId: req.user._id })
       .populate({ path: "clubId", model: Club, select: CLUB_CARD_FIELDS })
@@ -77,8 +114,7 @@ async function getClubs(req, res) {
          followedAt: f.createdAt,
       }));
 
-   const all = relation === "following" ? followed : [...items, ...followed];
-   return successResponse(res, 200, "Clubs", { items: all, count: all.length });
+   return respond(relation === "following" ? followed : [...items, ...followed]);
 }
 
 module.exports = { getClubs };

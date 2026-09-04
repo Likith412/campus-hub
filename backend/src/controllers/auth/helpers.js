@@ -7,6 +7,8 @@ const { sendVerificationEmail } = require("../../services/emailService");
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // Email verification link valid for 24h.
 
 // Strip private fields (passwordHash, etc.) before sending a user back to the client.
+// `profile` carries only what the sidebar subtitle renders — the full profile is a
+// separate call.
 function publicUser(u) {
    return {
       id: u._id,
@@ -14,6 +16,10 @@ function publicUser(u) {
       name: u.name,
       role: u.role,
       emailVerified: u.emailVerified,
+      profile: {
+         department: u.profile?.department || null,
+         year: u.profile?.year || null,
+      },
    };
 }
 
@@ -44,7 +50,6 @@ async function sendVerificationLink(userId, email) {
 }
 
 module.exports = {
-   FRONTEND_URL,
    publicUser,
    sendVerificationLink,
 };

@@ -14,7 +14,7 @@ const {
    EventRegistration,
    User,
 } = require("../../models");
-const { sendAnnouncementEmail } = require("../../services/emailService");
+const { sendAnnouncementEmails } = require("../../services/emailService");
 const { FRONTEND_URL } = require("../../config/env");
 // Live registrations only — someone who cancelled shouldn't keep getting the club's mail.
 const { LIVE_REGISTRATION_STATUSES } = require("../events/helpers");
@@ -64,23 +64,25 @@ async function notifyAnnouncement(announcement, { club, event } = {}) {
       .select("email name")
       .lean();
 
-   const link = `${FRONTEND_URL}/clubs/${club?.slug || ""}/announcements`;
-   // allSettled, not all: one queue rejection shouldn't discard the rest or make the
-   // caller report that nobody was emailed.
-   const results = await Promise.allSettled(
-      wanted.map((u) =>
-         sendAnnouncementEmail(u.email, {
-            name: u.name,
-            clubName: club?.name || "your club",
-            title: announcement.title,
-            body: announcement.body,
-            eventTitle: event?.title || null,
-            link,
-         }),
-      ),
-   );
-
-   return { queued: results.filter((r) => r.status === "fulfilled").length };
+   // The read-only tab, not /announcements: that board is the management view and
+   // redirects anyone without manage rights — i.e. almost everyone receiving this.
+   const link = `${FRONTEND_URL}/clubs/${club?.slug || ""}?tab=announcements`;
+   // One bulk enqueue rather than a Redis round trip per recipient — a club with a few
+   // hundred members had that many awaited writes sitting inside the POST.
+   // A queue failure must not lose the post, which is already saved.
+   try {
+      const queued = await sendAnnouncementEmails(wanted, {
+         clubName: club?.name || "your club",
+         title: announcement.title,
+         body: announcement.body,
+         eventTitle: event?.title || null,
+         link,
+      });
+      return { queued };
+   } catch (err) {
+      console.error("[announcements] notification enqueue failed:", err.message);
+      return { queued: 0 };
+   }
 }
 
 module.exports = { notifyAnnouncement };

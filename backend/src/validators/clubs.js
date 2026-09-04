@@ -3,7 +3,7 @@ const { z } = require("zod");
 const { CLUB_CATEGORIES, CLUB_STATUSES } = require("../models/Club");
 const { MEMBERSHIP_STATUSES } = require("../models/ClubMembership");
 const { CLUB_PERMISSION_KEYS } = require("../constants/clubPermissions");
-const { urlOrEmpty, urlOrEmptyKeep } = require("./common");
+const { limitRule, pageRule, searchRule, urlOrEmpty, urlOrEmptyKeep } = require("./common");
 
 const SORTS = ["popular", "new", "active", "name"];
 const JOIN_POLICIES = ["open", "request", "invite-only"];
@@ -68,24 +68,27 @@ const statusBodySchema = z
 
 const listClubsQuerySchema = z
    .object({
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       category: z.enum(CLUB_CATEGORIES).optional(),
       sort: z.enum(SORTS).default("popular"),
       verified: z.enum(["true", "false"]).optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(12),
+      // "compact" is the sidebar rail: an avatar, a name, a member count and whether
+      // you're already in. It carries no description and needs no follow lookup.
+      view: z.enum(["card", "compact"]).default("card"),
+      page: pageRule,
+      limit: limitRule(12),
    })
    .strict();
 
 const listMembersQuerySchema = z
    .object({
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       role: roleSlug.optional(),
       // "past" is a convenience bucket (left + removed) used by the manage-members audit tab.
       status: z.enum([...MEMBERSHIP_STATUSES, "past"]).default("approved"),
       sort: z.enum(["role", "new"]).default("role"),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(20),
+      page: pageRule,
+      limit: limitRule(20),
    })
    .strict();
 
@@ -154,11 +157,13 @@ const updateClubBodySchema = z
       }),
       coverFrom: z.string().regex(HEX_COLOR),
       coverTo: z.string().regex(HEX_COLOR),
+      // null clears it — an empty field in the edit form is a real intent.
       foundedYear: z.coerce
          .number()
          .int()
          .min(1900)
-         .max(new Date().getFullYear()),
+         .max(new Date().getFullYear())
+         .nullable(),
    })
    .partial()
    .strict()
@@ -173,7 +178,16 @@ const addCoordinatorBodySchema = z
    })
    .strict();
 
+// GET /clubs/:slug — `summary` trims the response to the header fields the club-admin
+// pages read; omitting it keeps the full detail shape.
+const getClubQuerySchema = z
+   .object({
+      view: z.enum(["full", "summary"]).default("full"),
+   })
+   .strict();
+
 module.exports = {
+   getClubQuerySchema,
    listClubsQuerySchema,
    listMembersQuerySchema,
    searchMembersQuerySchema,

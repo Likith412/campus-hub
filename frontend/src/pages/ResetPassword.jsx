@@ -1,26 +1,12 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { authApi, ApiError } from "../services";
+import { ApiError, authApi, errMessage } from "../services";
 import { useToast } from "../contexts/ToastContext";
 import Spinner, { LoadingBlock } from "../components/Spinner";
+import Icon from "../components/Icon";
+import AuthBrand from "../components/AuthBrand";
 
 // Tiny inline SVG wrapper (same pattern as the other auth pages).
-function Icon({ size = 14, strokeWidth = 2.2, children }) {
-   return (
-      <svg
-         width={size}
-         height={size}
-         viewBox="0 0 24 24"
-         fill="none"
-         stroke="currentColor"
-         strokeWidth={strokeWidth}
-         strokeLinecap="round"
-         strokeLinejoin="round"
-      >
-         {children}
-      </svg>
-   );
-}
 
 const brandFeats = [
    {
@@ -31,7 +17,7 @@ const brandFeats = [
          </>
       ),
       title: "Pick something new.",
-      body: "At least 8 characters. Mixing letters, numbers, and symbols keeps you safer.",
+      body: "At least 8 characters, with an uppercase letter, a lowercase letter and a number.",
    },
    {
       icon: (
@@ -82,16 +68,22 @@ function ResetPassword() {
 
    // Check the token up-front so an invalid/expired link surfaces the "request a new link"
    useEffect(() => {
-      if (!token) return;
+      if (!token || status !== "validating") return;
       (async () => {
          try {
             await authApi.validateResetToken(token);
             setStatus("form");
-         } catch {
-            setStatus("no_token");
+         } catch (err) {
+            // Only a 401 means the link is genuinely spent; a network blip or a 5xx
+            // must not tell the user to request a new one.
+            setStatus(
+               err instanceof ApiError && err.status === 401
+                  ? "no_token"
+                  : "check_failed",
+            );
          }
       })();
-   }, [token]);
+   }, [token, status]);
 
    const handleSubmit = async (e) => {
       e.preventDefault();
@@ -108,9 +100,7 @@ function ResetPassword() {
          setStatus("success");
       } catch (err) {
          setError(
-            err instanceof ApiError
-               ? err.message
-               : "We couldn't reset your password. The link may be expired or invalid.",
+            errMessage(err, "We couldn't reset your password. The link may be expired or invalid."),
          );
       } finally {
          setSubmitting(false);
@@ -119,52 +109,17 @@ function ResetPassword() {
 
    return (
       <div className="auth-shell">
-         <aside className="auth-brand">
-            <div className="brand-top">
-               <div className="brand-mark-big">C</div>
-               <div className="brand-name-big">
-                  Campus Hub
-               </div>
-            </div>
-
-            <div className="brand-content">
-               <div className="brand-eyebrow">
-                  <span className="pulse"></span>Choose a new password
-               </div>
-               <h1 className="brand-headline">
+         <AuthBrand
+            eyebrow="Choose a new password"
+            headline={
+               <>
                   Fresh password, <em>same campus</em>.
-               </h1>
-               <p className="brand-sub">
-                  Pick something you'll remember but no one else would guess.
-                  Saving it signs you out everywhere — sign in again with the new one.
-               </p>
-
-               <ul className="brand-feats">
-                  {brandFeats.map(({ icon, title, body }) => (
-                     <li key={title} className="brand-feat">
-                        <div className="feat-ic">
-                           <Icon>{icon}</Icon>
-                        </div>
-                        <div>
-                           <b>{title}</b> {body}
-                        </div>
-                     </li>
-                  ))}
-               </ul>
-            </div>
-
-            <div className="brand-foot">
-               {stats.map(({ num, label }, i) => (
-                  <Fragment key={label}>
-                     {i > 0 && <div className="stat-divider"></div>}
-                     <div>
-                        <div className="stat-num">{num}</div>
-                        <div>{label}</div>
-                     </div>
-                  </Fragment>
-               ))}
-            </div>
-         </aside>
+               </>
+            }
+            sub="Pick something you'll remember but no one else would guess. Saving it signs you out everywhere — sign in again with the new one."
+            feats={brandFeats}
+            stats={stats}
+         />
 
          <section className="auth-form-wrap">
             <div className="auth-form-top">
@@ -200,11 +155,28 @@ function ResetPassword() {
                         style={{ textDecoration: "none" }}
                      >
                         Request a reset link
-                        <Icon strokeWidth={2.5}>
+                        <Icon size={14} strokeWidth={2.5}>
                            <line x1="5" y1="12" x2="19" y2="12" />
                            <polyline points="12 5 19 12 12 19" />
                         </Icon>
                      </Link>
+                  </>
+               )}
+
+               {status === "check_failed" && (
+                  <>
+                     <h2 className="auth-title">Couldn't check that link.</h2>
+                     <p className="auth-subtitle">
+                        We couldn't reach the server. Your link is probably
+                        fine — try again in a moment.
+                     </p>
+                     <button
+                        type="button"
+                        className="btn-submit accent"
+                        onClick={() => setStatus("validating")}
+                     >
+                        Try again
+                     </button>
                   </>
                )}
 
@@ -224,7 +196,7 @@ function ResetPassword() {
                         onClick={() => navigate("/login", { replace: true })}
                      >
                         Continue to sign in
-                        <Icon strokeWidth={2.5}>
+                        <Icon size={14} strokeWidth={2.5}>
                            <line x1="5" y1="12" x2="19" y2="12" />
                            <polyline points="12 5 19 12 12 19" />
                         </Icon>
@@ -236,8 +208,8 @@ function ResetPassword() {
                   <form onSubmit={handleSubmit}>
                      <h2 className="auth-title">Set a new password</h2>
                      <p className="auth-subtitle">
-                        Pick at least 8 characters. We recommend a mix of
-                        letters, numbers, and symbols.
+                        At least 8 characters, with an uppercase letter, a
+                        lowercase letter and a number.
                      </p>
 
                      <div className="field">
@@ -320,7 +292,7 @@ function ResetPassword() {
                         ) : (
                            <>
                               Save new password
-                              <Icon strokeWidth={2.5}>
+                              <Icon size={14} strokeWidth={2.5}>
                                  <line x1="5" y1="12" x2="19" y2="12" />
                                  <polyline points="12 5 19 12 12 19" />
                               </Icon>

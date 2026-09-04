@@ -1,5 +1,4 @@
-// Shared Redis client: rate-limit counters, the session blacklist, and the refresh-token
-// rotation locks.
+// Shared Redis client: the session blacklist and the refresh-token rotation locks.
 const { createClient } = require("redis");
 
 const redisClient = createClient({

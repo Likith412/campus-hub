@@ -92,8 +92,8 @@ export const NAV_BY_ROLE = {
       { id: "profile", label: "Profile", to: "/profile", icon: I.profile },
       { id: "settings", label: "Settings", to: "/settings", icon: I.user },
    ],
-   // faculty nav is built per active club — see getFacultyNav() below.
-   faculty: [],
+   // No faculty key — their nav is built per active club by getFacultyNav() below,
+   // which Sidebar calls before it ever reaches this map.
    superAdmin: [
       { section: "Institute" },
       { id: "faculty", label: "All Faculties", to: "/admin/faculty", icon: I.faculty },

@@ -1,25 +1,11 @@
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
-import { authApi, ApiError } from "../services";
+import { authApi, errMessage } from "../services";
 import Spinner from "../components/Spinner";
+import Icon from "../components/Icon";
+import AuthBrand from "../components/AuthBrand";
 
 // Tiny inline SVG wrapper (same pattern as Login/Register/VerifyEmail).
-function Icon({ size = 14, strokeWidth = 2.2, children }) {
-   return (
-      <svg
-         width={size}
-         height={size}
-         viewBox="0 0 24 24"
-         fill="none"
-         stroke="currentColor"
-         strokeWidth={strokeWidth}
-         strokeLinecap="round"
-         strokeLinejoin="round"
-      >
-         {children}
-      </svg>
-   );
-}
 
 const brandFeats = [
    {
@@ -61,8 +47,7 @@ const stats = [
 ];
 
 // View state machine: 'form' → 'sent' after the server responds; network/5xx surfaces an
-// inline error. Requests are rate-limited server-side (3/hour per IP), so there's no
-// client-side cooldown.
+// inline error.
 function ForgotPassword() {
    const [status, setStatus] = useState("form");
    const [email, setEmail] = useState("");
@@ -78,12 +63,10 @@ function ForgotPassword() {
          // account exists or not), so we just show the generic success card.
          setStatus("sent");
       } catch (err) {
-         // Any error (rate limit, validation, network, 5xx) is a real problem the user
+         // Any error (validation, network, 5xx) is a real problem the user
          // needs to see — don't paper over it with a fake success.
          setError(
-            err instanceof ApiError
-               ? err.message
-               : "We couldn't reach the server. Check your connection and try again.",
+            errMessage(err, "We couldn't reach the server. Check your connection and try again."),
          );
       } finally {
          setSubmitting(false);
@@ -98,53 +81,17 @@ function ForgotPassword() {
 
    return (
       <div className="auth-shell">
-         <aside className="auth-brand">
-            <div className="brand-top">
-               <div className="brand-mark-big">C</div>
-               <div className="brand-name-big">
-                  Campus Hub
-               </div>
-            </div>
-
-            <div className="brand-content">
-               <div className="brand-eyebrow">
-                  <span className="pulse"></span>Account recovery
-               </div>
-               <h1 className="brand-headline">
+         <AuthBrand
+            eyebrow="Account recovery"
+            headline={
+               <>
                   Locked out? <em>We've got you.</em>
-               </h1>
-               <p className="brand-sub">
-                  Enter the email you signed up with. We'll send a one-time
-                  reset link valid for 30 minutes. Your account, events, and
-                  certificates stay safe.
-               </p>
-
-               <ul className="brand-feats">
-                  {brandFeats.map(({ icon, title, body }) => (
-                     <li key={title} className="brand-feat">
-                        <div className="feat-ic">
-                           <Icon>{icon}</Icon>
-                        </div>
-                        <div>
-                           <b>{title}</b> {body}
-                        </div>
-                     </li>
-                  ))}
-               </ul>
-            </div>
-
-            <div className="brand-foot">
-               {stats.map(({ num, label }, i) => (
-                  <Fragment key={label}>
-                     {i > 0 && <div className="stat-divider"></div>}
-                     <div>
-                        <div className="stat-num">{num}</div>
-                        <div>{label}</div>
-                     </div>
-                  </Fragment>
-               ))}
-            </div>
-         </aside>
+               </>
+            }
+            sub="Enter the email you signed up with. We'll send a one-time reset link valid for 30 minutes. Your account, events, and certificates stay safe."
+            feats={brandFeats}
+            stats={stats}
+         />
 
          <section className="auth-form-wrap">
             <div className="auth-form-top">
@@ -179,8 +126,8 @@ function ForgotPassword() {
                         />
                      </div>
                      <div className="field-help">
-                        Use the same email you registered with. Resets are
-                        rate-limited to 3/hour per address.
+                        Use the same email you registered with. The link lasts
+                        30 minutes and can be used once.
                      </div>
                   </div>
 
@@ -199,7 +146,7 @@ function ForgotPassword() {
                      ) : (
                         <>
                            Send reset link
-                           <Icon strokeWidth={2.5}>
+                           <Icon size={14} strokeWidth={2.5}>
                               <line x1="22" y1="2" x2="11" y2="13" />
                               <polygon points="22 2 15 22 11 13 2 9 22 2" />
                            </Icon>

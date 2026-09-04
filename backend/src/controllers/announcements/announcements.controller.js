@@ -12,6 +12,7 @@ const {
    User,
 } = require("../../models");
 const { escapeRegex } = require("../../utils/escapeRegex");
+const { ROLES } = require("../../constants/roles");
 const { notifyAnnouncement } = require("./notify");
 const {
    findClubBySlugFor,
@@ -29,25 +30,30 @@ function announcementViewer(ctx) {
    };
 }
 
-function publicAnnouncement(a, { author, club, event, viewerId } = {}) {
+// `board` adds the two fields only a club's own notice board acts on: `pinned` drives
+// the pin control and the pinned-first grouping, `isMine` lets you take your own note
+// down. The cross-club digest sorts by date and offers neither, so it omits both.
+function publicAnnouncement(a, { author, club, event, viewerId, board = false } = {}) {
    // populate() swaps the ref for the doc, so read ids through both shapes.
    const authorId = a.authorId?._id || a.authorId;
    const linked = event || (a.eventId?.title ? a.eventId : null);
-   return {
+   const row = {
       id: a._id,
-      clubId: a.clubId,
-      club: club ? { id: club._id, name: club.name, slug: club.slug } : null,
+      // The card prints the name and links by slug — the id is read nowhere.
+      club: club ? { name: club.name, slug: club.slug } : null,
       title: a.title,
       body: a.body,
       visibility: a.visibility || "private",
-      pinned: !!a.pinned,
-      eventId: a.eventId?._id || a.eventId || null,
       // The note's card links back to the event it's about.
       event: linked ? { id: linked._id, title: linked.title } : null,
       author: author ? { id: author._id, name: author.name } : null,
-      isMine: viewerId ? String(authorId) === String(viewerId) : false,
       createdAt: a.createdAt,
-      updatedAt: a.updatedAt,
+   };
+   if (!board) return row;
+   return {
+      ...row,
+      pinned: !!a.pinned,
+      isMine: viewerId ? String(authorId) === String(viewerId) : false,
    };
 }
 
@@ -86,7 +92,11 @@ async function listClubAnnouncements(req, res) {
 
    return successResponse(res, 200, "Announcements", {
       items: rows.map((a) =>
-         publicAnnouncement(a, { author: a.authorId, viewerId: req.user._id }),
+         publicAnnouncement(a, {
+            author: a.authorId,
+            viewerId: req.user._id,
+            board: true,
+         }),
       ),
       pagination: pageMeta(page, limit, total, rows.length),
       viewer: { ...announcementViewer(ctx), isMember },
@@ -136,6 +146,7 @@ async function createAnnouncement(req, res) {
          author: { _id: req.user._id, name: req.user.name },
          event,
          viewerId: req.user._id,
+         board: true,
       }),
       notified: notified.queued,
    });
@@ -161,6 +172,7 @@ async function setAnnouncementPinned(req, res) {
          announcement: publicAnnouncement(updated, {
             author: updated.authorId,
             viewerId: req.user._id,
+            board: true,
          }),
       },
    );
@@ -200,10 +212,13 @@ async function listEventAnnouncements(req, res) {
       .lean();
    if (!event) throw new NotFoundError("Event not found");
 
-   const club = await Club.findById(event.clubId).select("slug status").lean();
+   const club = await Club.findById(event.clubId).select("status").lean();
    if (!club) throw new NotFoundError("Event not found");
-   // Same club-visibility rule the event itself is behind.
-   await findClubBySlugFor(req.user, club.slug);
+   // Same club-visibility rule the event itself is behind, applied to the club already
+   // in hand rather than fetching it again by slug.
+   if (club.status !== "active" && req.user.role !== ROLES.SUPER_ADMIN) {
+      throw new NotFoundError("Event not found");
+   }
 
    const ctx = await resolveClubContext(req.user, event.clubId);
    const isMember = !!ctx;
@@ -213,22 +228,22 @@ async function listEventAnnouncements(req, res) {
 
    const rows = await Announcement.find(match)
       .populate({ path: "authorId", model: User, select: "name" })
-      .populate({ path: "eventId", model: Event, select: "title" })
       .sort({ pinned: -1, createdAt: -1 })
       .lean();
 
    return successResponse(res, 200, "Announcements", {
       items: rows.map((a) =>
-         publicAnnouncement(a, { author: a.authorId, viewerId: req.user._id }),
+         publicAnnouncement(a, { author: a.authorId, board: true }),
       ),
-      viewer: { ...announcementViewer(ctx), isMember },
    });
 }
 
 // GET /api/announcements — the dashboard digest. Clubs you're a member of contribute
 // everything; clubs you merely follow contribute their public notices only.
 async function listMyAnnouncements(req, res) {
-   const { page, limit } = req.validatedQuery;
+   const { q, visibility, club: clubSlug, source, sort, withClubs, page, limit } =
+      req.validatedQuery;
+   const sendClubs = withClubs === "true";
 
    const [memberships, follows] = await Promise.all([
       ClubMembership.find({ userId: req.user._id, status: "approved" })
@@ -246,6 +261,7 @@ async function listMyAnnouncements(req, res) {
    if (memberSet.size === 0 && followIds.length === 0) {
       return successResponse(res, 200, "Announcements", {
          items: [],
+         ...(sendClubs ? { clubs: [] } : {}),
          pagination: { page, limit, total: 0, hasMore: false },
       });
    }
@@ -265,27 +281,61 @@ async function listMyAnnouncements(req, res) {
       .filter((c) => !memberSet.has(String(c._id)))
       .map((c) => c._id);
 
+   // Every club that can put something in this feed — what the toolbar's club filter
+   // offers. Built before the filters narrow anything, so the choices stay stable.
+   const clubOptions = !sendClubs
+      ? []
+      : activeClubs
+           .map((c) => ({ name: c.name, slug: c.slug }))
+           .sort((a, b) => a.name.localeCompare(b.name));
+
+   const empty = (extra = {}) =>
+      successResponse(res, 200, "Announcements", {
+         items: [],
+         ...(sendClubs ? { clubs: clubOptions } : {}),
+         pagination: { page, limit, total: 0, hasMore: false },
+         ...extra,
+      });
+
+   // A slug outside your own clubs isn't an error — it just selects nothing.
+   let memberIds = memberClubIds;
+   let followIds2 = followClubIds;
+   if (clubSlug) {
+      const picked = activeClubs.find((c) => c.slug === clubSlug);
+      if (!picked) return empty();
+      const isMemberClub = memberSet.has(String(picked._id));
+      memberIds = isMemberClub ? [picked._id] : [];
+      followIds2 = isMemberClub ? [] : [picked._id];
+   }
+   if (source === "member") followIds2 = [];
+   if (source === "following") memberIds = [];
+
    const or = [];
-   if (memberClubIds.length) or.push({ clubId: { $in: memberClubIds } });
-   if (followClubIds.length) {
-      or.push({ clubId: { $in: followClubIds }, visibility: "public" });
+   if (memberIds.length) or.push({ clubId: { $in: memberIds } });
+   if (followIds2.length) {
+      or.push({ clubId: { $in: followIds2 }, visibility: "public" });
    }
    // Every club you belonged to has since been suspended or archived. Mongoose drops an
    // empty $or, which would leave {} and match the whole collection.
-   if (or.length === 0) {
-      return successResponse(res, 200, "Announcements", {
-         items: [],
-         pagination: { page, limit, total: 0, hasMore: false },
-      });
+   if (or.length === 0) return empty();
+   const access = or.length === 1 ? or[0] : { $or: or };
+
+   // Access first, then the toolbar's filters — $and keeps the follow branch's own
+   // visibility clause intact instead of overwriting it.
+   const extra = [];
+   if (visibility) extra.push({ visibility });
+   if (q) {
+      const rx = { $regex: escapeRegex(q), $options: "i" };
+      extra.push({ $or: [{ title: rx }, { body: rx }] });
    }
-   const match = or.length === 1 ? or[0] : { $or: or };
+   const match = extra.length ? { $and: [access, ...extra] } : access;
 
    const skip = (page - 1) * limit;
    const [rows, total] = await Promise.all([
       Announcement.find(match)
          .populate({ path: "authorId", model: User, select: "name" })
          .populate({ path: "eventId", model: Event, select: "title" })
-         .sort({ createdAt: -1 })
+         .sort({ createdAt: sort === "oldest" ? 1 : -1 })
          .skip(skip)
          .limit(limit)
          .lean(),
@@ -300,6 +350,7 @@ async function listMyAnnouncements(req, res) {
             viewerId: req.user._id,
          }),
       ),
+      ...(sendClubs ? { clubs: clubOptions } : {}),
       pagination: pageMeta(page, limit, total, rows.length),
    });
 }

@@ -2,26 +2,24 @@
 // status, including drafts and cancelled ones, which the student feed never shows.
 // Read-only: managing an event happens inside its club.
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
-import { adminApi, ApiError } from "../services";
+import { adminApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
-import { EVENT_TYPE_LABEL } from "../utils/events";
+import {
+   EVENT_SORTS,
+   EVENT_TYPE_LABEL,
+} from "../utils/events";
 import useDebounced from "../hooks/useDebounced";
 import useLatestRequest from "../hooks/useLatestRequest";
+import useEventActions from "../hooks/useEventActions";
+import EditEventModal from "../components/EditEventModal";
 import SearchField from "../components/SearchField";
 import FilterSelect from "../components/FilterSelect";
 
-const PAGE_SIZE = 20;
-const EVENT_SORTS = [
-   { id: "soonest", label: "Date · soonest" },
-   { id: "latest", label: "Date · latest" },
-   { id: "popular", label: "Most registered" },
-   { id: "new", label: "Recently created" },
-];
 const STATUS_TABS = [
    { id: "", label: "All" },
    { id: "published", label: "Published" },
@@ -32,7 +30,6 @@ const STATUS_TABS = [
 ];
 
 export default function AllEvents() {
-   const navigate = useNavigate();
    const toast = useToast();
 
    const [search, setSearch] = useState("");
@@ -42,12 +39,15 @@ export default function AllEvents() {
    const [status, setStatus] = useState("");
    const [sort, setSort] = useState("new");
    const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
    const [data, setData] = useState(null);
    const [clubs, setClubs] = useState([]);
    const [loadedKey, setLoadedKey] = useState(null);
    const startRequest = useLatestRequest();
 
-   const key = `${debounced}|${club}|${type}|${status}|${sort}|${page}`;
+   const [reloadNonce, setReloadNonce] = useState(0);
+   const reload = () => setReloadNonce((n) => n + 1);
+   const key = `${debounced}|${club}|${type}|${status}|${sort}|${page}|${perPage}|${reloadNonce}`;
    const loading = loadedKey !== key;
 
 
@@ -61,7 +61,7 @@ export default function AllEvents() {
 
    useEffect(() => {
       const isCurrent = startRequest();
-      const myKey = `${debounced}|${club}|${type}|${status}|${sort}|${page}`;
+      const myKey = `${debounced}|${club}|${type}|${status}|${sort}|${page}|${perPage}|${reloadNonce}`;
       adminApi
          .listEvents({
             q: debounced || undefined,
@@ -71,7 +71,7 @@ export default function AllEvents() {
             when: status === "past" ? "past" : undefined,
             sort,
             page,
-            limit: PAGE_SIZE,
+            limit: perPage,
          })
          .then((d) => {
             if (isCurrent()) setData(d);
@@ -79,14 +79,25 @@ export default function AllEvents() {
          .catch((err) => {
             if (!isCurrent()) return;
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load events",
+               errMessage(err, "Couldn't load events"),
             );
             setData({ items: [], pagination: { total: 0 } });
          })
          .finally(() => {
             if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [debounced, club, type, status, sort, page, toast, startRequest]);
+   }, [
+      debounced,
+      club,
+      type,
+      status,
+      sort,
+      page,
+      perPage,
+      reloadNonce,
+      toast,
+      startRequest,
+   ]);
 
    // Reset to page 1 when filters change.
    const [prev, setPrev] = useState({ debounced, club, type, status, sort });
@@ -102,11 +113,20 @@ export default function AllEvents() {
    }
 
    const items = data?.items || [];
+   // A superAdmin holds every permission, so every row here is actionable.
+   const {
+      editing,
+      setEditing,
+      busyId: manageBusyId,
+      openEditor,
+      publishEvent,
+      cancelEvent,
+   } = useEventActions(reload);
    const counts = data?.statusCounts || {};
    const pagination = data?.pagination;
    const totalPages = Math.max(
       1,
-      Math.ceil((pagination?.total || 0) / (pagination?.limit || PAGE_SIZE)),
+      Math.ceil((pagination?.total || 0) / (pagination?.limit || perPage)),
    );
 
    return (
@@ -190,22 +210,43 @@ export default function AllEvents() {
                         event={e}
                         showClub
                         showStatus
-                        onOpen={(ev) => navigate(`/events/${ev.id}`)}
+                        busy={manageBusyId === e.id}
+                        onEdit={openEditor}
+                        onPublish={publishEvent}
+                        onCancel={cancelEvent}
                      />
                   ))}
                </div>
             )}
 
-            {items.length > 0 && totalPages > 1 && (
+            {items.length > 0 && (
                <Pagination
                   page={page}
                   totalPages={totalPages}
-                  perPage={PAGE_SIZE}
+                  perPage={perPage}
+                  perPageOptions={PAGE_SIZE_OPTIONS}
+                  onPerPageChange={(n) => {
+                     setPerPage(n);
+                     setPage(1);
+                  }}
                   hasMore={pagination?.hasMore}
                   onChange={setPage}
                />
             )}
          </div>
+
+         {editing && (
+            <EditEventModal
+               event={editing}
+               club={editing.club}
+               slug={editing.club?.slug}
+               onClose={() => setEditing(null)}
+               onChanged={() => {
+                  setEditing(null);
+                  reload();
+               }}
+            />
+         )}
       </AppShell>
    );
 }

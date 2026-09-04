@@ -1,12 +1,22 @@
 // Wrappers around /api/clubs/* endpoints.
 import { apiClient } from "./client";
 
-export async function listClubs({ q, category, sort, verified, page, limit } = {}) {
+// `view: "compact"` returns the sidebar-rail shape — no description, no follow state.
+export async function listClubs({
+   q,
+   category,
+   sort,
+   verified,
+   view,
+   page,
+   limit,
+} = {}) {
    const params = new URLSearchParams();
    if (q) params.set("q", q);
    if (category) params.set("category", category);
    if (sort) params.set("sort", sort);
    if (verified) params.set("verified", verified);
+   if (view) params.set("view", view);
    if (page) params.set("page", String(page));
    if (limit) params.set("limit", String(limit));
    const qs = params.toString();
@@ -96,8 +106,12 @@ export async function unfollowClub(slug) {
    return data;
 }
 
-export async function getClub(slug) {
-   const { data } = await apiClient.get(`/clubs/${encodeURIComponent(slug)}`);
+// `view: "summary"` returns just the header fields (name, tagline, counts) and skips the
+// membership/follow lookups. Use it wherever the page only needs to say which club it's on.
+export async function getClub(slug, { view } = {}) {
+   const { data } = await apiClient.get(`/clubs/${encodeURIComponent(slug)}`, {
+      params: view ? { view } : undefined,
+   });
    return data;
 }
 

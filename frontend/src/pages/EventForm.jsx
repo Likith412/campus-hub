@@ -3,15 +3,17 @@
 // (see the `create-club` class below). Editing happens in EditEventModal, not here.
 // Gated on events:create (the route is open, the page and the controller both check).
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router";
-import { clubsApi, eventsApi, ApiError } from "../services";
+import { Navigate, useNavigate, useParams } from "react-router";
+import { clubsApi, eventsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import { useToast } from "../contexts/ToastContext";
 import {
-   EVENT_TYPE_LABEL,
    EVENT_COVER_CLASS,
+   EVENT_TYPE_LABEL,
+   EVENT_TYPE_PICKER_OPTIONS,
+   VENUE_MODES,
    eventDateParts,
    formatDuration,
    formatEventWhen,
@@ -28,14 +30,8 @@ const STEPS = [
    "Review & publish",
 ];
 
-const EVENT_TYPES = [
-   { id: "workshop", label: "🛠 Workshop", desc: "Hands-on, teach something" },
-   { id: "contest", label: "⚡ Contest", desc: "Timed, ranked, competitive" },
-   { id: "hackathon", label: "💻 Hackathon", desc: "Build over hours or days" },
-   { id: "seminar", label: "🎤 Seminar", desc: "A talk, panel or Q&A" },
-   { id: "fun", label: "🎉 Social", desc: "Meetups and everything lighter" },
-];
 
+// Local: the modal words these two options more tersely for its narrower column.
 const VISIBILITIES = [
    {
       id: "public",
@@ -49,11 +45,6 @@ const VISIBILITIES = [
    },
 ];
 
-const MODES = [
-   { id: "offline", label: "On campus" },
-   { id: "online", label: "Online" },
-   { id: "hybrid", label: "Hybrid" },
-];
 
 function defaultStart() {
    const d = new Date();
@@ -97,7 +88,7 @@ export default function EventForm() {
    useEffect(() => {
       let cancelled = false;
       Promise.all([
-         clubsApi.getClub(slug).catch(() => null),
+         clubsApi.getClub(slug, { view: "summary" }).catch(() => null),
          // listClubEvents carries the viewer's permissions for this club.
          eventsApi.listClubEvents(slug, { limit: 1 }).catch(() => null),
       ])
@@ -202,7 +193,7 @@ export default function EventForm() {
          );
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't create the event",
+            errMessage(err, "Couldn't create the event"),
          );
       } finally {
          setSaving(false);
@@ -219,22 +210,16 @@ export default function EventForm() {
       );
    }
 
-   if (!allowed) {
-      return (
-         <AppShell title="Create event" subtitle={club?.name}>
-            <div className="main">
-               <div className="profile-empty">
-                  You don't have permission to create events in this club.
-               </div>
-            </div>
-         </AppShell>
-      );
-   }
+   // A student with no role in this club has nothing to manage here — send them to the
+   // club's own page rather than rendering the chrome around a refusal.
+   if (!allowed) return <Navigate to={`/clubs/${slug}`} replace />;
 
    // The preview card mirrors the row this event will become on the club's events tab.
    const preview = {
       startAt: startAt || start.toISOString(),
-      endAt: endAt || start.toISOString(),
+      // No fallback for endAt: substituting the start date printed a zero or negative
+      // duration. The two readers below render a dash until it's filled in.
+      endAt: endAt || null,
       venue: { type: mode, location, meetingUrl },
    };
    const { month, day, time } = eventDateParts(preview.startAt);
@@ -298,7 +283,7 @@ export default function EventForm() {
                            </div>
                            <div className="field">
                               <div className="chip-grid">
-                                 {EVENT_TYPES.map((t) => (
+                                 {EVENT_TYPE_PICKER_OPTIONS.map((t) => (
                                     <span
                                        key={t.id}
                                        className={`chip${eventType === t.id ? " active" : ""}`}
@@ -309,7 +294,7 @@ export default function EventForm() {
                                  ))}
                               </div>
                               <div className="help">
-                                 {EVENT_TYPES.find((t) => t.id === eventType)?.desc}
+                                 {EVENT_TYPE_PICKER_OPTIONS.find((t) => t.id === eventType)?.desc}
                               </div>
                            </div>
                         </div>
@@ -436,7 +421,7 @@ export default function EventForm() {
                            <div className="field">
                               <label className="label">Mode</label>
                               <div className="chip-grid">
-                                 {MODES.map((m) => (
+                                 {VENUE_MODES.map((m) => (
                                     <span
                                        key={m.id}
                                        className={`chip${mode === m.id ? " active" : ""}`}
@@ -607,7 +592,9 @@ export default function EventForm() {
                            <div className="summary-row">
                               <div className="summary-label">When</div>
                               <div className="summary-val">
-                                 {formatEventWhen(preview.startAt, preview.endAt)}
+                                 {preview.endAt
+                                    ? formatEventWhen(preview.startAt, preview.endAt)
+                                    : "—"}
                               </div>
                               <span className="edit-link" onClick={() => goTo(3)}>
                                  Edit
@@ -686,7 +673,10 @@ export default function EventForm() {
                            <div className="event-meta">
                               <span>🕐 {time}</span>
                               <span>
-                                 ⏱️ {formatDuration(preview.startAt, preview.endAt)}
+                                 ⏱️{" "}
+                                 {preview.endAt
+                                    ? formatDuration(preview.startAt, preview.endAt)
+                                    : "—"}
                               </span>
                               <span>{formatVenue(preview.venue)}</span>
                            </div>

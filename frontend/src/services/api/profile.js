@@ -13,6 +13,13 @@ export async function updateMe(payload) {
 }
 
 // Anyone's profile, by username or user id.
+// The dashboard's three headline counts. Much lighter than the full profile payload,
+// which loads clubs, skills and an events page to produce the same numbers.
+export async function getMyStats() {
+   const { data } = await apiClient.get("/profile/me/stats");
+   return data;
+}
+
 export async function getProfile(handle) {
    const { data } = await apiClient.get(
       `/profile/${encodeURIComponent(handle)}`,
@@ -21,9 +28,10 @@ export async function getProfile(handle) {
 }
 
 // The profile's event panel pages on its own — page 1 already ships with getProfile().
-export async function getProfileEvents(handle, page) {
+export async function getProfileEvents(handle, page, limit) {
    const { data } = await apiClient.get(
-      `/profile/${encodeURIComponent(handle)}/events?page=${page}`,
+      `/profile/${encodeURIComponent(handle)}/events`,
+      { params: { page, limit } },
    );
    return data;
 }
@@ -39,10 +47,11 @@ export async function updateSkills(skills) {
 }
 
 // relation: "member" (default) | "following" | "all"
-export async function getClubs({ relation } = {}) {
-   const { data } = await apiClient.get(
-      `/profile/me/clubs${relation ? `?relation=${relation}` : ""}`,
-   );
+// Omit `limit` to get every club in one response — the club switcher relies on that.
+export async function getClubs({ relation, q, category, sort, page, limit } = {}) {
+   const { data } = await apiClient.get("/profile/me/clubs", {
+      params: { relation, q, category, sort, page, limit },
+   });
    return data;
 }
 

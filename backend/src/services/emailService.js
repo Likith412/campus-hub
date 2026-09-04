@@ -4,7 +4,7 @@
 //   development → SMTP via nodemailer, which is easy to point at a real inbox.
 // Neither configured → the message is printed, so signup and reset stay usable.
 const nodemailer = require("nodemailer");
-const { addToQueue } = require("../config/queue");
+const { addToQueue, addBulkToQueue } = require("../config/queue");
 
 // The sender is kept as two values because Brevo wants them apart, and the SMTP
 // header is trivially composed from them.
@@ -110,25 +110,69 @@ function escapeHtml(s) {
 }
 
 // Sent when an announcement goes up. notify.js decides the recipients: members always,
-// plus followers and any attached event's registrants when the note is public.
-async function sendAnnouncementEmail(
-   to,
-   { name, clubName, title, body, eventTitle, link },
+// plus followers and any attached event's registrants when the note is public. The body
+// is identical for everyone, so the jobs are built per recipient but enqueued in one call.
+async function sendAnnouncementEmails(
+   recipients,
+   { clubName, title, body, eventTitle, link },
 ) {
    const about = eventTitle ? ` about ${eventTitle}` : "";
    const subject = `${clubName}: ${title}`;
-   const text = `Hi ${name},\n\n${clubName} posted a new announcement${about}.\n\n${title}\n\n${body}\n\nRead it here: ${link}`;
+   const safeClub = escapeHtml(clubName);
+   const safeAbout = escapeHtml(about);
+   const safeTitle = escapeHtml(title);
+   const safeBody = escapeHtml(body).replace(/\n/g, "<br/>");
+
+   return addBulkToQueue(
+      "sendEmail",
+      recipients.map(({ email, name }) => ({
+         to: email,
+         subject,
+         text: `Hi ${name},\n\n${clubName} posted a new announcement${about}.\n\n${title}\n\n${body}\n\nRead it here: ${link}`,
+         html: `<p>Hi ${escapeHtml(name)},</p><p><b>${safeClub}</b> posted a new announcement${safeAbout}.</p><h3>${safeTitle}</h3><p>${safeBody}</p><p><a href="${link}">Read it on Campus Hub</a></p>`,
+      })),
+   );
+}
+
+// Sent to everyone holding a seat when an event is called off. Bulk-enqueued: the body
+// is the same for all of them.
+async function sendEventCancelledEmails(recipients, { clubName, eventTitle, when }) {
+   const subject = `${clubName}: ${eventTitle} has been cancelled`;
+   const safeClub = escapeHtml(clubName);
+   const safeTitle = escapeHtml(eventTitle);
+   const safeWhen = escapeHtml(when);
+
+   return addBulkToQueue(
+      "sendEmail",
+      recipients.map(({ email, name }) => ({
+         to: email,
+         subject,
+         text: `Hi ${name},\n\n${clubName} has cancelled ${eventTitle}, which was scheduled for ${when}.\n\nYour registration has been kept on record, but the event will not take place. Nothing further is needed from you.`,
+         html: `<p>Hi ${escapeHtml(name)},</p><p><b>${safeClub}</b> has cancelled <b>${safeTitle}</b>, which was scheduled for ${safeWhen}.</p><p>Your registration has been kept on record, but the event will not take place. Nothing further is needed from you.</p>`,
+      })),
+   );
+}
+
+// Sent when an event turns members-only and a non-member's seat is released. They
+// signed up legitimately while it was public, so this is the only notice they get.
+async function sendRegistrationRevokedEmail(to, { name, clubName, eventTitle }) {
+   const subject = `${clubName}: your place at ${eventTitle} was released`;
+   const text = `Hi ${name},\n\n${eventTitle} is now open to ${clubName} members only, so your registration has been cancelled.\n\nIf you'd still like to attend, join ${clubName} and register again.`;
    const html = `<p>Hi ${escapeHtml(name)},</p><p><b>${escapeHtml(
+      eventTitle,
+   )}</b> is now open to ${escapeHtml(
       clubName,
-   )}</b> posted a new announcement${escapeHtml(about)}.</p><h3>${escapeHtml(
-      title,
-   )}</h3><p>${escapeHtml(body).replace(/\n/g, "<br/>")}</p><p><a href="${link}">Read it on Campus Hub</a></p>`;
+   )} members only, so your registration has been cancelled.</p><p>If you'd still like to attend, join ${escapeHtml(
+      clubName,
+   )} and register again.</p>`;
    await addToQueue("sendEmail", { to, subject, html, text });
 }
 
 module.exports = {
    sendVerificationEmail,
-   sendAnnouncementEmail,
+   sendAnnouncementEmails,
+   sendRegistrationRevokedEmail,
+   sendEventCancelledEmails,
    sendPasswordResetEmail,
    sendFacultyAccountEmail,
    sendEmail,

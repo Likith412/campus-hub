@@ -1,5 +1,6 @@
 // Zod schemas for the announcement endpoints (club-scoped feed + the cross-club digest).
 const { z } = require("zod");
+const { limitRule, pageRule, searchRule } = require("./common");
 const { ANNOUNCEMENT_VISIBILITIES } = require("../models/Announcement");
 
 const objectId = z
@@ -26,18 +27,27 @@ const pinAnnouncementBodySchema = z
 
 const listAnnouncementsQuerySchema = z
    .object({
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       visibility: z.enum(ANNOUNCEMENT_VISIBILITIES).optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(10),
+      page: pageRule,
+      limit: limitRule(10),
    })
    .strict();
 
 // The dashboard digest — everything from the clubs you belong to, newest first.
+// `source` splits the two ways a notice reaches you: a club you're in vs one you follow.
 const listMyAnnouncementsQuerySchema = z
    .object({
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(5),
+      q: searchRule,
+      visibility: z.enum(ANNOUNCEMENT_VISIBILITIES).optional(),
+      club: z.string().trim().max(120).optional(),
+      source: z.enum(["member", "following"]).optional(),
+      sort: z.enum(["newest", "oldest"]).default("newest"),
+      // The club list behind the toolbar's filter. Only the digest page renders it —
+      // the dashboard panel asks for three notices and would throw the list away.
+      withClubs: z.enum(["true", "false"]).default("false"),
+      page: pageRule,
+      limit: limitRule(5),
    })
    .strict();
 

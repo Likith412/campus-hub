@@ -15,7 +15,9 @@ function isDuplicateKey(err) {
 
 // body-parser (malformed JSON, payload too large) sets its own status before we see it.
 function isBodyParserError(err) {
-   return typeof err?.status === "number" && err.status >= 400 && err.status < 500;
+   return (
+      typeof err?.status === "number" && err.status >= 400 && err.status < 500
+   );
 }
 
 function errorHandler(err, req, res, next) {
@@ -28,7 +30,11 @@ function errorHandler(err, req, res, next) {
          : isDuplicateKey(err)
            ? { status: 409, code: "CONFLICT", message: "Already exists" }
            : isBodyParserError(err)
-             ? { status: err.status, code: "BAD_REQUEST", message: "Malformed request" }
+             ? {
+                  status: err.status,
+                  code: "BAD_REQUEST",
+                  message: "Malformed request",
+               }
              : null);
 
    const status = isOperational ? err.status : (known?.status ?? 500);

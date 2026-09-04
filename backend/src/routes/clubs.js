@@ -12,6 +12,7 @@ const validate = require("../middlewares/validate");
 const { validateQuery } = require("../middlewares/validate");
 const { ROLES } = require("../constants/roles");
 const {
+   getClubQuerySchema,
    listClubsQuerySchema,
    listMembersQuerySchema,
    searchMembersQuerySchema,
@@ -72,7 +73,7 @@ router.patch(
    validate(statusBodySchema),
    clubs.setStatus,
 );
-router.get("/:slug", clubs.getClub);
+router.get("/:slug", validateQuery(getClubQuerySchema), clubs.getClub);
 // Edit a club — gated per-club on `club:edit` by requireClubPermission (coordinator/superAdmin implicit).
 router.patch(
    "/:slug",

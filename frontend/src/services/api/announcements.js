@@ -1,15 +1,7 @@
 // Wrappers around the club notice board (/api/clubs/:slug/announcements) and the
 // cross-club digest (/api/announcements) that feeds the dashboard.
-import { apiClient } from "./client";
+import { apiClient, qs } from "./client";
 
-function qs(params) {
-   const search = new URLSearchParams();
-   Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") search.set(k, String(v));
-   });
-   const s = search.toString();
-   return s ? `?${s}` : "";
-}
 
 // One club's board. Members see every notice; everyone else sees the public ones.
 // The response carries a `viewer` object (canPost / canPin / canDeleteAny / isMember).
@@ -55,8 +47,20 @@ export async function deleteAnnouncement(slug, id) {
 }
 
 // The dashboard digest: everything from clubs you're a member of, plus the public
-// notices from clubs you follow, newest first.
-export async function listMyAnnouncements({ page, limit } = {}) {
-   const { data } = await apiClient.get(`/announcements${qs({ page, limit })}`);
+// notices from clubs you follow. `source` picks one of those two streams; the response
+// also carries the club list the toolbar's filter offers.
+export async function listMyAnnouncements({
+   q,
+   visibility,
+   club,
+   source,
+   sort,
+   withClubs,
+   page,
+   limit,
+} = {}) {
+   const { data } = await apiClient.get(
+      `/announcements${qs({ q, visibility, club, source, sort, withClubs, page, limit })}`,
+   );
    return data;
 }

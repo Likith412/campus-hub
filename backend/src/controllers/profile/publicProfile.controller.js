@@ -22,12 +22,15 @@ function handleFilter(handle) {
 }
 
 // Everything on this object is safe for any signed-in viewer to see.
-function publicCard(u) {
+// `showEmail` mirrors the account block below: a real email address is contact info
+// for the account's owner (or a superAdmin), not something a stranger who found this
+// profile through a club roster or an event's attendee list should be handed.
+function publicCard(u, { showEmail = false } = {}) {
    return {
       id: u._id,
       name: u.name,
       username: u.username || null,
-      email: u.email,
+      email: showEmail ? u.email : null,
       role: u.role,
       profile: u.profile || {},
       interests: u.interests || [],
@@ -43,7 +46,7 @@ async function clubsOf(userId) {
       .populate({
          path: "clubId",
          model: Club,
-         select: "name slug category coverFrom coverTo verified status stats.memberCount",
+         select: "name slug coverFrom coverTo verified status stats.memberCount",
       })
       .populate({ path: "roleId", select: "name slug" })
       .sort({ joinedAt: -1 })
@@ -55,7 +58,6 @@ async function clubsOf(userId) {
          clubId: m.clubId._id,
          name: m.clubId.name,
          slug: m.clubId.slug,
-         category: m.clubId.category,
          coverFrom: m.clubId.coverFrom,
          coverTo: m.clubId.coverTo,
          verified: !!m.clubId.verified,
@@ -88,52 +90,36 @@ const EVENTS_PAGE = 5;
 // Upcoming events this person holds a live registration for. Students only — staff run
 // events rather than register for them. A stranger only sees the public ones; a private
 // event would otherwise leak the club's internal calendar.
-async function upcomingEventsOf(userId, includePrivate, page = 1) {
-   const rows = await EventRegistration.find({
+async function upcomingEventsOf(userId, includePrivate, page = 1, limit = EVENTS_PAGE) {
+   // Two steps rather than populate-then-filter-in-memory: the registration rows carry
+   // no copy of the event's status or visibility, but their ids are enough for the
+   // database to do the filtering, sorting and paging itself.
+   const regs = await EventRegistration.find({
       userId,
       status: { $in: LIVE_REGISTRATION_STATUSES },
    })
-      .populate({
-         path: "eventId",
-         model: Event,
-         select:
-            "title startAt endAt eventType venue status visibility clubId capacity stats.registered",
-         populate: { path: "clubId", model: Club, select: "name slug" },
-      })
+      .select("eventId")
       .lean();
+   if (regs.length === 0) return { items: [], total: 0 };
 
-   // Filtering happens here rather than in the query: the registration rows carry no
-   // copy of the event's status or visibility, so the join has to land first.
-   const all = rows
-      .map((r) => r.eventId)
-      .filter(
-         (e) =>
-            e &&
-            e.status === "published" &&
-            new Date(e.startAt) >= new Date() &&
-            (includePrivate || e.visibility === "public"),
-      )
-      .sort((a, b) => new Date(a.startAt) - new Date(b.startAt));
-
-   const skip = (page - 1) * EVENTS_PAGE;
-   return {
-      items: all.slice(skip, skip + EVENTS_PAGE).map(publicEventRow),
-      total: all.length,
-   };
-}
-
-// The faculty counterpart: what the clubs they coordinate are putting on next. Same
-// visibility rule — a stranger sees only the public ones.
-async function upcomingClubEventsOf(clubIds, includePrivate, page = 1) {
-   if (clubIds.length === 0) return { items: [], total: 0 };
    const filter = {
-      clubId: { $in: clubIds },
+      _id: { $in: regs.map((r) => r.eventId) },
       status: "published",
       startAt: { $gte: new Date() },
    };
    if (!includePrivate) filter.visibility = "public";
 
-   const skip = (page - 1) * EVENTS_PAGE;
+   // Same rule clubsOf applies to the club list: a suspended club's event 404s when
+   // opened, so it isn't listed. Both queries are bounded by this person's own events.
+   const clubIds = await Event.find(filter).distinct("clubId");
+   const activeClubIds = await Club.find({
+      _id: { $in: clubIds },
+      status: "active",
+   }).distinct("_id");
+   if (activeClubIds.length === 0) return { items: [], total: 0 };
+   filter.clubId = { $in: activeClubIds };
+
+   const skip = (page - 1) * limit;
    const [rows, total] = await Promise.all([
       Event.find(filter)
          .select(
@@ -142,7 +128,34 @@ async function upcomingClubEventsOf(clubIds, includePrivate, page = 1) {
          .populate({ path: "clubId", model: Club, select: "name slug" })
          .sort({ startAt: 1 })
          .skip(skip)
-         .limit(EVENTS_PAGE)
+         .limit(limit)
+         .lean(),
+      Event.countDocuments(filter),
+   ]);
+   return { items: rows.map(publicEventRow), total };
+}
+
+// The faculty counterpart: what the clubs they coordinate are putting on next. Same
+// visibility rule — a stranger sees only the public ones.
+async function upcomingClubEventsOf(clubIds, includePrivate, page = 1, limit = EVENTS_PAGE) {
+   if (clubIds.length === 0) return { items: [], total: 0 };
+   const filter = {
+      clubId: { $in: clubIds },
+      status: "published",
+      startAt: { $gte: new Date() },
+   };
+   if (!includePrivate) filter.visibility = "public";
+
+   const skip = (page - 1) * limit;
+   const [rows, total] = await Promise.all([
+      Event.find(filter)
+         .select(
+            "title startAt endAt eventType venue visibility clubId capacity stats.registered",
+         )
+         .populate({ path: "clubId", model: Club, select: "name slug" })
+         .sort({ startAt: 1 })
+         .skip(skip)
+         .limit(limit)
          .lean(),
       Event.countDocuments(filter),
    ]);
@@ -173,21 +186,21 @@ async function resolveTarget(req) {
 // whole profile. Same visibility rules as the profile itself.
 async function listProfileEvents(req, res) {
    const { target, isSelf, isAdmin } = await resolveTarget(req);
-   const { page } = req.validatedQuery;
+   const { page, limit } = req.validatedQuery;
 
    const seesPrivate = isSelf || isAdmin;
    let result;
    if (target.role === ROLES.STUDENT) {
-      result = await upcomingEventsOf(target._id, seesPrivate, page);
+      result = await upcomingEventsOf(target._id, seesPrivate, page, limit);
    } else {
       const clubs = await clubsOf(target._id);
       const ids = clubs.filter((c) => c.role === "coordinator").map((c) => c.clubId);
-      result = await upcomingClubEventsOf(ids, seesPrivate, page);
+      result = await upcomingClubEventsOf(ids, seesPrivate, page, limit);
    }
 
    return successResponse(res, 200, "Events", {
       items: result.items,
-      pagination: pageMeta(page, EVENTS_PAGE, result.total, result.items.length),
+      pagination: pageMeta(page, limit, result.total, result.items.length),
    });
 }
 
@@ -226,7 +239,7 @@ async function getPublicProfile(req, res) {
    const eventsPagination = pageMeta(1, EVENTS_PAGE, events.total, events.items.length);
 
    return successResponse(res, 200, "Profile", {
-      user: publicCard(target),
+      user: publicCard(target, { showEmail: isAdmin || isSelf }),
       isSelf,
       canManage,
       stats: {

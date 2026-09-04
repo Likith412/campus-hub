@@ -4,11 +4,11 @@ const mongoose = require("mongoose");
 
 const authSessionSchema = new mongoose.Schema(
    {
+      // No standalone index — the { userId, expiresAt } compound below covers it.
       userId: {
          type: mongoose.Schema.Types.ObjectId,
          ref: "User",
          required: true,
-         index: true,
       },
       refreshTokenHash: { type: String, required: true, unique: true },
       deviceInfo: {
@@ -16,14 +16,12 @@ const authSessionSchema = new mongoose.Schema(
          browser: String,
          browserVersion: String,
          os: String,
-         osVersion: String,
          deviceType: String, // "mobile" | "tablet" | "desktop"
          deviceVendor: String,
          deviceModel: String,
          city: String,
          region: String,
          country: String, // ISO 2-letter
-         timezone: String,
       },
       expiresAt: {
          type: Date,

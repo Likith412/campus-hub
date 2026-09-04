@@ -27,10 +27,30 @@ const {
    slugify,
    systemRoleId,
 } = require("./helpers");
+const { releaseSeats } = require("../events/helpers");
 
 // Shape a club doc for the listing card.
-function publicClubCard(c, membershipByClubId, followedIds = new Set()) {
-   const m = membershipByClubId?.get(String(c._id));
+// Exactly what publicClubCard reads — the browse list has no use for socialLinks or
+// the full description-bearing document.
+const CLUB_CARD_FIELDS =
+   "slug name category tagline description coverFrom coverTo verified foundedYear tags stats settings";
+
+// The rail reads five fields; no point selecting the description-bearing document.
+const CLUB_COMPACT_FIELDS = "slug name coverFrom coverTo stats.memberCount";
+
+// The sidebar rail: avatar colours, a name and a member count. No membership state —
+// browse only ever returns clubs you are not in (see the `held` exclusion below).
+function compactClubRow(c) {
+   return {
+      slug: c.slug,
+      name: c.name,
+      coverFrom: c.coverFrom,
+      coverTo: c.coverTo,
+      memberCount: c.stats?.memberCount ?? 0,
+   };
+}
+
+function publicClubCard(c, followedIds = new Set()) {
    return {
       id: c._id,
       slug: c.slug,
@@ -41,17 +61,12 @@ function publicClubCard(c, membershipByClubId, followedIds = new Set()) {
       coverFrom: c.coverFrom,
       coverTo: c.coverTo,
       verified: !!c.verified,
-      status: c.status,
       foundedYear: c.foundedYear,
       tags: c.tags || [],
       memberCount: c.stats?.memberCount ?? 0,
       eventCount: c.stats?.eventCount ?? 0,
-      followerCount: c.stats?.followerCount ?? 0,
       joinPolicy: c.settings?.joinPolicy || "request",
       isPrivate: !!c.settings?.isPrivate,
-      // membership state for the current user (drives the join button)
-      membershipStatus: m?.status || null, // approved | pending | rejected | left | null
-      membershipRole: m?.roleId?.slug || null,
       // follow state for the current user (drives the follow button)
       isFollowing: followedIds.has(String(c._id)),
    };
@@ -59,7 +74,8 @@ function publicClubCard(c, membershipByClubId, followedIds = new Set()) {
 
 // GET /api/clubs — paginated list with category counts and per-user membership state.
 async function listClubs(req, res) {
-   const { q, category, sort, verified, page, limit } = req.validatedQuery;
+   const { q, category, sort, verified, view, page, limit } = req.validatedQuery;
+   const compact = view === "compact";
    const userId = req.user._id;
 
    // Student-only browse — always scoped to active clubs.
@@ -100,35 +116,33 @@ async function listClubs(req, res) {
    const skip = (page - 1) * limit;
    const [items, total, countsAgg] = await Promise.all([
       Club.find(filter)
+         .select(compact ? CLUB_COMPACT_FIELDS : CLUB_CARD_FIELDS)
          .sort(CLUB_SORT[sort] || CLUB_SORT.popular)
          .skip(skip)
          .limit(limit)
          .lean(),
       Club.countDocuments(filter),
-      // counts ignore category filter (so chips still show full totals) but honor search
-      Club.aggregate([
-         { $match: { ...baseFilter, ...searchFilter } },
-         { $group: { _id: "$category", n: { $sum: 1 } } },
-      ]),
+      // Counts drive the browse page's category chips — the compact rail has none, so
+      // it doesn't pay for the aggregation. They ignore the category filter (chips keep
+      // showing full totals) but honor the search.
+      compact
+         ? []
+         : Club.aggregate([
+              { $match: { ...baseFilter, ...searchFilter } },
+              { $group: { _id: "$category", n: { $sum: 1 } } },
+           ]),
    ]);
 
-   // Per-user membership + follow state for the page of clubs.
-   let membershipByClubId = new Map();
+   // Follow state for the page of clubs. The compact rail has no follow control, so it
+   // skips this entirely.
    let followedIds = new Set();
-   if (userId && items.length) {
-      const clubIds = items.map((i) => i._id);
-      const [memberships, follows] = await Promise.all([
-         ClubMembership.find({ userId, clubId: { $in: clubIds } })
-            .select("clubId status roleId")
-            .populate({ path: "roleId", select: "slug" })
-            .lean(),
-         ClubFollow.find({ userId, clubId: { $in: clubIds } })
-            .select("clubId")
-            .lean(),
-      ]);
-      membershipByClubId = new Map(
-         memberships.map((m) => [String(m.clubId), m]),
-      );
+   if (userId && items.length && !compact) {
+      const follows = await ClubFollow.find({
+         userId,
+         clubId: { $in: items.map((i) => i._id) },
+      })
+         .select("clubId")
+         .lean();
       followedIds = new Set(follows.map((f) => String(f.clubId)));
    }
 
@@ -140,9 +154,9 @@ async function listClubs(req, res) {
 
    return successResponse(res, 200, "Clubs", {
       items: items.map((c) =>
-         publicClubCard(c, membershipByClubId, followedIds),
+         compact ? compactClubRow(c) : publicClubCard(c, followedIds),
       ),
-      categoryCounts,
+      ...(compact ? {} : { categoryCounts }),
       pagination: pageMeta(page, limit, total, items.length),
    });
 }
@@ -429,6 +443,9 @@ async function leaveClub(req, res) {
 
    if (wasApproved) {
       await bumpClubStat(club._id, "memberCount", -1);
+      // Members-only events are a membership benefit — the same rule evictOutsiders
+      // applies when an event turns private. Public events keep their seat.
+      await releaseSeats(userId, { clubId: club._id, visibility: "private" });
    }
 
    // "left" is the shared terminal state, but the message reflects what actually ended.
@@ -437,9 +454,27 @@ async function leaveClub(req, res) {
 }
 
 // GET /api/clubs/:slug — public detail with current user's membership state inlined.
+// `?view=summary` answers the question the club-admin pages actually ask ("which club am
+// I on?"): a name, a tagline and the headline counts. It skips the membership, role and
+// follow lookups entirely, since nothing in that shape reads them.
 async function getClub(req, res) {
    const club = await findClubBySlugFor(req.user, req.params.slug);
    const userId = req.user?._id;
+
+   if (req.validatedQuery?.view === "summary") {
+      return successResponse(res, 200, "Club", {
+         id: club._id,
+         slug: club.slug,
+         name: club.name,
+         tagline: club.tagline,
+         category: club.category,
+         verified: !!club.verified,
+         status: club.status,
+         foundedYear: club.foundedYear,
+         memberCount: club.stats?.memberCount ?? 0,
+         eventCount: club.stats?.eventCount ?? 0,
+      });
+   }
 
    let membership = null;
    let isFollowing = false;
@@ -453,11 +488,21 @@ async function getClub(req, res) {
       ]);
    }
 
+   // The announcements tab badge. Counted live rather than denormalised because the
+   // number differs per viewer: members see the private notices, everyone else the
+   // public ones. Members and events read their counts off club.stats, which can't
+   // carry a per-viewer figure.
+   const seesPrivate =
+      membership?.status === "approved" || req.user?.role === ROLES.SUPER_ADMIN;
+   const announcementCount = await Announcement.countDocuments({
+      clubId: club._id,
+      ...(seesPrivate ? {} : { visibility: "public" }),
+   });
+
    return successResponse(res, 200, "Club", {
       id: club._id,
       slug: club.slug,
       name: club.name,
-      createdBy: club.createdBy,
       category: club.category,
       tagline: club.tagline,
       description: club.description,
@@ -471,6 +516,7 @@ async function getClub(req, res) {
       memberCount: club.stats?.memberCount ?? 0,
       eventCount: club.stats?.eventCount ?? 0,
       followerCount: club.stats?.followerCount ?? 0,
+      announcementCount,
       isFollowing,
       joinPolicy: club.settings?.joinPolicy || "request",
       isPrivate: !!club.settings?.isPrivate,

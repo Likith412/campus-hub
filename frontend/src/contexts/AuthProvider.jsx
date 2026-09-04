@@ -52,9 +52,13 @@ export function AuthProvider({ children }) {
       }
    }, []);
 
+   // Settings saves the profile through its own endpoint; without this the sidebar
+   // keeps rendering the pre-edit name and department for the rest of the session.
+   const refreshUser = useCallback((u) => setUser(u ?? null), []);
+
    const value = useMemo(
-      () => ({ user, loading, login, logout }),
-      [user, loading, login, logout],
+      () => ({ user, loading, login, logout, refreshUser }),
+      [user, loading, login, logout, refreshUser],
    );
 
    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

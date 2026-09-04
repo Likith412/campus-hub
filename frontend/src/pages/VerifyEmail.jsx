@@ -1,26 +1,12 @@
-import { Fragment, useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
-import { authApi, ApiError } from "../services";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { authApi, errMessage } from "../services";
 import { useToast } from "../contexts/ToastContext";
 import Spinner, { LoadingBlock } from "../components/Spinner";
+import Icon from "../components/Icon";
+import AuthBrand from "../components/AuthBrand";
 
 // Tiny inline SVG wrapper (same pattern as Login/Register).
-function Icon({ size = 14, strokeWidth = 2.2, children }) {
-   return (
-      <svg
-         width={size}
-         height={size}
-         viewBox="0 0 24 24"
-         fill="none"
-         stroke="currentColor"
-         strokeWidth={strokeWidth}
-         strokeLinecap="round"
-         strokeLinejoin="round"
-      >
-         {children}
-      </svg>
-   );
-}
 
 const brandFeats = [
    {
@@ -55,25 +41,21 @@ const brandFeats = [
    },
 ];
 
-const stats = [
-   { num: "24 hr", label: "Link validity" },
-   { num: "1-tap", label: "Verification" },
-   { num: "Secure", label: "Single-use token" },
-];
-
 // View state machine: 'verifying' on mount, then 'success' or 'error'.
 // 'idle' is used when no token was supplied (user landed here directly to resend).
 function VerifyEmail() {
    const [params] = useSearchParams();
    const token = params.get("token");
    const navigate = useNavigate();
+   const location = useLocation();
    const toast = useToast();
 
    const [status, setStatus] = useState(token ? "verifying" : "idle");
    const [errorMessage, setErrorMessage] = useState(null);
 
    // Resend form (shown on error or when no token was provided at all).
-   const [resendEmail, setResendEmail] = useState("");
+   // Prefilled when Login sends the user here with the address they tried.
+   const [resendEmail, setResendEmail] = useState(location.state?.email ?? "");
    const [resendSubmitting, setResendSubmitting] = useState(false);
    const [resendSent, setResendSent] = useState(false);
 
@@ -86,9 +68,7 @@ function VerifyEmail() {
          } catch (err) {
             setStatus("error");
             setErrorMessage(
-               err instanceof ApiError
-                  ? err.message
-                  : "Verification failed. The link may be expired or invalid.",
+               errMessage(err, "Verification failed. The link may be expired or invalid."),
             );
          }
       })();
@@ -102,11 +82,10 @@ function VerifyEmail() {
          await authApi.resendVerification(resendEmail);
          toast.success("Verification email sent — check your inbox");
          setResendSent(true);
-      } catch {
-         // Backend deliberately returns a generic message either way (anti-enumeration).
-         // We mirror that — always show success-style confirmation.
-         toast.success("Verification email sent — check your inbox");
-         setResendSent(true);
+      } catch (err) {
+         // The 200 path is already generic (anti-enumeration), so anything landing here
+         // is a real transport or server failure and the user needs to know to retry.
+         toast.error(errMessage(err, "Couldn't send that — try again in a moment"));
       } finally {
          setResendSubmitting(false);
       }
@@ -114,52 +93,15 @@ function VerifyEmail() {
 
    return (
       <div className="auth-shell">
-         <aside className="auth-brand">
-            <div className="brand-top">
-               <div className="brand-mark-big">C</div>
-               <div className="brand-name-big">
-                  Campus Hub
-               </div>
-            </div>
-
-            <div className="brand-content">
-               <div className="brand-eyebrow">
-                  <span className="pulse"></span>Almost in
-               </div>
-               <h1 className="brand-headline">
+         <AuthBrand
+            headline={
+               <>
                   Verify your email. <em>Then you're set.</em>
-               </h1>
-               <p className="brand-sub">
-                  One quick confirmation keeps your campus tenant secure. After
-                  this, your dashboard, clubs, and events are all unlocked.
-               </p>
-
-               <ul className="brand-feats">
-                  {brandFeats.map(({ icon, title, body }) => (
-                     <li key={title} className="brand-feat">
-                        <div className="feat-ic">
-                           <Icon>{icon}</Icon>
-                        </div>
-                        <div>
-                           <b>{title}</b> {body}
-                        </div>
-                     </li>
-                  ))}
-               </ul>
-            </div>
-
-            <div className="brand-foot">
-               {stats.map(({ num, label }, i) => (
-                  <Fragment key={label}>
-                     {i > 0 && <div className="stat-divider"></div>}
-                     <div>
-                        <div className="stat-num">{num}</div>
-                        <div>{label}</div>
-                     </div>
-                  </Fragment>
-               ))}
-            </div>
-         </aside>
+               </>
+            }
+            sub="One quick confirmation keeps your campus tenant secure. After this, your dashboard, clubs, and events are all unlocked."
+            feats={brandFeats}
+         />
 
          <section className="auth-form-wrap">
             <div className="auth-form-top">
@@ -174,7 +116,6 @@ function VerifyEmail() {
                         Hang tight — this usually takes a moment.
                      </p>
                      <LoadingBlock label="Checking your verification link" />
-
                   </>
                )}
 
@@ -204,7 +145,7 @@ function VerifyEmail() {
                         onClick={() => navigate("/login", { replace: true })}
                      >
                         Continue to sign in
-                        <Icon strokeWidth={2.5}>
+                        <Icon size={14} strokeWidth={2.5}>
                            <line x1="5" y1="12" x2="19" y2="12" />
                            <polyline points="12 5 19 12 12 19" />
                         </Icon>
@@ -284,7 +225,7 @@ function VerifyEmail() {
                               ) : (
                                  <>
                                     Resend verification link
-                                    <Icon strokeWidth={2.5}>
+                                    <Icon size={14} strokeWidth={2.5}>
                                        <line x1="5" y1="12" x2="19" y2="12" />
                                        <polyline points="12 5 19 12 12 19" />
                                     </Icon>

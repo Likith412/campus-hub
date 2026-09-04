@@ -2,30 +2,24 @@
 // Same shape as EditClubModal: self-contained, calls the API, then onChanged() so the
 // caller can refetch. Creating still lives on its own page (the form is longer there).
 import { useState } from "react";
-import { eventsApi, ApiError } from "../services";
+import { eventsApi, errMessage } from "../services";
 import { useToast } from "../contexts/ToastContext";
-import { nowLocalInput, toLocalInput } from "../utils/events";
+import {
+   EVENT_TYPE_PICKER_OPTIONS,
+   VENUE_MODES,
+   nowLocalInput,
+   toLocalInput,
+} from "../utils/events";
 import Icon from "./Icon";
 import useModalChrome from "../hooks/useModalChrome";
 
-const EVENT_TYPES = [
-   { id: "workshop", label: "🛠 Workshop" },
-   { id: "contest", label: "⚡ Contest" },
-   { id: "hackathon", label: "💻 Hackathon" },
-   { id: "seminar", label: "🎤 Seminar" },
-   { id: "fun", label: "🎉 Social" },
-];
 
+// Local: the wizard words these two options at length; this column is narrower.
 const VISIBILITIES = [
    { id: "public", label: "Public", desc: "Anyone on campus can register" },
    { id: "private", label: "Members only", desc: "Only your club's members" },
 ];
 
-const MODES = [
-   { id: "offline", label: "On campus" },
-   { id: "online", label: "Online" },
-   { id: "hybrid", label: "Hybrid" },
-];
 
 export default function EditEventModal({
    event,
@@ -135,16 +129,27 @@ export default function EditEventModal({
             : null;
 
          const res = await eventsApi.updateEvent(slug, event.id, body);
-         // Raising the cap pulls people off the waitlist — say so, it isn't obvious.
+         // Two side effects the form doesn't show: raising the cap pulls people off the
+         // waitlist, and going members-only releases non-members' seats. Both are worth
+         // saying out loud — neither is obvious from the fields that were edited.
+         const notes = [];
+         if (res?.revokedCount) {
+            notes.push(
+               `${res.revokedCount} non-member registration${
+                  res.revokedCount === 1 ? "" : "s"
+               } cancelled`,
+            );
+         }
+         if (res?.promotedCount) {
+            notes.push(`${res.promotedCount} moved off the waitlist`);
+         }
          toast.success(
-            res?.promotedCount
-               ? `Saved · ${res.promotedCount} moved off the waitlist`
-               : "Changes saved",
+            notes.length ? `Saved · ${notes.join(" · ")}` : "Changes saved",
          );
          onChanged();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't save the event",
+            errMessage(err, "Couldn't save the event"),
          );
       } finally {
          setBusy(false);
@@ -188,7 +193,7 @@ export default function EditEventModal({
                   <div className="field">
                      <label className="label">Type</label>
                      <div className="ce-chips">
-                        {EVENT_TYPES.map((t) => (
+                        {EVENT_TYPE_PICKER_OPTIONS.map((t) => (
                            <button
                               key={t.id}
                               type="button"
@@ -288,7 +293,7 @@ export default function EditEventModal({
                   <div className="field">
                      <label className="label">Mode</label>
                      <div className="ce-chips">
-                        {MODES.map((m) => (
+                        {VENUE_MODES.map((m) => (
                            <button
                               key={m.id}
                               type="button"

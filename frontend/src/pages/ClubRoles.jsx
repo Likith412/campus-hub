@@ -2,8 +2,8 @@
 // editor on the right (mirrors .design/Club Roles.html). The editor is shown only to
 // viewers the API reports as holding roles:manage.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router";
-import { clubsApi, ApiError } from "../services";
+import { Navigate, useParams } from "react-router";
+import { clubsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -64,7 +64,7 @@ export default function ClubRoles() {
    useEffect(() => {
       let cancelled = false;
       Promise.all([
-         clubsApi.getClub(slug).catch(() => null),
+         clubsApi.getClub(slug, { view: "summary" }).catch(() => null),
          clubsApi.getPermissionCatalog().catch(() => ({ permissions: [] })),
          refetchRoles(),
       ])
@@ -140,7 +140,7 @@ export default function ClubRoles() {
          startCreate();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't save role",
+            errMessage(err, "Couldn't save role"),
          );
       } finally {
          setSaving(false);
@@ -162,7 +162,7 @@ export default function ClubRoles() {
          await refetchRoles();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't delete role",
+            errMessage(err, "Couldn't delete role"),
          );
       }
    }
@@ -171,17 +171,9 @@ export default function ClubRoles() {
 
    // Page-level gate: only roles:manage holders (coordinator/superAdmin implicit) get in.
    // The route is open to any authenticated user, so non-managers are turned away here.
-   if (loaded && !canManage) {
-      return (
-         <AppShell title="Roles & Permissions" subtitle={club?.name}>
-            <div className="main cr-main">
-               <div className="profile-empty">
-                  You don't have permission to manage this club's roles.
-               </div>
-            </div>
-         </AppShell>
-      );
-   }
+   // A student with no role in this club has nothing to manage here — send them to the
+   // club's own page rather than rendering the chrome around a refusal.
+   if (loaded && !canManage) return <Navigate to={`/clubs/${slug}`} replace />;
 
    return (
       <AppShell title="Roles & Permissions" subtitle={club?.name}>

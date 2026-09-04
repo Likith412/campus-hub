@@ -140,6 +140,8 @@ async function refresh(req, res) {
 
    // Fast-path: rotation already completed — reuse the published new token.
    let refreshToken = await redisClient.get(resultKey);
+   // Set by the branch that actually rotates, so it can skip the re-read below.
+   let rotated = null;
 
    if (!refreshToken) {
       const acquired = await redisClient.set(lockKey, "1", {
@@ -164,8 +166,10 @@ async function refresh(req, res) {
                   expiresAt: new Date(now.getTime() + REFRESH_TTL_MS),
                },
                { returnDocument: "after" },
-            );
+            ).lean();
             if (!session) throw new UnauthorizedError("Invalid refresh token");
+            // The rotate already returned the row we would otherwise re-read below.
+            rotated = session;
 
             // Publish so concurrent/late waiters reuse this exact token.
             await redisClient.set(resultKey, candidate, {
@@ -182,12 +186,15 @@ async function refresh(req, res) {
       }
    }
 
-   // Look up the session by the (possibly reused) new hash to load the user.
-   const session = await AuthSession.findOne({
-      refreshTokenHash: sha256(refreshToken),
-      revokedAt: null,
-      expiresAt: { $gt: new Date() },
-   }).lean();
+   // Only the fast-path and waiter branches still need a lookup — the rotating caller
+   // already holds the row. The update's own filter enforced the same conditions.
+   const session =
+      rotated ||
+      (await AuthSession.findOne({
+         refreshTokenHash: sha256(refreshToken),
+         revokedAt: null,
+         expiresAt: { $gt: new Date() },
+      }).lean());
    if (!session) throw new UnauthorizedError("Invalid refresh token");
 
    const user = await User.findById(session.userId);

@@ -6,7 +6,6 @@ const express = require("express");
 const account = require("../controllers/accountSecurity");
 const authenticate = require("../middlewares/authenticate");
 const validate = require("../middlewares/validate");
-const { passwordLimiter } = require("../middlewares/rateLimit");
 const {
    forgotPasswordSchema,
    resetPasswordSchema,
@@ -32,7 +31,6 @@ router.post(
 // Public — triggers the "forgot password" flow by sending a reset link to the email.
 router.post(
    "/auth/forgot-password",
-   passwordLimiter,
    validate(forgotPasswordSchema),
    account.forgotPassword,
 );
@@ -41,7 +39,6 @@ router.get("/auth/reset-password/validate", account.validateResetToken);
 // Public — consumes the password reset token from the link, sets new password.
 router.post(
    "/auth/reset-password",
-   passwordLimiter,
    validate(resetPasswordSchema),
    account.resetPassword,
 );

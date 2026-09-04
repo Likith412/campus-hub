@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router";
-import { clubsApi, ApiError } from "../services";
+import { Navigate, useParams } from "react-router";
+import { clubsApi, errMessage } from "../services";
 import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import { useToast } from "../contexts/ToastContext";
 import PersonLink from "../components/PersonLink";
 import { useConfirm } from "../contexts/ConfirmContext";
-import { initials } from "../utils/text";
+import { colorFor, initials } from "../utils/text";
 import useDebounced from "../hooks/useDebounced";
 import useLatestRequest from "../hooks/useLatestRequest";
 import useModalChrome from "../hooks/useModalChrome";
 
-const PAGE_SIZE = 12;
 const ROLE_LABEL = { coordinator: "Coordinator", member: "Member" };
 const PAST_LABEL = { left: "Left", removed: "Removed", rejected: "Rejected" };
 const YEAR_LABEL = {
@@ -24,21 +24,6 @@ const YEAR_LABEL = {
    4: "4th yr",
    postgrad: "PG",
 };
-const AVATAR_COLORS = [
-   "#6c63ff",
-   "#34d399",
-   "#f59e0b",
-   "#3b82f6",
-   "#ef4444",
-   "#a855f7",
-   "#06b6d4",
-   "#ec4899",
-];
-function colorFor(s = "") {
-   let h = 0;
-   for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-   return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
 function fmtDate(d) {
    if (!d) return "—";
    return new Date(d).toLocaleDateString("en-IN", {
@@ -179,7 +164,7 @@ function AddMemberModal({ slug, onClose, onAdded }) {
          setResults((r) => (r || []).filter((x) => x.userId !== s.userId));
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't add member",
+            errMessage(err, "Couldn't add member"),
          );
       } finally {
          setBusyId(null);
@@ -269,10 +254,11 @@ export default function ManageMembers() {
 
    const [tab, setTab] = useState("members");
    const [search, setSearch] = useState("");
-   const [debounced, setDebounced] = useState("");
+   const debounced = useDebounced(search.trim());
    const [roleFilter, setRoleFilter] = useState("all");
    const [pastFilter, setPastFilter] = useState("all");
    const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
 
    const [rows, setRows] = useState(null);
    const [pagination, setPagination] = useState(null);
@@ -297,15 +283,10 @@ export default function ManageMembers() {
    const canModerate = isSuperAdmin || !!rolesViewer?.canModerate;
    const canAssignRole = isSuperAdmin || !!rolesViewer?.canAssignRole;
 
-   useEffect(() => {
-      const id = setTimeout(() => setDebounced(search.trim()), 300);
-      return () => clearTimeout(id);
-   }, [search]);
-
    // Load club (header + access) once.
    useEffect(() => {
       clubsApi
-         .getClub(slug)
+         .getClub(slug, { view: "summary" })
          .then((d) => setClub(d))
          .catch(() => setClub(false))
          .finally(() => setClubLoaded(true));
@@ -353,12 +334,12 @@ export default function ManageMembers() {
    }
 
    // Loading is derived from a key mismatch — avoids setState-in-effect.
-   const currentKey = `${tab}|${debounced}|${roleFilter}|${pastFilter}|${page}`;
+   const currentKey = `${tab}|${debounced}|${roleFilter}|${pastFilter}|${page}|${perPage}`;
    const loading = loadedKey !== currentKey;
 
    const fetchRows = useCallback(() => {
       const isCurrent = startRequest();
-      const myKey = `${tab}|${debounced}|${roleFilter}|${pastFilter}|${page}`;
+      const myKey = `${tab}|${debounced}|${roleFilter}|${pastFilter}|${page}|${perPage}`;
       clubsApi
          .listMembers(slug, {
             q: debounced || undefined,
@@ -375,7 +356,7 @@ export default function ManageMembers() {
                   ? roleFilter
                   : undefined,
             page,
-            limit: PAGE_SIZE,
+            limit: perPage,
          })
          .then((d) => {
             if (!isCurrent()) return;
@@ -385,7 +366,7 @@ export default function ManageMembers() {
          .catch((err) => {
             if (!isCurrent()) return;
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load members",
+               errMessage(err, "Couldn't load members"),
             );
             setRows([]);
             setPagination(null);
@@ -393,7 +374,7 @@ export default function ManageMembers() {
          .finally(() => {
             if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [slug, tab, debounced, roleFilter, pastFilter, page, toast, startRequest]);
+   }, [slug, tab, debounced, roleFilter, pastFilter, page, perPage, toast, startRequest]);
 
    useEffect(() => {
       fetchRows();
@@ -425,7 +406,7 @@ export default function ManageMembers() {
          refresh();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update request",
+            errMessage(err, "Couldn't update request"),
          );
       } finally {
          setBusyId(null);
@@ -479,7 +460,7 @@ export default function ManageMembers() {
          refresh();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't remove member",
+            errMessage(err, "Couldn't remove member"),
          );
       } finally {
          setBusyId(null);
@@ -492,10 +473,11 @@ export default function ManageMembers() {
       try {
          await clubsApi.setMemberRole(slug, row.userId, roleSlug);
          toast.success(`${row.name} is now ${roleBySlug[roleSlug]?.name || roleSlug}`);
-         refresh();
+         // Rows only — no stat this page shows can change on a role swap.
+         fetchRows();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't change role",
+            errMessage(err, "Couldn't change role"),
          );
       } finally {
          setBusyId(null);
@@ -532,17 +514,9 @@ export default function ManageMembers() {
    }
    // Permission-based: members:moderate OR members:assign-role grants access (coordinator/
    // superAdmin hold both). Moderation-only features are hidden below for assign-role-only users.
-   if (!canModerate && !canAssignRole) {
-      return (
-         <AppShell title="Members" subtitle={club?.name}>
-            <div className="main mm-main">
-               <div className="profile-empty">
-                  You don't have permission to manage members of this club.
-               </div>
-            </div>
-         </AppShell>
-      );
-   }
+   // A student with no role in this club has nothing to manage here — send them to the
+   // club's own page rather than rendering the chrome around a refusal.
+   if (!canModerate && !canAssignRole) return <Navigate to={`/clubs/${slug}`} replace />;
 
    const items = rows || [];
 
@@ -986,12 +960,17 @@ export default function ManageMembers() {
                   </tbody>
                </table>
 
-               {items.length > 0 && totalPages > 1 && (
+               {items.length > 0 && (
                   <div className="mm-foot">
                      <Pagination
                         page={page}
                         totalPages={totalPages}
-                        perPage={PAGE_SIZE}
+                        perPage={perPage}
+                        perPageOptions={PAGE_SIZE_OPTIONS}
+                        onPerPageChange={(n) => {
+                           setPerPage(n);
+                           setPage(1);
+                        }}
                         hasMore={pagination?.hasMore}
                         onChange={setPage}
                      />

@@ -9,6 +9,7 @@ const morgan = require("morgan");
 const routes = require("./routes");
 const errorHandler = require("./middlewares/errorHandler");
 const { NotFoundError } = require("./utils/errors");
+const { FRONTEND_URL } = require("./config/env");
 
 const app = express();
 
@@ -36,7 +37,7 @@ if (process.env.NODE_ENV === "production") {
 // Allow the frontend origin and send/receive cookies (needed for refresh-token cookie).
 app.use(
    cors({
-      origin: process.env.FRONTEND_URL || "http://localhost:5173",
+      origin: FRONTEND_URL,
       credentials: true,
    }),
 );

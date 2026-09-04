@@ -43,9 +43,14 @@ function ToastIcon({ variant }) {
    );
 }
 
+// Slide-out duration in App.css, plus a little slack for the fallback below.
+const EXIT_MS = 400;
+
 function ToastCard({ toast, onDismiss }) {
    const [show, setShow] = useState(false);
    const timerRef = useRef(null);
+   const exitRef = useRef(null);
+   const shownRef = useRef(false);
 
    useEffect(() => {
       // Slide in on the next frame, so the initial paint has the off-screen position.
@@ -54,8 +59,22 @@ function ToastCard({ toast, onDismiss }) {
       return () => {
          cancelAnimationFrame(r);
          clearTimeout(timerRef.current);
+         clearTimeout(exitRef.current);
       };
    }, [toast.duration]);
+
+   // transitionend is the normal removal path, but it never fires in a backgrounded tab
+   // or when the transition is overridden — without a fallback the toast would stay in
+   // the stack for the rest of the session.
+   useEffect(() => {
+      if (show) {
+         shownRef.current = true;
+         return;
+      }
+      if (!shownRef.current) return; // still waiting on the slide-in frame
+      exitRef.current = setTimeout(() => onDismiss(toast.id), EXIT_MS);
+      return () => clearTimeout(exitRef.current);
+   }, [show, toast.id, onDismiss]);
 
    // after slide-out transition, remove from stack
    const handleTransitionEnd = (e) => {

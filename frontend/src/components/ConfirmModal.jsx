@@ -16,19 +16,40 @@ export default function ConfirmModal({
 }) {
    const confirmRef = useRef(null);
 
-   // Focus the confirm button on open, lock body scroll, and wire Escape to cancel.
+   const dialogRef = useRef(null);
+
+   // Focus the confirm button on open, lock body scroll, wire Escape to cancel, keep
+   // Tab inside the dialog, and hand focus back to whatever opened it on close.
    useEffect(() => {
       if (!open) return;
+      const opener = document.activeElement;
       confirmRef.current?.focus();
       const prevOverflow = document.body.style.overflow;
       document.body.style.overflow = "hidden";
       const onKey = (e) => {
-         if (e.key === "Escape" && !busy) onCancel?.();
+         if (e.key === "Escape" && !busy) {
+            onCancel?.();
+            return;
+         }
+         if (e.key !== "Tab") return;
+         const focusables = dialogRef.current?.querySelectorAll("button");
+         if (!focusables?.length) return;
+         const first = focusables[0];
+         const last = focusables[focusables.length - 1];
+         if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+         } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+         }
       };
       window.addEventListener("keydown", onKey);
       return () => {
          document.body.style.overflow = prevOverflow;
          window.removeEventListener("keydown", onKey);
+         // The trigger may have unmounted with the action — optional-call it.
+         opener?.focus?.();
       };
    }, [open, busy, onCancel]);
 
@@ -40,6 +61,7 @@ export default function ConfirmModal({
          onClick={() => !busy && onCancel?.()}
       >
          <div
+            ref={dialogRef}
             className="cm-dialog"
             role="alertdialog"
             aria-modal="true"

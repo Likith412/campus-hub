@@ -28,6 +28,7 @@ import ClubRoles from "./pages/ClubRoles";
 import ClubAdmin from "./pages/ClubAdmin";
 import ClubEvents from "./pages/ClubEvents";
 import ClubAnnouncements from "./pages/ClubAnnouncements";
+import MyAnnouncements from "./pages/MyAnnouncements";
 
 import { AuthProvider } from "./contexts/AuthProvider";
 import { ActiveClubProvider } from "./contexts/ActiveClubProvider";
@@ -139,6 +140,12 @@ function App() {
 
                         {/* Club browse/join is a student feature. */}
                         <Route element={<ProtectedRoute roles={["student"]} />}>
+                           {/* Topbar bell — the cross-club announcement digest. Faculty
+                               reach each club's board from their own sidebar instead. */}
+                           <Route
+                              path="/announcements"
+                              element={<MyAnnouncements />}
+                           />
                            <Route path="/clubs" element={<Clubs />} />
                            <Route path="/explore" element={<Explore />} />
                            <Route path="/my-events" element={<MyEvents />} />

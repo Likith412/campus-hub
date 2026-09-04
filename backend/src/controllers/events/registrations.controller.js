@@ -18,8 +18,8 @@ const { ROLES } = require("../../constants/roles");
 const { escapeRegex } = require("../../utils/escapeRegex");
 const {
    LIVE_REGISTRATION_STATUSES,
+   eventCapabilities,
    publicEvent,
-   publicRegistration,
    registrationClosesAt,
    findClubEvent,
    promoteWaitlisted,
@@ -118,10 +118,8 @@ async function registerForEvent(req, res) {
          res,
          201,
          seated ? "Registered" : "Added to the waitlist",
-         {
-            registration: publicRegistration(registration),
-            event: publicEvent(seated || event, { club, viewerStatus: status }),
-         },
+         // The four callers all refetch straight after, and read only this.
+         { registration: { status: registration.status } },
       );
    } catch (err) {
       // Hand the seat back if the registration write failed (e.g. a racing duplicate).
@@ -171,23 +169,17 @@ async function unregisterFromEvent(req, res) {
    const heldSeat = prev.status === "registered";
 
    // Only a confirmed seat frees anything up. Hand it to the person who has waited longest;
-   // if nobody is waiting, drop the counter instead.
-   let promoted = [];
+   // if nobody is waiting, promoteWaitlisted gives the seat straight back.
    if (heldSeat) {
       await Event.updateOne(
          { _id: event._id },
          { $inc: { "stats.registered": -1 } },
       );
-      promoted = await promoteWaitlisted(event._id, 1);
+      await promoteWaitlisted(event._id, 1);
    }
 
    return successResponse(res, 200, "Registration cancelled", {
-      registration: publicRegistration({
-         ...prev.toObject(),
-         status: "cancelled",
-         cancelledAt,
-      }),
-      promotedUserId: promoted[0]?.userId || null,
+      registration: { status: "cancelled" },
    });
 }
 
@@ -205,6 +197,9 @@ async function listMyEvents(req, res) {
    };
 
    // The rest describe the event, so they can only run once the lookup has landed.
+   // Cancelled events stay in the list — the card carries a "Cancelled" pill, and this
+   // page is where someone checks what happened to a registration. The dashboard's
+   // "coming up" stat counts published only, so Home reads that instead of this total.
    const eventMatch = {
       "event.endAt": when === "past" ? { $lt: now } : { $gte: now },
    };
@@ -229,20 +224,46 @@ async function listMyEvents(req, res) {
       { $unwind: "$event" },
       { $match: eventMatch },
       {
+         // A row prints the club's name and nothing else about it.
          $lookup: {
             from: "clubs",
             localField: "event.clubId",
             foreignField: "_id",
             as: "club",
+            // status is matched on below, not returned.
+            pipeline: [{ $project: { name: 1, slug: 1, status: 1 } }],
          },
       },
-      { $unwind: { path: "$club", preserveNullAndEmptyArrays: true } },
+      { $unwind: "$club" },
+      // A suspended or archived club's event 404s on open, so don't list it here.
+      { $match: { "club.status": "active" } },
       {
          $facet: {
             rows: [
                { $sort: { "event.startAt": order } },
                { $skip: skip },
                { $limit: limit },
+               // Trim once the page is chosen — the sort above still saw every field.
+               {
+                  $project: {
+                     status: 1,
+                     club: 1,
+                     "event._id": 1,
+                     "event.clubId": 1,
+                     "event.title": 1,
+                     "event.eventType": 1,
+                     "event.status": 1,
+                     "event.visibility": 1,
+                     "event.startAt": 1,
+                     "event.endAt": 1,
+                     "event.registrationDeadline": 1,
+                     "event.waitlistEnabled": 1,
+                     "event.venue.type": 1,
+                     "event.venue.location": 1,
+                     "event.capacity": 1,
+                     "event.stats.registered": 1,
+                  },
+               },
             ],
             total: [{ $count: "n" }],
          },
@@ -252,9 +273,20 @@ async function listMyEvents(req, res) {
    const rows = agg?.rows || [];
    const total = agg?.total?.[0]?.n || 0;
 
+   // The card offers Edit / Cancel wherever it renders, so each row carries what the
+   // viewer may do with it — this list can span clubs they run and clubs they don't.
+   const can = await eventCapabilities(
+      req.user,
+      rows.map((r) => r.event?.clubId),
+   );
+
    return successResponse(res, 200, "My events", {
       items: rows.map((r) =>
-         publicEvent(r.event, { club: r.club, viewerStatus: r.status }),
+         publicEvent(r.event, {
+            club: r.club,
+            viewerStatus: r.status,
+            can: can.get(String(r.event?.clubId)),
+         }),
       ),
       pagination: pageMeta(page, limit, total, rows.length),
    });
@@ -282,6 +314,11 @@ async function listAttendees(req, res) {
             localField: "userId",
             foreignField: "_id",
             as: "user",
+            // Only what the roster row renders — without this the join carries the whole
+            // user document, passwordHash included.
+            pipeline: [
+               { $project: { name: 1, email: 1, "profile.department": 1 } },
+            ],
          },
       },
       { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
@@ -314,13 +351,11 @@ async function listAttendees(req, res) {
    const total = agg?.total?.[0]?.n || 0;
 
    return successResponse(res, 200, "Attendees", {
-      event: publicEvent(event, { club }),
       items: rows.map((r) => ({
          userId: r.user?._id || r.userId,
          name: r.user?.name || "Unknown",
          email: r.user?.email || null,
          department: r.user?.profile?.department || null,
-         year: r.user?.profile?.year || null,
          status: r.status,
          registeredAt: r.registeredAt,
       })),

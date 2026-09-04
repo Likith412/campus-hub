@@ -31,7 +31,9 @@ async function issuePasswordResetToken(userId) {
 // Generic response (no leak of which emails are registered).
 async function forgotPassword(req, res) {
    const { email } = req.body;
-   const user = await User.findOne({ email });
+   // A deleted account can still be found by email, and resetting its password would end
+   // with "Please log in" on an account that can never log in again.
+   const user = await User.findOne({ email, deletedAt: null });
 
    if (user) {
       const token = await issuePasswordResetToken(user._id);

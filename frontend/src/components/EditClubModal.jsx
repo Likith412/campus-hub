@@ -2,32 +2,13 @@
 // Self-contained: calls the API and then onChanged() so the caller can refetch.
 // Used from the club's public page and from the admin club controls.
 import { useState } from "react";
-import { clubsApi, ApiError } from "../services";
+import { clubsApi, errMessage } from "../services";
 import { useToast } from "../contexts/ToastContext";
 import Icon from "./Icon";
 import { initials } from "../utils/text";
 import useModalChrome from "../hooks/useModalChrome";
+import { CATEGORY_PICKER_OPTIONS, COVER_PALETTE } from "../utils/clubs";
 
-const PALETTE = [
-   { from: "#6c63ff", to: "#34d399" },
-   { from: "#3b82f6", to: "#60a5fa" },
-   { from: "#f59e0b", to: "#fcd34d" },
-   { from: "#ef4444", to: "#fca5a5" },
-   { from: "#a855f7", to: "#d8b4fe" },
-   { from: "#ec4899", to: "#f9a8d4" },
-   { from: "#06b6d4", to: "#67e8f9" },
-   { from: "#64748b", to: "#94a3b8" },
-];
-const DOMAINS = [
-   { id: "tech", label: "💻 Tech & CS" },
-   { id: "design", label: "🎨 Design" },
-   { id: "culture", label: "🎭 Culture" },
-   { id: "sports", label: "⚽ Sports" },
-   { id: "business", label: "📈 Business" },
-   { id: "media", label: "📷 Media" },
-   { id: "social", label: "🤝 Social" },
-   { id: "other", label: "✨ Other" },
-];
 const POLICIES = [
    {
       id: "open",
@@ -89,7 +70,7 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
    });
    // Highlight the matching palette swatch; keep the club's custom colours until one is picked.
    const [colorIdx, setColorIdx] = useState(
-      PALETTE.findIndex(
+      COVER_PALETTE.findIndex(
          (p) => p.from.toLowerCase() === (club.coverFrom || "").toLowerCase(),
       ),
    );
@@ -97,10 +78,10 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
 
    const color =
       colorIdx >= 0
-         ? PALETTE[colorIdx]
+         ? COVER_PALETTE[colorIdx]
          : {
-              from: club.coverFrom || PALETTE[0].from,
-              to: club.coverTo || PALETTE[0].to,
+              from: club.coverFrom || COVER_PALETTE[0].from,
+              to: club.coverTo || COVER_PALETTE[0].to,
            };
    const gradient = `linear-gradient(135deg, ${color.from}, ${color.to})`;
    const mono = initials(name);
@@ -115,6 +96,20 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
    }
 
    async function save() {
+      // Same three rules CreateClub enforces — the server rejects them either way,
+      // and a blanked tagline used to report "Club updated".
+      if (name.trim().length < 3) {
+         toast.error("Enter a club name (3+ chars)");
+         return;
+      }
+      if (!domain) {
+         toast.error("Pick a domain");
+         return;
+      }
+      if (!tagline.trim()) {
+         toast.error("Add a short tagline");
+         return;
+      }
       const payload = {
          name: name.trim(),
          category: domain,
@@ -130,7 +125,7 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
          coverFrom: color.from,
          coverTo: color.to,
       };
-      if (foundedYear) payload.foundedYear = Number(foundedYear);
+      payload.foundedYear = foundedYear ? Number(foundedYear) : null;
       setBusy(true);
       try {
          await clubsApi.updateClub(slug, payload);
@@ -139,7 +134,7 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
          onClose();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update club",
+            errMessage(err, "Couldn't update club"),
          );
       } finally {
          setBusy(false);
@@ -191,7 +186,7 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
                               Pick a cover colour:
                            </div>
                            <div className="swatch-row">
-                              {PALETTE.map((p, i) => (
+                              {COVER_PALETTE.map((p, i) => (
                                  <div
                                     key={p.from}
                                     className={`swatch${i === colorIdx ? " active" : ""}`}
@@ -211,7 +206,7 @@ export default function EditClubModal({ club, slug, onClose, onChanged }) {
                         Domain <span className="req">*</span>
                      </label>
                      <div className="chip-grid">
-                        {DOMAINS.map((d) => (
+                        {CATEGORY_PICKER_OPTIONS.map((d) => (
                            <span
                               key={d.id}
                               className={`chip${domain === d.id ? " active" : ""}`}

@@ -1,3 +1,11 @@
+// Sort options offered by every event list.
+export const EVENT_SORTS = [
+   { id: "soonest", label: "Date · soonest" },
+   { id: "latest", label: "Date · latest" },
+   { id: "popular", label: "Most registered" },
+   { id: "new", label: "Recently created" },
+];
+
 // Shared event formatting + the registration state machine. ClubDetail, Explore and
 // EventDetail all render the same event objects, so the rules live here once.
 
@@ -15,6 +23,23 @@ export const EVENT_TYPE_OPTIONS = Object.entries(EVENT_TYPE_LABEL).map(
 );
 
 // The design keys its contest cover gradient off "coding".
+// The type picker on the create form and the edit modal. `desc` is rendered only by
+// the wizard; the modal shows the label alone.
+export const EVENT_TYPE_PICKER_OPTIONS = [
+   { id: "workshop", label: "🛠 Workshop", desc: "Hands-on, teach something" },
+   { id: "contest", label: "⚡ Contest", desc: "Timed, ranked, competitive" },
+   { id: "hackathon", label: "💻 Hackathon", desc: "Build over hours or days" },
+   { id: "seminar", label: "🎤 Seminar", desc: "A talk, panel or Q&A" },
+   { id: "fun", label: "🎉 Social", desc: "Meetups and everything lighter" },
+];
+
+// Where an event happens. Identical in both editors.
+export const VENUE_MODES = [
+   { id: "offline", label: "On campus" },
+   { id: "online", label: "Online" },
+   { id: "hybrid", label: "Hybrid" },
+];
+
 export const EVENT_COVER_CLASS = { contest: "coding" };
 
 // <input type="datetime-local"> wants local wall-clock time, not an ISO string.
@@ -79,6 +104,54 @@ export function venueText(venue) {
 // The same thing with a leading glyph, used on the compact event cards.
 export function formatVenue(venue) {
    return `${venue?.type === "online" ? "💻" : "📍"} ${venueText(venue)}`;
+}
+
+// Days left to sign up — "Closes in 1d", "Closes in 12d" — on every card that can still
+// be registered for. Past the deadline there's nothing to count and registerState takes
+// over with "Closed".
+export function closingSoon(e) {
+   // No deadline set means registration runs until the event starts — the same rule the
+   // server applies, so a row without the field still reads correctly.
+   const closes = e.registrationClosesAt || e.startAt;
+   if (!closes) return null;
+   const days = Math.ceil((new Date(closes) - Date.now()) / 86400000);
+   if (days < 0) return null;
+   return days === 0 ? "Closes today" : `Closes in ${days}d`;
+}
+
+// The two status changes an event can go through, worded once. Publishing is one-way —
+// the server only allows draft → published and offers no route back — so the dialog
+// says so rather than treating it as a routine toggle.
+export function statusConfirm(status, title) {
+   return status === "published"
+      ? {
+           title: `Publish “${title}”?`,
+           message:
+              "It goes live straight away and registration opens. A published event can't be returned to draft — the only way to withdraw it is to cancel it.",
+           confirmLabel: "Publish event",
+        }
+      : {
+           title: `Cancel “${title}”?`,
+           message:
+              "Everyone who registered keeps their place on the record, but the event will show as cancelled.",
+           confirmLabel: "Cancel event",
+           danger: true,
+        };
+}
+
+// Once you hold a seat the sign-up deadline is behind you — what's left to know is how
+// long until it runs.
+export function startsIn(e) {
+   if (!e.startAt) return null;
+   const days = Math.ceil((new Date(e.startAt) - Date.now()) / 86400000);
+   if (days < 0) return null;
+   return days === 0 ? "Starts today" : `Starts in ${days}d`;
+}
+
+// Has the event finished? Independent of status, unlike eventState below — a past
+// draft is still past, and the server refuses to edit or publish it.
+export function isOver(e) {
+   return !!e.endAt && new Date(e.endAt) < new Date();
 }
 
 // Cancelled/draft win over the clock; otherwise it's past, live or upcoming.

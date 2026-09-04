@@ -23,8 +23,6 @@ Two apps in one repository:
   401s share a single refresh call on the client.
 - Password reset by email, password change (revokes every other session), active-session list
   with per-device revoke, and account soft-delete.
-- Rate limits on login (5 / 15 min), registration, password and verification endpoints, backed by
-  Redis so they hold across instances.
 
 **Clubs**
 
@@ -109,7 +107,7 @@ Runs on `http://localhost:5173`. Point it at a non-default API with `VITE_API_UR
 
 ### Demo accounts
 
-`npm run db:seed` creates ten faculty and thirty students across ten clubs, all sharing the
+`npm run db:seed` creates ten faculty and thirty students across twelve clubs, all sharing the
 password `Password@12345` (override with `SEED_USER_PASSWORD`).
 
 | Role                  | Example login                          |
@@ -128,8 +126,8 @@ ones you must set:
 | Variable                                   | Purpose                                           |
 | ------------------------------------------ | ------------------------------------------------- |
 | `DATABASE_URI`                             | MongoDB connection string                         |
-| `REDIS_URL`                                | Redis — rate limits, token blacklist, email queue |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | Token signing                                     |
+| `REDIS_URL`                                | Redis — token blacklist, email queue              |
+| `JWT_ACCESS_SECRET`                        | Access-token signing (refresh tokens are opaque)  |
 | `FRONTEND_URL`                             | CORS allow-list and the links inside emails       |
 | `SUPERADMIN_EMAIL` / `SUPERADMIN_PASSWORD` | Bootstrap admin for `db:init`                     |
 
@@ -217,7 +215,7 @@ backend/src
 ├── config/             database, redis, queue, env
 ├── constants/          platform roles, club permission catalogue
 ├── controllers/        auth, accountSecurity, profile, clubs, events, announcements, admin
-├── middlewares/        authenticate, requireRole, requireClubPermission, validate, rateLimit
+├── middlewares/        authenticate, requireRole, requireClubPermission, validate
 ├── models/             User (+ discriminators), Club, ClubRole, ClubMembership, Event, ...
 ├── routes/             one router per feature area
 ├── scripts/            db:init, db:reset and the seeds

@@ -1,26 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { authApi, ApiError } from "../services";
+import { authApi, errMessage } from "../services";
 import { useToast } from "../contexts/ToastContext";
 import Spinner from "../components/Spinner";
+import Icon from "../components/Icon";
+import AuthBrand from "../components/AuthBrand";
 
 // Tiny inline SVG wrapper for the small icons scattered through this page.
-function Icon({ size = 14, strokeWidth = 2.2, children }) {
-   return (
-      <svg
-         width={size}
-         height={size}
-         viewBox="0 0 24 24"
-         fill="none"
-         stroke="currentColor"
-         strokeWidth={strokeWidth}
-         strokeLinecap="round"
-         strokeLinejoin="round"
-      >
-         {children}
-      </svg>
-   );
-}
 
 const strengthLabels = ["—", "Weak", "Fair", "Good", "Strong"];
 
@@ -91,14 +77,16 @@ function Register() {
             password: formData.password,
             name: formData.fullName,
          });
-         toast.success("Account created — check your inbox to verify your email");
+         toast.success(
+            "Account created — check your inbox to verify your email",
+         );
          // Hand off to Login with a banner + pre-filled email (no auto-login: email must be verified).
          navigate("/login", {
             state: { justRegistered: true, email: formData.email },
          });
       } catch (err) {
          setError(
-            err instanceof ApiError ? err.message : "Something went wrong",
+            errMessage(err, "Something went wrong"),
          );
       } finally {
          setSubmitting(false);
@@ -107,58 +95,15 @@ function Register() {
 
    return (
       <div className="auth-shell">
-         <aside className="auth-brand">
-            <div className="brand-top">
-               <div className="brand-mark-big">C</div>
-               <div className="brand-name-big">
-                  Campus Hub
-               </div>
-            </div>
-
-            <div className="brand-content">
-               <div className="brand-eyebrow">
-                  <span className="pulse"></span>Join your campus
-               </div>
-               <h1 className="brand-headline">
+         <AuthBrand
+            headline={
+               <>
                   One profile. <em>Every event, club, contest.</em>
-               </h1>
-               <p className="brand-sub">
-                  Sign up once with your institutional email — we'll auto-link
-                  you to your department, year, and the clubs already at your
-                  campus.
-               </p>
-
-               <ul className="brand-feats">
-                  {brandFeats.map(({ icon, title, body }) => (
-                     <li key={title} className="brand-feat">
-                        <div className="feat-ic">
-                           <Icon>{icon}</Icon>
-                        </div>
-                        <div>
-                           <b>{title}</b> {body}
-                        </div>
-                     </li>
-                  ))}
-               </ul>
-            </div>
-
-            <div className="brand-foot">
-               <div>
-                  <div className="stat-num">12 sec</div>
-                  <div>Avg signup</div>
-               </div>
-               <div className="stat-divider"></div>
-               <div>
-                  <div className="stat-num">100%</div>
-                  <div>Verified</div>
-               </div>
-               <div className="stat-divider"></div>
-               <div>
-                  <div className="stat-num">SOC&nbsp;2</div>
-                  <div>Compliant</div>
-               </div>
-            </div>
-         </aside>
+               </>
+            }
+            sub="Sign up once with your institutional email — we'll auto-link you to your department, year, and the clubs already at your campus."
+            feats={brandFeats}
+         />
 
          <section className="auth-form-wrap">
             <div className="auth-form-top">
@@ -232,7 +177,7 @@ function Register() {
                         className="field-input has-lead has-trail"
                         type={showPassword ? "text" : "password"}
                         name="password"
-                        placeholder="At least 8 characters"
+                        placeholder="8+ chars, upper, lower, number"
                         value={formData.password}
                         onChange={handleChange}
                         required
@@ -250,7 +195,7 @@ function Register() {
                   <div className="pw-meter-label">
                      Strength:{" "}
                      <b>{strengthLabels[scorePassword(formData.password)]}</b> ·
-                     use letters, numbers, &amp; symbols
+                     needs upper, lower &amp; a number
                   </div>
                </div>
 
@@ -269,7 +214,7 @@ function Register() {
                   ) : (
                      <>
                         Create account
-                        <Icon strokeWidth={2.5}>
+                        <Icon size={14} strokeWidth={2.5}>
                            <line x1="5" y1="12" x2="19" y2="12" />
                            <polyline points="12 5 19 12 12 19" />
                         </Icon>

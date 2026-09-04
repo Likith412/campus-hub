@@ -6,6 +6,7 @@ dotenv.config();
 const { connectDatabase, disconnectDatabase } = require("../config/database");
 const models = require("../models");
 const { hashPassword } = require("../utils/password");
+const { ROLES } = require("../constants/roles");
 
 // Walk every model and build any missing indexes declared in its schema.
 async function syncIndexes() {
@@ -32,6 +33,11 @@ async function seedSuperAdmin() {
    }
 
    const existing = await User.findOne({ email });
+   if (existing && existing.role !== ROLES.SUPER_ADMIN) {
+      throw new Error(
+         `SUPERADMIN_EMAIL is already used by a ${existing.role} account — pick a different address`,
+      );
+   }
    if (existing) {
       // Note: `role` is the discriminator key and can't be changed on an existing doc.
       existing.isActive = true;

@@ -1,21 +1,22 @@
 // Everything you've taken a seat at — /my-events, students only. The dashboard shows
 // the next handful; this is the full, paginated record, upcoming and past.
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { eventsApi, ApiError } from "../services";
+import { eventsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import EventCard from "../components/EventCard";
 import Pagination from "../components/Pagination";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import { useToast } from "../contexts/ToastContext";
-import { useConfirm } from "../contexts/ConfirmContext";
 import useDebounced from "../hooks/useDebounced";
+import useEventActions from "../hooks/useEventActions";
+import EditEventModal from "../components/EditEventModal";
 import SearchField from "../components/SearchField";
 import FilterSelect from "../components/FilterSelect";
 import { EVENT_TYPE_OPTIONS } from "../utils/events";
 
-const PAGE_SIZE = 9;
 const TABS = [
    { id: "upcoming", label: "Upcoming" },
    { id: "past", label: "Past" },
@@ -32,7 +33,6 @@ const SORTS = [
 
 export default function MyEvents() {
    const toast = useToast();
-   const confirm = useConfirm();
 
    // The tab lives in the URL — reloadable, linkable, back-button friendly.
    const [searchParams, setSearchParams] = useSearchParams();
@@ -47,12 +47,13 @@ export default function MyEvents() {
    const [seat, setSeat] = useState("");
    const [sort, setSort] = useState("");
    const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
    const [data, setData] = useState(null);
    const [loadedKey, setLoadedKey] = useState(null);
-   const [busyId, setBusyId] = useState(null);
    const [reloadNonce, setReloadNonce] = useState(0);
+   const reload = () => setReloadNonce((n) => n + 1);
 
-   const key = `${when}|${q}|${type}|${seat}|${sort}|${page}|${reloadNonce}`;
+   const key = `${when}|${q}|${type}|${seat}|${sort}|${page}|${perPage}|${reloadNonce}`;
    const loading = loadedKey !== key;
 
    useEffect(() => {
@@ -65,13 +66,13 @@ export default function MyEvents() {
             status: seat || undefined,
             sort: sort || undefined,
             page,
-            limit: PAGE_SIZE,
+            limit: perPage,
          })
          .then((d) => !cancelled && setData(d))
          .catch((err) => {
             if (cancelled) return;
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load your events",
+               errMessage(err, "Couldn't load your events"),
             );
             setData({ items: [], pagination: { total: 0 } });
          })
@@ -79,7 +80,7 @@ export default function MyEvents() {
       return () => {
          cancelled = true;
       };
-   }, [when, q, type, seat, sort, page, key, toast]);
+   }, [when, q, type, seat, sort, page, perPage, key, toast]);
 
 
    // Any filter change restarts paging — page 3 of one filter means nothing under
@@ -91,32 +92,25 @@ export default function MyEvents() {
       setPage(1);
    }
 
-   const unregister = useCallback(
-      async (event) => {
-         const ok = await confirm({
-            title: `Cancel your spot at “${event.title}”?`,
-            message: "Your seat goes to the next person on the waitlist.",
-            confirmLabel: "Cancel registration",
-            danger: true,
-         });
-         if (!ok) return;
-         setBusyId(event.id);
-         try {
-            await eventsApi.unregisterFromEvent(event.id);
-            toast.success("Registration cancelled");
-            setReloadNonce((n) => n + 1);
-         } catch (err) {
-            toast.error(err instanceof ApiError ? err.message : "Couldn't cancel");
-         } finally {
-            setBusyId(null);
-         }
-      },
-      [confirm, toast],
-   );
-
    const items = data?.items || [];
+   // A student who runs a club sees their own club's events here too, and can act on
+   // them without leaving the page.
+   const {
+      editing,
+      setEditing,
+      busyId: manageBusyId,
+      openEditor,
+      leaveEvent,
+      publishEvent,
+      cancelEvent,
+   } = useEventActions(reload);
    const total = data?.pagination?.total ?? 0;
-   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+   const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+   // A mutation can empty the page you're on (cancel the only row on the last page).
+   // Without this the list renders its "nothing here" copy and the pager unmounts,
+   // leaving no way back to page 1.
+   if (!loading && page > totalPages) setPage(totalPages);
 
    return (
       <AppShell title="My Events">
@@ -216,25 +210,46 @@ export default function MyEvents() {
                         event={e}
                         showClub
                         showStatus
-                        busy={busyId === e.id}
+                        busy={manageBusyId === e.id}
                         /* Only onLeave: you're already on every event in this list,
                            so the control gives the seat up rather than taking one. */
-                        onLeave={unregister}
+                        onLeave={leaveEvent}
+                        onEdit={openEditor}
+                        onPublish={publishEvent}
+                        onCancel={cancelEvent}
                      />
                   ))}
                </div>
             )}
 
-            {totalPages > 1 && (
+            {items.length > 0 && (
                <Pagination
                   page={page}
                   totalPages={totalPages}
-                  perPage={PAGE_SIZE}
+                  perPage={perPage}
+                  perPageOptions={PAGE_SIZE_OPTIONS}
+                  onPerPageChange={(n) => {
+                     setPerPage(n);
+                     setPage(1);
+                  }}
                   hasMore={data?.pagination?.hasMore}
                   onChange={setPage}
                />
             )}
          </div>
+
+         {editing && (
+            <EditEventModal
+               event={editing}
+               club={editing.club}
+               slug={editing.club?.slug}
+               onClose={() => setEditing(null)}
+               onChanged={() => {
+                  setEditing(null);
+                  reload();
+               }}
+            />
+         )}
       </AppShell>
    );
 }

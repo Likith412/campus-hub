@@ -1,26 +1,21 @@
 // Explore — /explore. Cross-club event discovery, mirrors .design/Discovery.html.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
-import { clubsApi, eventsApi, ApiError } from "../services";
+import { clubsApi, eventsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
-import { useConfirm } from "../contexts/ConfirmContext";
-import { EVENT_TYPE_LABEL, formatDuration } from "../utils/events";
 import { initials } from "../utils/text";
 import useDebounced from "../hooks/useDebounced";
 import useLatestRequest from "../hooks/useLatestRequest";
+import useEventActions from "../hooks/useEventActions";
+import EditEventModal from "../components/EditEventModal";
+import { EVENT_SORTS } from "../utils/events";
 
-const PAGE_SIZE = 9;
-const EVENT_SORTS = [
-   { id: "soonest", label: "Date · soonest" },
-   { id: "latest", label: "Date · latest" },
-   { id: "popular", label: "Most registered" },
-   { id: "new", label: "Recently created" },
-];
 
 const CATEGORIES = [
    { id: "", label: "All" },
@@ -32,63 +27,27 @@ const CATEGORIES = [
 ];
 // Each pill just seeds the type filter below.
 
-function daysUntil(iso) {
-   return Math.ceil((new Date(iso) - Date.now()) / 86400000);
-}
-
-// A plain, explainable heuristic over real event data: urgency first, then scarcity,
-// then how soon it starts. Every card shows the signal that actually put it there.
-function rankRecommendations(events) {
-   const scored = events
-      .filter((e) => e.registrationOpen && !e.isFull)
-      .map((e) => {
-         const closesIn = daysUntil(e.registrationClosesAt);
-         const startsIn = daysUntil(e.startAt);
-         const scarce =
-            e.capacity > 0 &&
-            e.seatsLeft !== null &&
-            e.seatsLeft <= e.capacity * 0.25;
-
-         let score = 0;
-         let signal = "Open now";
-         if (closesIn <= 3) {
-            score += 60;
-            signal = `Closes in ${Math.max(closesIn, 0)}d`;
-         }
-         if (scarce) {
-            score += 40;
-            signal = `${e.seatsLeft} seats left`;
-         }
-         if (startsIn <= 7) {
-            score += 20;
-            if (signal === "Open now") signal = "This week";
-         }
-         score += Math.max(0, 30 - startsIn);
-         return { event: e, score, signal };
-      });
-   scored.sort((a, b) => b.score - a.score);
-   return scored.slice(0, 3);
-}
-
 export default function Explore() {
    const toast = useToast();
-   const confirm = useConfirm();
 
    const [query, setQuery] = useState("");
    const search = useDebounced(query.trim());
    const [type, setType] = useState("");
+   // Opens on everything; "not-mine" narrows to clubs you haven't joined, for finding
+   // somewhere new rather than re-reading your own clubs' calendars.
+   const [clubScope, setClubScope] = useState("all");
    const [when, setWhen] = useState("upcoming");
    const [sort, setSort] = useState("new");
    const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
 
    const [feed, setFeed] = useState(null);
    const [feedKey, setFeedKey] = useState(null);
-   const [pool, setPool] = useState([]);
-   const [clubs, setClubs] = useState([]);
-   const [busyId, setBusyId] = useState(null);
+   const [trending, setTrending] = useState(null);
+   const [clubs, setClubs] = useState(null);
    const startRequest = useLatestRequest();
 
-   const key = `${search}|${type}|${when}|${sort}|${page}`;
+   const key = `${search}|${type}|${clubScope}|${when}|${sort}|${page}|${perPage}`;
    const loading = feedKey !== key;
 
    const fetchFeed = useCallback(() => {
@@ -97,25 +56,31 @@ export default function Explore() {
          .listEvents({
             q: search || undefined,
             type: type || undefined,
+            clubs: clubScope === "all" ? undefined : clubScope,
+            // A card you can't act on is dead weight in a feed built for signing up.
+            // The server ignores this on the past tab.
+            openOnly: "true",
             when,
             sort,
             page,
-            limit: PAGE_SIZE,
+            limit: perPage,
          })
          .then((d) => isCurrent() && setFeed(d))
          .catch((err) => {
             if (!isCurrent()) return;
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load events",
+               errMessage(err, "Couldn't load events"),
             );
             setFeed({ items: [], pagination: { total: 0 } });
          })
          .finally(
             () =>
                isCurrent() &&
-               setFeedKey(`${search}|${type}|${when}|${sort}|${page}`),
+               setFeedKey(
+                  `${search}|${type}|${clubScope}|${when}|${sort}|${page}|${perPage}`,
+               ),
          );
-   }, [search, type, when, sort, page, toast, startRequest]);
+   }, [search, type, clubScope, when, sort, page, perPage, toast, startRequest]);
 
    useEffect(() => {
       fetchFeed();
@@ -123,92 +88,72 @@ export default function Explore() {
 
    // Typing commits on its own after a beat — same as the Clubs page.
 
-   // A wider unfiltered slice feeds the recommendations and the trending rail.
-   const fetchAside = useCallback(() => {
-      Promise.all([
-         eventsApi
-            .listEvents({ when: "upcoming", limit: 50 })
-            .catch(() => null),
-         clubsApi.listClubs({ sort: "popular", limit: 5 }).catch(() => null),
-      ]).then(([ev, cl]) => {
-         setPool(ev?.items || []);
-         setClubs(cl?.items || []);
-      });
+   // Both rails ask the API for exactly the five rows they render. They're fetched
+   // separately because only one of them can change when you take a seat: registering
+   // for an event says nothing about which clubs you belong to.
+   const fetchTrending = useCallback(() => {
+      eventsApi
+         .listEvents({ when: "upcoming", sort: "filling", limit: 5 })
+         .then((d) => setTrending(d?.items || []))
+         .catch(() => setTrending([]));
+   }, []);
+
+   const fetchClubs = useCallback(() => {
+      clubsApi
+         .listClubs({ sort: "popular", limit: 5, view: "compact" })
+         .then((d) => setClubs(d?.items || []))
+         .catch(() => setClubs([]));
    }, []);
 
    useEffect(() => {
-      fetchAside();
-   }, [fetchAside]);
+      fetchTrending();
+   }, [fetchTrending]);
 
-   const recommendations = useMemo(() => rankRecommendations(pool), [pool]);
-   const trending = useMemo(
-      () =>
-         [...pool]
-            .sort((a, b) => b.registeredCount - a.registeredCount)
-            .slice(0, 5),
-      [pool],
-   );
+   useEffect(() => {
+      fetchClubs();
+   }, [fetchClubs]);
 
    // Reset to page 1 whenever the filters change.
-   const [prev, setPrev] = useState({ search, type, when, sort });
+   const [prev, setPrev] = useState({ search, type, clubScope, when, sort });
    if (
       prev.search !== search ||
       prev.type !== type ||
+      prev.clubScope !== clubScope ||
       prev.when !== when ||
       prev.sort !== sort
    ) {
-      setPrev({ search, type, when, sort });
+      setPrev({ search, type, clubScope, when, sort });
       setPage(1);
    }
 
    const pagination = feed?.pagination;
    const totalPages = Math.max(
       1,
-      Math.ceil((pagination?.total || 0) / (pagination?.limit || PAGE_SIZE)),
+      Math.ceil((pagination?.total || 0) / (pagination?.limit || perPage)),
    );
 
-   async function register(event) {
-      setBusyId(event.id);
-      try {
-         const res = await eventsApi.registerForEvent(event.id);
-         toast.success(
-            res?.registration?.status === "waitlisted"
-               ? "Added to the waitlist"
-               : "You're registered",
-         );
-         fetchFeed();
-         fetchAside();
-      } catch (err) {
-         toast.error(
-            err instanceof ApiError ? err.message : "Couldn't register",
-         );
-      } finally {
-         setBusyId(null);
-      }
-   }
-
-   async function unregister(event) {
-      const ok = await confirm({
-         title: `Cancel your spot at “${event.title}”?`,
-         message: "Your seat goes to the next person on the waitlist.",
-         confirmLabel: "Cancel registration",
-         danger: true,
-      });
-      if (!ok) return;
-      setBusyId(event.id);
-      try {
-         await eventsApi.unregisterFromEvent(event.id);
-         toast.success("Registration cancelled");
-         fetchFeed();
-         fetchAside();
-      } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't cancel");
-      } finally {
-         setBusyId(null);
-      }
-   }
+   // A mutation can empty the page you're on (cancel the only row on the last page).
+   // Without this the list renders its "nothing here" copy and the pager unmounts,
+   // leaving no way back to page 1.
+   if (!loading && page > totalPages) setPage(totalPages);
 
    const items = feed?.items || [];
+   // Edit / cancel appear on any card whose row says the viewer may — a coordinator
+   // browsing the campus feed can act on their own club's events from here.
+   const {
+      editing,
+      setEditing,
+      busyId: manageBusyId,
+      openEditor,
+      registerEvent,
+      leaveEvent,
+      publishEvent,
+      cancelEvent,
+      // Taking or giving up a seat moves the feed and the "filling fast" rail.
+   } = useEventActions(() => {
+      fetchFeed();
+      fetchTrending();
+   });
 
    return (
       <AppShell title="Explore">
@@ -254,83 +199,6 @@ export default function Explore() {
                   </div>
                </div>
 
-               {/* PICKED FOR YOU */}
-               {recommendations.length > 0 && (
-                  <div className="ex-recs">
-                     <div className="section-head">
-                        <div>
-                           <div className="section-title">
-                              <span className="ex-glyph">
-                                 <Icon size={14} strokeWidth={2.5}>
-                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21 12 17.77 5.82 21 7 14.14 2 9.27 8.91 8.26" />
-                                 </Icon>
-                              </span>
-                              Worth a look
-                           </div>
-                           <div className="section-sub">
-                              Ranked by closing date and seats left
-                           </div>
-                        </div>
-                     </div>
-
-                     <div className="recs-grid">
-                        {recommendations.map(({ event, signal }) => (
-                           <Link
-                              key={event.id}
-                              className="rec-card"
-                              to={`/events/${event.id}`}
-                           >
-                              <div className="rec-head">
-                                 <span className="rec-match">{signal}</span>
-                                 <span className="rec-type-pill">
-                                    {EVENT_TYPE_LABEL[event.eventType]}
-                                 </span>
-                              </div>
-                              <div className="rec-title">{event.title}</div>
-                              <div className="rec-club">{event.club?.name}</div>
-                              <div className="rec-because">
-                                 Registration closes{" "}
-                                 <b>
-                                    {new Date(
-                                       event.registrationClosesAt,
-                                    ).toLocaleDateString("en-IN", {
-                                       day: "numeric",
-                                       month: "short",
-                                    })}
-                                 </b>
-                                 {event.capacity
-                                    ? ` · ${event.seatsLeft} of ${event.capacity} seats left`
-                                    : " · open to everyone"}
-                              </div>
-                              <div className="rec-foot">
-                                 <div className="rec-meta">
-                                    <span>
-                                       📅{" "}
-                                       {new Date(
-                                          event.startAt,
-                                       ).toLocaleDateString("en-IN", {
-                                          weekday: "short",
-                                          day: "numeric",
-                                          month: "short",
-                                       })}
-                                    </span>
-                                    <span>
-                                       <b>
-                                          {formatDuration(
-                                             event.startAt,
-                                             event.endAt,
-                                          )}
-                                       </b>
-                                    </span>
-                                 </div>
-                                 <span className="rec-cta">View →</span>
-                              </div>
-                           </Link>
-                        ))}
-                     </div>
-                  </div>
-               )}
-
                {/* BROWSE + RAIL */}
                <div className="with-rail">
                   <div>
@@ -342,9 +210,14 @@ export default function Explore() {
                            <div className="section-sub">
                               {pagination?.total ?? 0} event
                               {pagination?.total === 1 ? "" : "s"}
+                              {/* The feed hides anything you already hold a seat at,
+                                  so a bare "coming up" overstates what's listed. */}
                               {when === "upcoming"
-                                 ? " coming up"
+                                 ? " you haven't signed up for"
                                  : " already run"}
+                              {clubScope === "not-mine"
+                                 ? ", from clubs you haven't joined"
+                                 : ""}
                               {search ? ` matching “${search}”` : ""}
                            </div>
                         </div>
@@ -373,6 +246,16 @@ export default function Explore() {
                               <option value="past">Past</option>
                            </select>
                            <select
+                              value={clubScope}
+                              onChange={(e) => setClubScope(e.target.value)}
+                              aria-label="Club scope"
+                           >
+                              <option value="all">All clubs</option>
+                              <option value="not-mine">
+                                 Clubs I haven't joined
+                              </option>
+                           </select>
+                           <select
                               value={sort}
                               onChange={(e) => setSort(e.target.value)}
                               aria-label="Sort events"
@@ -390,28 +273,57 @@ export default function Explore() {
                         <LoadingBlock label="Loading events" size={24} />
                      ) : items.length === 0 ? (
                         <div className="ev-empty">
-                           No events match those filters yet.
+                           {search || type ? (
+                              "No events match those filters yet."
+                           ) : clubScope === "not-mine" ? (
+                              /* The default filter, not an empty campus — say so, and
+                                 give them the way out rather than a dead end. */
+                              <>
+                                 Nothing new from clubs you haven't joined.{" "}
+                                 <button
+                                    type="button"
+                                    className="link-btn"
+                                    onClick={() => setClubScope("all")}
+                                 >
+                                    Show all clubs →
+                                 </button>
+                              </>
+                           ) : when === "past" ? (
+                              "Nothing has run yet."
+                           ) : (
+                              "Nothing open to join right now — sign-ups may have closed or filled up."
+                           )}
                         </div>
                      ) : (
-                        <div className="event-grid">
+                        <div
+                           className={`event-grid${loading ? " is-refetching" : ""}`}
+                        >
                            {items.map((e) => (
                               <EventCard
                                  key={e.id}
                                  event={e}
                                  showClub
-                                 busy={busyId === e.id}
-                                 onRegister={register}
-                                 onLeave={unregister}
+                                 busy={manageBusyId === e.id}
+                                 onRegister={registerEvent}
+                                 onLeave={leaveEvent}
+                                 onEdit={openEditor}
+                                 onPublish={publishEvent}
+                                 onCancel={cancelEvent}
                               />
                            ))}
                         </div>
                      )}
 
-                     {items.length > 0 && totalPages > 1 && (
+                     {items.length > 0 && (
                         <Pagination
                            page={page}
                            totalPages={totalPages}
-                           perPage={PAGE_SIZE}
+                           perPage={perPage}
+                           perPageOptions={PAGE_SIZE_OPTIONS}
+                           onPerPageChange={(n) => {
+                              setPerPage(n);
+                              setPage(1);
+                           }}
                            hasMore={pagination?.hasMore}
                            onChange={setPage}
                         />
@@ -425,7 +337,9 @@ export default function Explore() {
                            Filling up fast
                            <span className="live-dot">Live</span>
                         </div>
-                        {trending.length === 0 ? (
+                        {trending === null ? (
+                           <LoadingBlock size={18} />
+                        ) : trending.length === 0 ? (
                            <div className="rail-empty">
                               Nothing scheduled yet.
                            </div>
@@ -445,6 +359,22 @@ export default function Explore() {
                                        <span className="heat">
                                           🔥 {e.registeredCount} registered
                                        </span>
+                                       {/* The panel is called "Filling up fast" —
+                                           without this it only ever showed how many
+                                           got in, never how close it is to shut. */}
+                                       {e.capacity > 0 && (
+                                          <span
+                                             className={
+                                                e.seatsLeft <= 5
+                                                   ? "seats-left low"
+                                                   : "seats-left"
+                                             }
+                                          >
+                                             {e.seatsLeft === 0
+                                                ? "Full"
+                                                : `${e.seatsLeft} left`}
+                                          </span>
+                                       )}
                                     </div>
                                  </div>
                               </Link>
@@ -454,7 +384,9 @@ export default function Explore() {
 
                      <div className="rail-panel">
                         <div className="rail-title">Clubs to explore</div>
-                        {clubs.length === 0 ? (
+                        {clubs === null ? (
+                           <LoadingBlock size={18} />
+                        ) : clubs.length === 0 ? (
                            <div className="rail-empty">No clubs yet.</div>
                         ) : (
                            clubs.map((c) => (
@@ -475,12 +407,10 @@ export default function Explore() {
                                     </div>
                                  </div>
                                  <Link
-                                    className={`club-follow${c.membershipStatus === "approved" ? " following" : ""}`}
+                                    className="club-follow"
                                     to={`/clubs/${c.slug}`}
                                  >
-                                    {c.membershipStatus === "approved"
-                                       ? "Member"
-                                       : "View"}
+                                    View
                                  </Link>
                               </div>
                            ))
@@ -490,6 +420,19 @@ export default function Explore() {
                </div>
             </div>
          </div>
+
+         {editing && (
+            <EditEventModal
+               event={editing}
+               club={editing.club}
+               slug={editing.club?.slug}
+               onClose={() => setEditing(null)}
+               onChanged={() => {
+                  setEditing(null);
+                  fetchFeed();
+               }}
+            />
+         )}
       </AppShell>
    );
 }

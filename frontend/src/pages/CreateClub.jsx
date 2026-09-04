@@ -1,47 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { clubsApi, adminApi, ApiError } from "../services";
+import { clubsApi, adminApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { useAuth } from "../contexts/AuthContext";
 import { useActiveClub } from "../contexts/ActiveClubContext";
 import { useToast } from "../contexts/ToastContext";
 import { initials } from "../utils/text";
+import { CATEGORY_LABEL, CATEGORY_PICKER_OPTIONS, COVER_PALETTE } from "../utils/clubs";
 
 // Monogram colour palette (each = a cover gradient).
-const PALETTE = [
-   { from: "#6c63ff", to: "#34d399" },
-   { from: "#3b82f6", to: "#60a5fa" },
-   { from: "#f59e0b", to: "#fcd34d" },
-   { from: "#ef4444", to: "#fca5a5" },
-   { from: "#a855f7", to: "#d8b4fe" },
-   { from: "#ec4899", to: "#f9a8d4" },
-   { from: "#06b6d4", to: "#67e8f9" },
-   { from: "#64748b", to: "#94a3b8" },
-];
 
-const DOMAINS = [
-   { id: "tech", label: "💻 Tech & CS" },
-   { id: "design", label: "🎨 Design" },
-   { id: "culture", label: "🎭 Culture" },
-   { id: "sports", label: "⚽ Sports" },
-   { id: "business", label: "📈 Business" },
-   { id: "media", label: "📷 Media" },
-   { id: "social", label: "🤝 Social" },
-   { id: "other", label: "✨ Other" },
-];
-const DOMAIN_LABEL = Object.fromEntries(DOMAINS.map((d) => [d.id, d.label]));
-// Plain category labels (no emoji) — mirror the Clubs page card's domain-tag.
-const DOMAIN_TAG = {
-   tech: "Tech & CS",
-   design: "Design",
-   culture: "Culture",
-   sports: "Sports",
-   business: "Business",
-   media: "Media",
-   social: "Social",
-   other: "Other",
-};
+const DOMAIN_LABEL = Object.fromEntries(CATEGORY_PICKER_OPTIONS.map((d) => [d.id, d.label]));
 // Join-button label the real card shows for a non-member viewer.
 const JOIN_PREVIEW = {
    open: "Join",
@@ -133,7 +103,8 @@ export default function CreateClub() {
    const [creating, setCreating] = useState(false);
    const [created, setCreated] = useState(null);
 
-   // Lock body scroll while the success modal is open (mirrors ConfirmModal).
+   // Scroll lock only — deliberately not useModalChrome. This modal shows a generated
+   // password the user still has to copy, so Escape must not dismiss it.
    useEffect(() => {
       if (!created) return;
       const prev = document.body.style.overflow;
@@ -161,7 +132,7 @@ export default function CreateClub() {
       linkedin: "",
    });
 
-   const color = PALETTE[colorIdx];
+   const color = COVER_PALETTE[colorIdx];
    const gradient = `linear-gradient(135deg, ${color.from}, ${color.to})`;
    const mono = initials(name);
    const policyObj = useMemo(
@@ -261,7 +232,7 @@ export default function CreateClub() {
          if (!isSuperAdmin) refreshActiveClub(res.slug);
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't create club",
+            errMessage(err, "Couldn't create club"),
          );
          setCreating(false);
       }
@@ -402,7 +373,7 @@ export default function CreateClub() {
                                        name. Pick a colour:
                                     </div>
                                     <div className="swatch-row">
-                                       {PALETTE.map((p, i) => (
+                                       {COVER_PALETTE.map((p, i) => (
                                           <div
                                              key={p.from}
                                              className={`swatch${i === colorIdx ? " active" : ""}`}
@@ -431,7 +402,7 @@ export default function CreateClub() {
                                  Domain <span className="req">*</span>
                               </label>
                               <div className="chip-grid">
-                                 {DOMAINS.map((d) => (
+                                 {CATEGORY_PICKER_OPTIONS.map((d) => (
                                     <span
                                        key={d.id}
                                        className={`chip${domain === d.id ? " active" : ""}`}
@@ -936,7 +907,7 @@ export default function CreateClub() {
                         >
                            <div className="cover-bg" />
                            <span className="domain-tag">
-                              {DOMAIN_TAG[domain] || "Domain"}
+                              {CATEGORY_LABEL[domain] || "Domain"}
                            </span>
                            {isPrivate && (
                               <span

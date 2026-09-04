@@ -5,6 +5,8 @@ const express = require("express");
 
 const profile = require("../controllers/profile");
 const authenticate = require("../middlewares/authenticate");
+const requireRole = require("../middlewares/requireRole");
+const { ROLES } = require("../constants/roles");
 const validate = require("../middlewares/validate");
 const { validateQuery } = require("../middlewares/validate");
 const {
@@ -22,6 +24,9 @@ router.use(authenticate);
 // ============================================================================
 router.get("/me", profile.getMe);
 router.patch("/me", validate(updateProfileSchema), profile.updateMe);
+// Dashboard headline counts — deliberately separate from the profile payload,
+// which is far heavier than three numbers warrant.
+router.get("/me/stats", profile.getMyStats);
 
 // ============================================================================
 //  CLUBS  (controllers/profile/clubs.controller)
@@ -35,8 +40,15 @@ router.get(
 // ============================================================================
 //  SKILLS  (controllers/profile/skills.controller)
 // ============================================================================
-router.get("/me/skills", profile.getSkills);
-router.put("/me/skills", validate(updateSkillsSchema), profile.updateSkills);
+// Students only — `skills` lives on the student discriminator, so a faculty write
+// would be stripped by Mongoose and still answer 200.
+router.get("/me/skills", requireRole(ROLES.STUDENT), profile.getSkills);
+router.put(
+   "/me/skills",
+   requireRole(ROLES.STUDENT),
+   validate(updateSkillsSchema),
+   profile.updateSkills,
+);
 
 // ============================================================================
 //  PUBLIC PROFILE — anyone's profile by username or id  (publicProfile.controller)

@@ -3,22 +3,22 @@
 // per-club, so the compose box and row actions only appear for whoever holds the
 // permission.
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
-import { clubsApi, eventsApi, announcementsApi, ApiError } from "../services";
+import { Link, Navigate, useParams } from "react-router";
+import { clubsApi, eventsApi, announcementsApi, ApiError, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { useAuth } from "../contexts/AuthContext";
 import { clubHref, profileHref } from "../utils/nav";
-import { initials } from "../utils/text";
+import { initials, postedAt } from "../utils/text";
 import useDebounced from "../hooks/useDebounced";
 import useLatestRequest from "../hooks/useLatestRequest";
 import SearchField from "../components/SearchField";
 
-const PAGE_SIZE = 10;
 const VIS_FILTERS = [
    { id: "", label: "All" },
    { id: "public", label: "Everyone" },
@@ -27,21 +27,6 @@ const VIS_FILTERS = [
 const TITLE_MAX = 120;
 const BODY_MAX = 4000;
 
-function postedAt(iso) {
-   const diff = Date.now() - new Date(iso).getTime();
-   const m = 60000,
-      h = 3600000,
-      d = 86400000;
-   if (diff < m) return "just now";
-   if (diff < h) return `${Math.floor(diff / m)}m ago`;
-   if (diff < d) return `${Math.floor(diff / h)}h ago`;
-   if (diff < 7 * d) return `${Math.floor(diff / d)}d ago`;
-   return new Date(iso).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-   });
-}
 
 const PinIcon = () => (
    <Icon size={13} strokeWidth={2.2}>
@@ -106,7 +91,7 @@ function Composer({ slug, canPin, onPosted }) {
          reset();
          onPosted(d?.announcement);
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't post");
+         toast.error(errMessage(err, "Couldn't post"));
       } finally {
          setSaving(false);
       }
@@ -243,6 +228,7 @@ export default function ClubAnnouncements() {
    const q = useDebounced(search.trim());
    const [vis, setVis] = useState("");
    const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
    const [busyId, setBusyId] = useState(null);
    const [reloadNonce, setReloadNonce] = useState(0);
    const startRequest = useLatestRequest();
@@ -250,7 +236,7 @@ export default function ClubAnnouncements() {
    useEffect(() => {
       let cancelled = false;
       clubsApi
-         .getClub(slug)
+         .getClub(slug, { view: "summary" })
          .then((d) => !cancelled && setClub(d || null))
          .catch(() => !cancelled && setClub(null));
       return () => {
@@ -265,7 +251,7 @@ export default function ClubAnnouncements() {
             q: q || undefined,
             visibility: vis || undefined,
             page,
-            limit: PAGE_SIZE,
+            limit: perPage,
          })
          .then((d) => {
             if (!isCurrent()) return;
@@ -274,10 +260,17 @@ export default function ClubAnnouncements() {
          })
          .catch((err) => {
             if (!isCurrent()) return;
-            if (err instanceof ApiError && err.status === 403) setDenied(true);
+            // 404 too: a bad or suspended slug would otherwise render an empty board
+            // instead of sending the viewer back to the club page.
+            if (
+               err instanceof ApiError &&
+               (err.status === 403 || err.status === 404)
+            ) {
+               setDenied(true);
+            }
             setData({ items: [], pagination: { total: 0 } });
          });
-   }, [slug, q, vis, page, startRequest]);
+   }, [slug, q, vis, page, perPage, startRequest]);
 
    useEffect(() => {
       load();
@@ -299,7 +292,7 @@ export default function ClubAnnouncements() {
          toast.success(a.pinned ? "Unpinned" : "Pinned to top");
          setReloadNonce((n) => n + 1);
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't pin");
+         toast.error(errMessage(err, "Couldn't pin"));
       } finally {
          setBusyId(null);
       }
@@ -319,28 +312,24 @@ export default function ClubAnnouncements() {
          toast.success("Announcement deleted");
          setReloadNonce((n) => n + 1);
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't delete");
+         toast.error(errMessage(err, "Couldn't delete"));
       } finally {
          setBusyId(null);
       }
    }
 
-   if (denied) {
-      return (
-         <AppShell title="Announcements" subtitle={club?.name}>
-            <div className="main">
-               <div className="ev-empty">
-                  Only members can read this club's announcements.{" "}
-                  <Link to={clubHref(user?.role, slug)}>Back to the club →</Link>
-               </div>
-            </div>
-         </AppShell>
-      );
+   // This page is the club's posting surface. Reading happens on the club page's
+   // announcements tab and in the /announcements digest, so anyone who can't post,
+   // pin or delete here — a plain student included — is sent back to the club.
+   const canManageBoard =
+      !!viewer && (viewer.canPost || viewer.canPin || viewer.canDeleteAny);
+   if (denied || (viewer && !canManageBoard)) {
+      return <Navigate to={clubHref(user?.role, slug)} replace />;
    }
 
    const items = data?.items || [];
    const total = data?.pagination?.total ?? 0;
-   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
    return (
       <AppShell title="Announcements" subtitle={club?.name}>
@@ -424,7 +413,10 @@ export default function ClubAnnouncements() {
                         !a.pinned && i > 0 && items[i - 1].pinned;
                      // Your own note can always come down; anyone else's needs the
                      // delete permission.
-                     const canDelete = a.isMine || viewer?.canDeleteAny;
+                     // Mirrors the route gate: your own note needs announcements:create,
+                     // anyone's needs announcements:delete.
+                     const canDelete =
+                        (a.isMine && viewer?.canPost) || viewer?.canDeleteAny;
                      return (
                         <Fragment key={a.id}>
                            {startsUnpinned && (
@@ -523,11 +515,16 @@ export default function ClubAnnouncements() {
                </div>
             )}
 
-            {totalPages > 1 && (
+            {items.length > 0 && (
                <Pagination
                   page={page}
                   totalPages={totalPages}
-                  perPage={PAGE_SIZE}
+                  perPage={perPage}
+                  perPageOptions={PAGE_SIZE_OPTIONS}
+                  onPerPageChange={(n) => {
+                     setPerPage(n);
+                     setPage(1);
+                  }}
                   hasMore={data?.pagination?.hasMore}
                   onChange={setPage}
                />

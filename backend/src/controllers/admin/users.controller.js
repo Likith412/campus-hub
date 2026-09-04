@@ -10,6 +10,7 @@ const { ROLES } = require("../../constants/roles");
 const { hashPassword } = require("../../utils/password");
 const { generateTempPassword } = require("../../utils/tokens");
 const { sendFacultyAccountEmail } = require("../../services/emailService");
+const { FRONTEND_URL } = require("../../config/env");
 const { escapeRegex } = require("../../utils/escapeRegex");
 
 function publicUser(u, clubCount = 0) {
@@ -25,7 +26,7 @@ function publicUser(u, clubCount = 0) {
    };
 }
 
-const LOGIN_URL = `${process.env.FRONTEND_URL || "http://localhost:5173"}/login`;
+const LOGIN_URL = `${FRONTEND_URL}/login`;
 
 // POST /api/admin/users — create a faculty account; emails generated credentials.
 async function createFaculty(req, res) {
@@ -92,67 +93,87 @@ async function listUsers(req, res) {
            ? { clubCount: -1, createdAt: -1 }
            : { createdAt: -1 }; // new
 
-   // One pipeline: attach each user's approved-coordinator club count, then sort/paginate.
-   // (Lookup-before-sort so "Most clubs" can order by the derived count.)
    const skip = (page - 1) * limit;
-   const [items, total] = await Promise.all([
-      User.aggregate([
-         { $match: filter },
-         {
-            $lookup: {
-               from: "clubmemberships",
-               let: { uid: "$_id" },
-               pipeline: [
-                  {
-                     $match: {
-                        $expr: {
-                           $and: [
-                              { $eq: ["$userId", "$$uid"] },
-                              { $eq: ["$status", "approved"] },
-                           ],
-                        },
+
+   // The club-count lookup is correlated, so it costs one sub-query per row it sees.
+   // Only the "Most clubs" sort needs it before paging; for the other two the page is
+   // chosen straight off the $match (index-eligible) and the lookup then runs on at
+   // most `limit` rows instead of every match.
+   const clubCountStages = [
+      {
+         $lookup: {
+            from: "clubmemberships",
+            let: { uid: "$_id" },
+            pipeline: [
+               {
+                  $match: {
+                     $expr: {
+                        $and: [
+                           { $eq: ["$userId", "$$uid"] },
+                           { $eq: ["$status", "approved"] },
+                        ],
                      },
                   },
-                  // Coordinator is a per-club ClubRole — join it and match the slug.
-                  ...(coordinatorOnly
-                     ? [
-                          {
-                             $lookup: {
-                                from: "clubroles",
-                                localField: "roleId",
-                                foreignField: "_id",
-                                as: "r",
-                             },
+               },
+               // Coordinator is a per-club ClubRole — join it and match the slug.
+               ...(coordinatorOnly
+                  ? [
+                       {
+                          $lookup: {
+                             from: "clubroles",
+                             localField: "roleId",
+                             foreignField: "_id",
+                             as: "r",
+                             pipeline: [{ $project: { slug: 1 } }],
                           },
-                          { $unwind: "$r" },
-                          { $match: { "r.slug": "coordinator" } },
-                       ]
-                     : []),
-                  { $count: "n" },
-               ],
-               as: "cc",
-            },
+                       },
+                       { $unwind: "$r" },
+                       { $match: { "r.slug": "coordinator" } },
+                    ]
+                  : []),
+               // Only active clubs, matching how the profile page counts them —
+               // otherwise this column and the profile it links to disagree.
+               {
+                  $lookup: {
+                     from: "clubs",
+                     localField: "clubId",
+                     foreignField: "_id",
+                     as: "c",
+                     pipeline: [{ $project: { status: 1 } }],
+                  },
+               },
+               { $unwind: "$c" },
+               { $match: { "c.status": "active" } },
+               { $count: "n" },
+            ],
+            as: "cc",
          },
-         {
-            $addFields: {
-               clubCount: { $ifNull: [{ $arrayElemAt: ["$cc.n", 0] }, 0] },
-            },
+      },
+      {
+         $addFields: {
+            clubCount: { $ifNull: [{ $arrayElemAt: ["$cc.n", 0] }, 0] },
          },
-         { $sort: sortStage },
-         { $skip: skip },
-         { $limit: limit },
-         {
-            $project: {
-               name: 1,
-               email: 1,
-               role: 1,
-               isActive: 1,
-               lastLoginAt: 1,
-               createdAt: 1,
-               clubCount: 1,
-            },
-         },
-      ]),
+      },
+   ];
+   const pageStages = [{ $sort: sortStage }, { $skip: skip }, { $limit: limit }];
+   const projectStage = {
+      $project: {
+         name: 1,
+         email: 1,
+         role: 1,
+         isActive: 1,
+         lastLoginAt: 1,
+         createdAt: 1,
+         clubCount: 1,
+      },
+   };
+
+   const [items, total] = await Promise.all([
+      User.aggregate(
+         sort === "clubs"
+            ? [{ $match: filter }, ...clubCountStages, ...pageStages, projectStage]
+            : [{ $match: filter }, ...pageStages, ...clubCountStages, projectStage],
+      ),
       User.countDocuments(filter),
    ]);
 
@@ -166,7 +187,8 @@ async function listUsers(req, res) {
 async function getFacultyStats(req, res) {
    const faculty = { role: ROLES.FACULTY };
    const [total, active, pending, coordinatingClubs] = await Promise.all([
-      User.countDocuments(faculty),
+      // deletedAt matches the list beside it — otherwise the total counts rows nobody sees.
+      User.countDocuments({ ...faculty, deletedAt: null }),
       User.countDocuments({
          ...faculty,
          isActive: true,
@@ -183,6 +205,7 @@ async function getFacultyStats(req, res) {
                localField: "roleId",
                foreignField: "_id",
                as: "r",
+               pipeline: [{ $project: { slug: 1 } }],
             },
          },
          { $unwind: "$r" },
@@ -204,7 +227,7 @@ async function getFacultyStats(req, res) {
 async function getStudentStats(req, res) {
    const students = { role: ROLES.STUDENT };
    const [total, active, pending, inClubs] = await Promise.all([
-      User.countDocuments(students),
+      User.countDocuments({ ...students, deletedAt: null }),
       User.countDocuments({
          ...students,
          isActive: true,
@@ -221,6 +244,7 @@ async function getStudentStats(req, res) {
                localField: "_id",
                foreignField: "_id",
                as: "u",
+               pipeline: [{ $project: { role: 1 } }],
             },
          },
          { $unwind: "$u" },

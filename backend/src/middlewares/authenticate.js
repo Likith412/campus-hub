@@ -26,7 +26,11 @@ async function authenticate(req, res, next) {
    }
 
    // Pull a fresh user record so role/isActive checks always reflect current DB state.
-   const user = await User.findById(payload.sub).lean();
+   // passwordHash is never read off req.user (the password change re-reads the user),
+   // and skills has its own projected endpoint — neither needs to ride every request.
+   const user = await User.findById(payload.sub)
+      .select("-passwordHash -skills")
+      .lean();
    if (!user || !user.isActive) {
       throw new UnauthorizedError("Account not found or inactive");
    }

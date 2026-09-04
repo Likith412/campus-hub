@@ -1,5 +1,6 @@
 // Zod schemas for /api/admin/* endpoints (superAdmin-only platform administration).
 const { z } = require("zod");
+const { limitRule, pageRule, searchRule } = require("./common");
 const { CLUB_CATEGORIES, CLUB_STATUSES } = require("../models/Club");
 const { EVENT_TYPES, EVENT_STATUSES } = require("../models/Event");
 
@@ -16,11 +17,11 @@ const createFacultyBodySchema = z
 const listUsersQuerySchema = z
    .object({
       role: z.enum(["student", "faculty", "superAdmin"]).optional(),
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       status: z.enum(["active", "inactive", "pending"]).optional(),
       sort: z.enum(["new", "name", "clubs"]).default("new"),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(20),
+      page: pageRule,
+      limit: limitRule(20),
    })
    .strict();
 
@@ -34,7 +35,7 @@ const setUserActiveBodySchema = z
 // GET /api/admin/events — institute-wide event listing.
 const listAllEventsQuerySchema = z
    .object({
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       club: z
          .string()
          .trim()
@@ -46,20 +47,20 @@ const listAllEventsQuerySchema = z
       status: z.enum(EVENT_STATUSES).optional(),
       when: z.enum(["upcoming", "past", "all"]).default("all"),
       sort: z.enum(["soonest", "latest", "new", "popular"]).default("soonest"),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(20),
+      page: pageRule,
+      limit: limitRule(20),
    })
    .strict();
 
 // GET /api/admin/clubs — every club across the institute, filterable by domain + status.
 const listAllClubsQuerySchema = z
    .object({
-      q: z.string().trim().max(100).optional(),
+      q: searchRule,
       category: z.enum(CLUB_CATEGORIES).optional(),
       status: z.enum(CLUB_STATUSES).optional(),
       sort: z.enum(["popular", "new", "name"]).default("popular"),
-      page: z.coerce.number().int().min(1).default(1),
-      limit: z.coerce.number().int().min(1).max(50).default(20),
+      page: pageRule,
+      limit: limitRule(20),
    })
    .strict();
 

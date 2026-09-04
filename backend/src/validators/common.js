@@ -12,4 +12,19 @@ const urlOrEmptyKeep = z
    .union([z.string().url(), z.literal("")])
    .optional();
 
-module.exports = { urlOrEmpty, urlOrEmptyKeep };
+// The page / limit / search rules every list endpoint restates. `limitRule` takes the
+// per-endpoint default; the ceiling of 50 is uniform.
+const pageRule = z.coerce.number().int().min(1).default(1);
+const limitRule = (def) =>
+   def === undefined
+      ? z.coerce.number().int().min(1).max(50).optional()
+      : z.coerce.number().int().min(1).max(50).default(def);
+const searchRule = z.string().trim().max(100).optional();
+
+module.exports = {
+   urlOrEmpty,
+   urlOrEmptyKeep,
+   pageRule,
+   limitRule,
+   searchRule,
+};

@@ -33,7 +33,7 @@ async function verifyEmail(req, res) {
 // Always returns the same message regardless of whether the email exists (anti-enumeration).
 async function resendVerification(req, res) {
    const { email } = req.body;
-   const user = await User.findOne({ email });
+   const user = await User.findOne({ email, deletedAt: null });
 
    if (user && !user.emailVerified) {
       await sendVerificationLink(user._id, email);

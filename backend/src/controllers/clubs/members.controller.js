@@ -5,10 +5,11 @@ const {
    ForbiddenError,
    ConflictError,
 } = require("../../utils/errors");
-const { Club, ClubMembership, ClubRole, User } = require("../../models");
+const { ClubMembership, ClubRole, User } = require("../../models");
 const { ROLES } = require("../../constants/roles");
 const { escapeRegex } = require("../../utils/escapeRegex");
 const {
+   assertCanGrant,
    bumpClubStat,
    findClubBySlugFor,
    ensureSystemRoles,
@@ -16,9 +17,14 @@ const {
    resolveClubContext,
    contextCan,
 } = require("./helpers");
+const { releaseSeats } = require("../events/helpers");
 
 // Shape an aggregation row (user joined as `user`, role as `role`, admin as `removedByUser`).
-function publicMemberRow(m) {
+// The roster itself — name, role, department, year, joined date — is public to any
+// signed-in user by design (see the comment on listMembers below). Email is not: it's
+// only ever rendered on the moderation page, which is already gated on members:moderate
+// or members:assign-role, so a plain viewer has no legitimate use for it in the payload.
+function publicMemberRow(m, { includeEmail = false } = {}) {
    const u = m.user || {};
    const rb = m.removedByUser;
    const removedBy = rb?._id
@@ -27,7 +33,7 @@ function publicMemberRow(m) {
    return {
       userId: u._id || null,
       name: u.name || "Unknown",
-      email: u.email || null,
+      email: includeEmail ? u.email || null : undefined,
       department: u.profile?.department || null,
       year: u.profile?.year || null,
       role: m.role?.slug || null,
@@ -65,28 +71,22 @@ async function listMembers(req, res) {
    if (status !== "approved" && !viewerIsCoordinator) {
       throw new ForbiddenError("You don't have permission to view this list");
    }
+   // Email rides with the moderation surfaces, which admit either permission — gating it
+   // on members:moderate alone would blank the column for a role-assigner the page lets in.
+   const viewerModerates =
+      viewerIsCoordinator || contextCan(viewerCtx, "members:assign-role");
 
    // "past" is a convenience bucket for the audit tab = anyone no longer in the club.
    // It has to cover every sub-filter the tab offers, rejected applicants included.
    const statusFilter =
       status === "past" ? { $in: ["left", "removed", "rejected"] } : status;
    const match = { clubId: club._id, status: statusFilter };
-
-   if (q) {
-      const matched = await User.find({
-         name: { $regex: escapeRegex(q), $options: "i" },
-      })
-         .select("_id")
-         .lean();
-      if (matched.length === 0) {
-         return successResponse(res, 200, "Members", {
-            items: [],
-            viewerIsCoordinator,
-            pagination: { page, limit, total: 0, hasMore: false },
-         });
-      }
-      match.userId = { $in: matched.map((u) => u._id) };
-   }
+   // Only buckets that can contain an admin-actioned row need that join. Rejection
+   // records removedBy the same way removal does (see moderateMember), and the audit
+   // tab's "Rejected" chip queries that status directly — without it the UI credits the
+   // rejection to the applicant themselves.
+   const joinsRemovedBy =
+      status === "past" || status === "removed" || status === "rejected";
 
    // Approved → user-chosen sort (default: role rank then engagement); past → most-recent exit;
    // pending → oldest first (queue).
@@ -101,49 +101,94 @@ async function listMembers(req, res) {
 
    const skip = (page - 1) * limit;
 
-   const [agg] = await ClubMembership.aggregate([
-      { $match: match },
-      // Join the ClubRole so we can filter by role slug and sort by role rank.
+   // publicMemberRow reads five fields — don't drag whole user docs (password hash
+   // included) through the pipeline for them.
+   const userLookup = {
+      $lookup: {
+         from: "users",
+         localField: "userId",
+         foreignField: "_id",
+         as: "user",
+         pipeline: [
+            ...(q
+               ? [{ $match: { name: { $regex: escapeRegex(q), $options: "i" } } }]
+               : []),
+            {
+               $project: {
+                  name: 1,
+                  email: 1,
+                  "profile.department": 1,
+                  "profile.year": 1,
+               },
+            },
+         ],
+      },
+   };
+   // A name search decides which rows match, so with one the join has to run before the
+   // facet — scoped to this club's memberships, rather than scanning every user first.
+   // Without one it stays inside the facet and only sees the page.
+   const searchStages = q ? [userLookup, { $unwind: "$user" }] : [];
+   const rowUserStages = q
+      ? []
+      : [
+           userLookup,
+           { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
+        ];
+
+   // The role join only has to precede the facet when something before pagination reads
+   // it: a role filter, or the default approved sort that orders by role rank. On every
+   // other tab it can run on the page instead of the whole club.
+   const sortsOnRole = status === "approved" && sortKey !== "new";
+   const roleBeforeFacet = !!role || sortsOnRole;
+   const roleStages = [
       {
          $lookup: {
             from: "clubroles",
             localField: "roleId",
             foreignField: "_id",
             as: "role",
+            // publicMemberRow reads the slug; the sort reads roleWeight.
+            pipeline: [{ $project: { slug: 1, roleWeight: 1 } }],
          },
       },
       { $unwind: { path: "$role", preserveNullAndEmptyArrays: true } },
       ...(role ? [{ $match: { "role.slug": role } }] : []),
+   ];
+
+   const [agg] = await ClubMembership.aggregate([
+      { $match: match },
+      ...(roleBeforeFacet ? roleStages : []),
+      ...searchStages,
       {
          $facet: {
             rows: [
                { $sort: sort },
                { $skip: skip },
                { $limit: limit },
-               {
-                  $lookup: {
-                     from: "users",
-                     localField: "userId",
-                     foreignField: "_id",
-                     as: "user",
-                  },
-               },
-               { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
-               // Join the acting admin so each removed row carries id + name.
-               {
-                  $lookup: {
-                     from: "users",
-                     localField: "removedBy",
-                     foreignField: "_id",
-                     as: "removedByUser",
-                  },
-               },
-               {
-                  $unwind: {
-                     path: "$removedByUser",
-                     preserveNullAndEmptyArrays: true,
-                  },
-               },
+               ...(roleBeforeFacet ? [] : roleStages),
+               ...rowUserStages,
+               // Join the acting admin so each removed row carries id + name. Only
+               // `removed` rows ever have removedBy set, so every other tab would pay
+               // for a join whose result is always null.
+               ...(joinsRemovedBy
+                  ? [
+                       {
+                          $lookup: {
+                             from: "users",
+                             localField: "removedBy",
+                             foreignField: "_id",
+                             as: "removedByUser",
+                             pipeline: [{ $project: { name: 1 } }],
+                          },
+                       },
+                       {
+                          $unwind: {
+                             path: "$removedByUser",
+                             preserveNullAndEmptyArrays: true,
+                          },
+                       },
+                    ]
+                  : []),
             ],
             total: [{ $count: "n" }],
          },
@@ -153,8 +198,9 @@ async function listMembers(req, res) {
    const total = agg.total[0]?.n || 0;
 
    return successResponse(res, 200, "Members", {
-      items: agg.rows.map(publicMemberRow),
-      viewerIsCoordinator,
+      items: agg.rows.map((r) =>
+         publicMemberRow(r, { includeEmail: viewerModerates }),
+      ),
       pagination: pageMeta(page, limit, total, agg.rows.length),
    });
 }
@@ -185,7 +231,13 @@ async function getMemberStats(req, res) {
          if (isCoordinator) stats.coordinators += row.n;
       } else if (status === "pending") {
          stats.pending += row.n;
-      } else if (status === "left" || status === "removed") {
+      } else if (
+         status === "left" ||
+         status === "removed" ||
+         status === "rejected"
+      ) {
+         // Matches listMembers' status=past bucket exactly (left + removed + rejected) —
+         // this stat feeds the tab badge for that same list, so the two must agree.
          stats.past += row.n;
       }
    }
@@ -305,6 +357,9 @@ async function setMemberRole(req, res) {
       if (targetRole.roleWeight >= callerCtx.weight) {
          throw new ForbiddenError("You can only assign roles below your own");
       }
+      // Weight alone isn't enough: a lower-ranked role can still carry a permission the
+      // assigner doesn't hold, which would make members:assign-role a route to it.
+      assertCanGrant(callerCtx, { permissions: targetRole.permissions });
    }
 
    // Faculty are coordinators only: only a faculty may be coordinator, and a faculty
@@ -377,6 +432,11 @@ async function removeMember(req, res) {
 
    if (prev.status === "approved") {
       await bumpClubStat(club._id, "memberCount", -1);
+      // Same rule as leaving: no membership, no seat at a members-only event.
+      await releaseSeats(req.params.userId, {
+         clubId: club._id,
+         visibility: "private",
+      });
    }
 
    return successResponse(res, 200, "Member removed", { status: "removed" });

@@ -1,19 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
-import PersonLink from "../components/PersonLink";
-import { adminApi, ApiError } from "../services";
+import { Link, useNavigate } from "react-router";
+import { adminApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
-import { initials } from "../utils/text";
+import { colorFor, initials, shortDate, timeAgo } from "../utils/text";
+import { profileHref } from "../utils/nav";
 import useDebounced from "../hooks/useDebounced";
 import useLatestRequest from "../hooks/useLatestRequest";
 import SearchField from "../components/SearchField";
 import FilterSelect from "../components/FilterSelect";
+import StatCard from "../components/StatCard";
+import TableFooter from "../components/TableFooter";
+import useModalChrome from "../hooks/useModalChrome";
 
-const PAGE_SIZE = 8;
 const FILTER_TABS = [
    { id: "all", label: "All" },
    { id: "active", label: "Active" },
@@ -27,48 +30,8 @@ const SORTS = [
 ];
 
 // Deterministic avatar color from the name (mirrors the design mockup).
-const AVATAR_COLORS = [
-   "#6c63ff", "#34d399", "#f59e0b", "#3b82f6",
-   "#ef4444", "#a855f7", "#06b6d4", "#ec4899",
-];
-function colorFor(s = "") {
-   let h = 0;
-   for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-   return AVATAR_COLORS[h % AVATAR_COLORS.length];
-}
-function formatDate(d) {
-   if (!d) return "—";
-   return new Date(d).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-   });
-}
-function timeAgo(d) {
-   if (!d) return "Never";
-   const diff = Date.now() - new Date(d).getTime();
-   const m = 60000, h = 3600000, day = 86400000;
-   if (diff < m) return "Just now";
-   if (diff < h) return `${Math.floor(diff / m)} min ago`;
-   if (diff < day) return `${Math.floor(diff / h)} hr ago`;
-   if (diff < 7 * day) return `${Math.floor(diff / day)} days ago`;
-   return formatDate(d);
-}
 
 
-function StatCard({ tone, label, value, loading, children }) {
-   return (
-      <div className="fac-stat">
-         <div className={`fac-stat-ic ${tone}`}>{children}</div>
-         <div>
-            <div className="fac-stat-label">{label}</div>
-            <div className="fac-stat-value">
-               {loading ? <span className="skeleton fac-stat-skel" /> : value}
-            </div>
-         </div>
-      </div>
-   );
-}
 
 // Create-faculty dialog: form → one-time credentials view.
 function CreateFacultyModal({ onClose, onCreated }) {
@@ -79,18 +42,7 @@ function CreateFacultyModal({ onClose, onCreated }) {
    const [error, setError] = useState(null);
    const [created, setCreated] = useState(null);
 
-   useEffect(() => {
-      const onKey = (e) => {
-         if (e.key === "Escape" && !busy) onClose();
-      };
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      window.addEventListener("keydown", onKey);
-      return () => {
-         document.body.style.overflow = prev;
-         window.removeEventListener("keydown", onKey);
-      };
-   }, [busy, onClose]);
+   useModalChrome(onClose, { disabled: busy });
 
    async function handleSubmit(e) {
       e.preventDefault();
@@ -104,7 +56,7 @@ function CreateFacultyModal({ onClose, onCreated }) {
          setCreated(res);
          onCreated();
       } catch (err) {
-         setError(err instanceof ApiError ? err.message : "Couldn't create account");
+         setError(errMessage(err, "Couldn't create account"));
       } finally {
          setBusy(false);
       }
@@ -269,12 +221,20 @@ function CreateFacultyModal({ onClose, onCreated }) {
 export default function Faculty() {
    const toast = useToast();
    const confirm = useConfirm();
+   const navigate = useNavigate();
+
+   // The whole table row is the click target — the Active toggle stops propagation.
+   const openProfile = (u) => {
+      const href = profileHref(u);
+      if (href) navigate(href);
+   };
 
    const [search, setSearch] = useState("");
    const debounced = useDebounced(search.trim());
    const [filter, setFilter] = useState("all");
    const [sort, setSort] = useState("new");
    const [page, setPage] = useState(1);
+   const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
    const [data, setData] = useState(null);
    const [loadedKey, setLoadedKey] = useState(null);
    const [busyId, setBusyId] = useState(null);
@@ -282,7 +242,7 @@ export default function Faculty() {
    const [stats, setStats] = useState(null);
    const startRequest = useLatestRequest();
 
-   const currentKey = `${debounced}|${filter}|${sort}|${page}`;
+   const currentKey = `${debounced}|${filter}|${sort}|${page}|${perPage}`;
    const loading = loadedKey !== currentKey;
 
 
@@ -303,7 +263,7 @@ export default function Faculty() {
 
    const fetchFaculty = useCallback(() => {
       const isCurrent = startRequest();
-      const myKey = `${debounced}|${filter}|${sort}|${page}`;
+      const myKey = `${debounced}|${filter}|${sort}|${page}|${perPage}`;
       adminApi
          .listUsers({
             role: "faculty",
@@ -311,7 +271,7 @@ export default function Faculty() {
             status: filter === "all" ? undefined : filter,
             sort,
             page,
-            limit: PAGE_SIZE,
+            limit: perPage,
          })
          .then((d) => {
             if (!isCurrent()) return;
@@ -319,16 +279,16 @@ export default function Faculty() {
          })
          .catch((err) => {
             if (!isCurrent()) return;
-            toast.error(err instanceof ApiError ? err.message : "Couldn't load faculty");
+            toast.error(errMessage(err, "Couldn't load faculty"));
             setData({
                items: [],
-               pagination: { page, limit: PAGE_SIZE, total: 0, hasMore: false },
+               pagination: { page, limit: perPage, total: 0, hasMore: false },
             });
          })
          .finally(() => {
             if (isCurrent()) setLoadedKey(myKey);
          });
-   }, [debounced, filter, sort, page, toast, startRequest]);
+   }, [debounced, filter, sort, page, perPage, toast, startRequest]);
 
    useEffect(() => {
       fetchFaculty();
@@ -344,8 +304,6 @@ export default function Faculty() {
       return Math.max(1, Math.ceil(pagination.total / pagination.limit));
    }, [pagination]);
    const showEmpty = !loading && items.length === 0;
-   const rangeStart = pagination ? (pagination.page - 1) * pagination.limit + 1 : 0;
-   const rangeEnd = pagination ? rangeStart + items.length - 1 : 0;
 
    async function toggleActive(user) {
       const deactivating = user.isActive;
@@ -374,7 +332,7 @@ export default function Faculty() {
          fetchStats();
          toast.success(deactivating ? "Account deactivated" : "Account reactivated");
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't update account");
+         toast.error(errMessage(err, "Couldn't update account"));
       } finally {
          setBusyId(null);
       }
@@ -499,7 +457,21 @@ export default function Faculty() {
                            {items.map((u) => (
                               <tr
                                  key={u.id}
-                                 className={u.isActive ? "" : "inactive"}
+                                 className={`fac-row-link${u.isActive ? "" : " inactive"}`}
+                                 tabIndex={0}
+                                 onClick={() => openProfile(u)}
+                                 /* target===currentTarget: Enter on a focused control
+                                    inside the row (the active toggle) fires its click
+                                    AND bubbles this keydown — without the check both
+                                    the profile and the confirm would open. */
+                                 onKeyDown={(e) => {
+                                    if (
+                                       e.key === "Enter" &&
+                                       e.target === e.currentTarget
+                                    ) {
+                                       openProfile(u);
+                                    }
+                                 }}
                               >
                                     <td>
                                        <div className="fac-cell">
@@ -510,7 +482,7 @@ export default function Faculty() {
                                              {initials(u.name)}
                                           </div>
                                           <div>
-                                             <PersonLink user={u} className="fac-name" />
+                                             <div className="fac-name">{u.name}</div>
                                              <div className="fac-email">{u.email}</div>
                                           </div>
                                        </div>
@@ -521,7 +493,7 @@ export default function Faculty() {
                                        </span>
                                     </td>
                                     <td>
-                                       <span className="fac-date">{formatDate(u.createdAt)}</span>
+                                       <span className="fac-date">{shortDate(u.createdAt)}</span>
                                     </td>
                                     <td>
                                        <span className="fac-date">{timeAgo(u.lastLoginAt)}</span>
@@ -534,7 +506,10 @@ export default function Faculty() {
                                              <button
                                                 type="button"
                                                 className={`fac-toggle${u.isActive ? "" : " off"}`}
-                                                onClick={() => toggleActive(u)}
+                                                onClick={(e) => {
+                                                   e.stopPropagation();
+                                                   toggleActive(u);
+                                                }}
                                                 title={u.isActive ? "Deactivate" : "Reactivate"}
                                                 aria-label={u.isActive ? "Deactivate" : "Reactivate"}
                                              />
@@ -546,43 +521,18 @@ export default function Faculty() {
                         </tbody>
                      </table>
 
-                     <div className="fac-table-foot">
-                        <div className="fac-page-info">
-                           Showing{" "}
-                           <b>
-                              {rangeStart}–{rangeEnd}
-                           </b>{" "}
-                           of <b>{pagination?.total ?? 0}</b>
-                        </div>
-                        <div className="fac-page-ctrl">
-                           <button
-                              type="button"
-                              className="fac-pg"
-                              disabled={page <= 1}
-                              onClick={() => setPage((p) => Math.max(1, p - 1))}
-                           >
-                              ‹ Prev
-                           </button>
-                           {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-                              <button
-                                 type="button"
-                                 key={n}
-                                 className={`fac-pg${n === page ? " active" : ""}`}
-                                 onClick={() => setPage(n)}
-                              >
-                                 {n}
-                              </button>
-                           ))}
-                           <button
-                              type="button"
-                              className="fac-pg"
-                              disabled={!(pagination?.hasMore ?? page < totalPages)}
-                              onClick={() => setPage((p) => p + 1)}
-                           >
-                              Next ›
-                           </button>
-                        </div>
-                     </div>
+                     <TableFooter
+                        page={page}
+                        perPage={perPage}
+                        totalPages={totalPages}
+                        pagination={pagination}
+                        shown={items.length}
+                        onPage={setPage}
+                        onPerPage={(n) => {
+                           setPerPage(n);
+                           setPage(1);
+                        }}
+                     />
                   </>
                )}
             </div>

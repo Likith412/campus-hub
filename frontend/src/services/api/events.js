@@ -1,15 +1,7 @@
 // Wrappers around /api/events/* and the club-scoped /api/clubs/:slug/events/* endpoints.
 // Events are addressed by id (not slug) — the club owns the slug namespace, events don't.
-import { apiClient } from "./client";
+import { apiClient, qs } from "./client";
 
-function qs(params) {
-   const search = new URLSearchParams();
-   Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "") search.set(k, String(v));
-   });
-   const s = search.toString();
-   return s ? `?${s}` : "";
-}
 
 // ── Club-scoped ──────────────────────────────────────────────────────
 
@@ -74,9 +66,20 @@ export async function listAttendees(
 // ── Cross-club ───────────────────────────────────────────────────────
 
 // Browse published events across every active club.
-export async function listEvents({ q, type, when, sort, page, limit } = {}) {
+// `clubs: "not-mine"` drops the clubs you've joined; `openOnly: "true"` drops anything
+// you couldn't take a seat or a waitlist place at. They're independent.
+export async function listEvents({
+   q,
+   type,
+   clubs,
+   openOnly,
+   when,
+   sort,
+   page,
+   limit,
+} = {}) {
    const { data } = await apiClient.get(
-      `/events${qs({ q, type, when, sort, page, limit })}`,
+      `/events${qs({ q, type, clubs, openOnly, when, sort, page, limit })}`,
    );
    return data;
 }

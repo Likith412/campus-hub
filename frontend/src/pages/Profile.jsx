@@ -3,22 +3,24 @@
 // for a superAdmin, who can activate or deactivate the account from here.
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router";
-import { profileApi, adminApi, ApiError } from "../services";
+import { profileApi, adminApi, errMessage } from "../services";
 import { useAuth } from "../contexts/AuthContext";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import Spinner, { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import { PANEL_PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import { clubHref } from "../utils/nav";
-import { initials } from "../utils/text";
+import { initials, shortDate, timeAgo } from "../utils/text";
 import {
    EVENT_TYPE_LABEL,
    eventDateParts,
    formatEventWhen,
    formatVenue,
 } from "../utils/events";
+import StatCard from "../components/StatCard";
 
 const YEAR_LABEL = {
    1: "1st year",
@@ -65,27 +67,7 @@ function monthYear(d) {
    });
 }
 
-function fullDate(d) {
-   if (!d) return "—";
-   return new Date(d).toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-   });
-}
 
-function timeAgo(d) {
-   if (!d) return "Never";
-   const diff = Date.now() - new Date(d).getTime();
-   const m = 60000,
-      h = 3600000,
-      day = 86400000;
-   if (diff < m) return "Just now";
-   if (diff < h) return `${Math.floor(diff / m)} min ago`;
-   if (diff < day) return `${Math.floor(diff / h)} hr ago`;
-   if (diff < 7 * day) return `${Math.floor(diff / day)} days ago`;
-   return fullDate(d);
-}
 
 const LINK_ICONS = {
    LinkedIn: (
@@ -137,17 +119,6 @@ function ProfileLinks({ profile }) {
    );
 }
 
-function StatCard({ tone, label, value, children }) {
-   return (
-      <div className="fac-stat">
-         <div className={`fac-stat-ic ${tone}`}>{children}</div>
-         <div>
-            <div className="fac-stat-label">{label}</div>
-            <div className="fac-stat-value">{value}</div>
-         </div>
-      </div>
-   );
-}
 
 // Label/value rows in the About panel — skipped entirely when the value is empty.
 function Fact({ label, value, href }) {
@@ -194,7 +165,7 @@ function AdminControls({ user, account, onChanged }) {
          toast.success(active ? "Account deactivated" : "Account reactivated");
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update account",
+            errMessage(err, "Couldn't update account"),
          );
       } finally {
          setBusy(false);
@@ -256,26 +227,35 @@ function AdminControls({ user, account, onChanged }) {
 function EventsPanel({ handle, initial, sub, emptyText, cta }) {
    const [page, setPage] = useState(1);
    const [loaded, setLoaded] = useState(null);
+   // The profile payload already carries page 1 at the server's default size, so that
+   // one view needs no request — any other page or size does.
+   const initialPerPage = initial.pagination?.limit || 5;
+   const [perPage, setPerPage] = useState(initialPerPage);
+   const usesInitial = page === 1 && perPage === initialPerPage;
+   const key = `${page}|${perPage}`;
 
    useEffect(() => {
-      if (page === 1) return;
+      if (usesInitial) return;
       let cancelled = false;
+      const myKey = `${page}|${perPage}`;
       profileApi
-         .getProfileEvents(handle, page)
-         .then((d) => !cancelled && setLoaded({ key: page, data: d }))
+         .getProfileEvents(handle, page, perPage)
+         .then((d) => !cancelled && setLoaded({ key: myKey, data: d }))
          .catch(
-            () => !cancelled && setLoaded({ key: page, data: { items: [] } }),
+            () => !cancelled && setLoaded({ key: myKey, data: { items: [] } }),
          );
       return () => {
          cancelled = true;
       };
-   }, [handle, page]);
+   }, [handle, page, perPage, usesInitial]);
 
-   const current =
-      page === 1 ? initial : loaded?.key === page ? loaded.data : null;
+   const current = usesInitial
+      ? initial
+      : loaded?.key === key
+        ? loaded.data
+        : null;
    const events = current?.items || [];
    const total = initial.pagination?.total ?? events.length;
-   const perPage = initial.pagination?.limit || 5;
    const totalPages = Math.max(1, Math.ceil(total / perPage));
 
    return (
@@ -349,11 +329,16 @@ function EventsPanel({ handle, initial, sub, emptyText, cta }) {
                })}
             </>
          )}
-         {totalPages > 1 && (
+         {total > 0 && (
             <Pagination
                page={page}
                totalPages={totalPages}
                perPage={perPage}
+               perPageOptions={PANEL_PAGE_SIZE_OPTIONS}
+               onPerPageChange={(n) => {
+                  setPerPage(n);
+                  setPage(1);
+               }}
                onChange={setPage}
             />
          )}
@@ -458,9 +443,7 @@ export default function Profile() {
                   key: target,
                   data: null,
                   error:
-                     err instanceof ApiError
-                        ? err.message
-                        : "Couldn't load this profile",
+                     errMessage(err, "Couldn't load this profile"),
                }),
          );
       return () => {
@@ -593,6 +576,10 @@ export default function Profile() {
                         )}
                      </div>
                      <div className="profile-handle">
+                        {/* Falling back to the email was the leak — a viewer without a
+                            username showed their real address to any stranger. The
+                            backend already nulls `email` for anyone but the owner or a
+                            superAdmin, so a plain truthiness check can't drift from it. */}
                         {subline || user.email}
                      </div>
                      {user.profile?.bio && (
@@ -797,11 +784,15 @@ export default function Profile() {
                               label="Role"
                               value={ROLE_LABEL[user.role] || user.role}
                            />
-                           <Fact
-                              label="Email"
-                              value={user.email}
-                              href={`mailto:${user.email}`}
-                           />
+                           {/* Present only when the backend included a real address —
+                               the owner viewing their own profile, or a superAdmin. */}
+                           {user.email && (
+                              <Fact
+                                 label="Email"
+                                 value={user.email}
+                                 href={`mailto:${user.email}`}
+                              />
+                           )}
                            <Fact label="Department" value={dept} />
                            {isCoordinator ? (
                               <>
@@ -825,7 +816,7 @@ export default function Profile() {
                            )}
                            <Fact
                               label="Joined"
-                              value={fullDate(user.createdAt)}
+                              value={shortDate(user.createdAt)}
                            />
                         </div>
                         {isSelf && user.role !== "superAdmin" && (
@@ -845,8 +836,8 @@ export default function Profile() {
                                  </div>
                               </div>
                            </div>
-                           {skills.map((s) => (
-                              <div className="skill-row compact" key={s.name}>
+                           {skills.map((s, i) => (
+                              <div className="skill-row compact" key={`${s.name}-${i}`}>
                                  <div className="skill-name">{s.name}</div>
                                  <div className="skill-bar">
                                     <span

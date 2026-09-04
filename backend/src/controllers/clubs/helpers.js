@@ -2,7 +2,7 @@
 const { Club, ClubMembership, ClubRole } = require("../../models");
 const { systemRoleDocs } = require("../../models/ClubRole");
 const { ROLES } = require("../../constants/roles");
-const { NotFoundError } = require("../../utils/errors");
+const { NotFoundError, ForbiddenError } = require("../../utils/errors");
 
 // Make sure a club has its two system roles (coordinator/member). Cheap idempotent upsert —
 // covers clubs created before the roles system landed, on first read or edit.
@@ -83,10 +83,14 @@ async function resolveClubContext(user, clubId) {
       userId: user._id,
       clubId,
       status: "approved",
-   }).lean();
+   })
+      .select("clubId roleId")
+      .lean();
    if (!membership) return null;
 
-   const role = await ClubRole.findById(membership.roleId).lean();
+   const role = await ClubRole.findById(membership.roleId)
+      .select("slug roleWeight permissions")
+      .lean();
    return {
       isSuperAdmin: false,
       roleSlug: role?.slug ?? null,
@@ -96,6 +100,56 @@ async function resolveClubContext(user, clubId) {
    };
 }
 
+// resolveClubContext for a whole page of clubs at once. A cross-club event list would
+// otherwise need one membership lookup and one role lookup per row; this is two queries
+// for the page, regardless of how many clubs it spans.
+async function resolveClubContexts(user, clubIds) {
+   const ids = [...new Set(clubIds.filter(Boolean).map(String))];
+   const byClub = new Map();
+   if (ids.length === 0) return byClub;
+
+   if (user.role === ROLES.SUPER_ADMIN) {
+      for (const id of ids) {
+         byClub.set(id, {
+            isSuperAdmin: true,
+            roleSlug: "coordinator",
+            weight: Infinity,
+            role: null,
+            membership: null,
+         });
+      }
+      return byClub;
+   }
+
+   const memberships = await ClubMembership.find({
+      userId: user._id,
+      clubId: { $in: ids },
+      status: "approved",
+    })
+      .select("clubId roleId")
+      .lean();
+   if (memberships.length === 0) return byClub;
+
+   const roles = await ClubRole.find({
+      _id: { $in: memberships.map((m) => m.roleId).filter(Boolean) },
+   })
+      .select("slug roleWeight permissions")
+      .lean();
+   const roleById = new Map(roles.map((r) => [String(r._id), r]));
+
+   for (const m of memberships) {
+      const role = roleById.get(String(m.roleId)) || null;
+      byClub.set(String(m.clubId), {
+         isSuperAdmin: false,
+         roleSlug: role?.slug ?? null,
+         weight: role?.roleWeight ?? 0,
+         role,
+         membership: m,
+      });
+   }
+   return byClub;
+}
+
 // Does this context grant `perm`? coordinator (and superAdmin) hold everything.
 function contextCan(ctx, perm) {
    if (!ctx) return false;
@@ -103,13 +157,31 @@ function contextCan(ctx, perm) {
    return (ctx.role?.permissions || []).includes(perm);
 }
 
+// A role editor can't outrank themselves or hand out access they don't hold — otherwise
+// roles:manage (or members:assign-role) alone would be a route to every other permission
+// in the club.
+function assertCanGrant(ctx, { roleWeight, permissions }) {
+   if (ctx.isSuperAdmin || ctx.roleSlug === "coordinator") return;
+   if (roleWeight !== undefined && roleWeight >= ctx.weight) {
+      throw new ForbiddenError("You can only manage roles ranked below your own");
+   }
+   const missing = (permissions || []).filter((p) => !contextCan(ctx, p));
+   if (missing.length) {
+      throw new ForbiddenError(
+         `You can't grant a permission you don't hold: ${missing.join(", ")}`,
+      );
+   }
+}
+
 module.exports = {
    CLUB_SORT,
+   assertCanGrant,
    bumpClubStat,
    ensureSystemRoles,
    findClubBySlugFor,
    slugify,
    systemRoleId,
    resolveClubContext,
+   resolveClubContexts,
    contextCan,
 };

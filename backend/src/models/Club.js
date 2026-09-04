@@ -84,7 +84,6 @@ const clubSchema = new mongoose.Schema(
 // Indexes tuned for the common list/filter queries on the clubs page.
 clubSchema.index({ category: 1, status: 1 });
 clubSchema.index({ status: 1, createdAt: -1 });
-clubSchema.index({ tags: 1 });
 
 module.exports = mongoose.model("Club", clubSchema);
 module.exports.CLUB_CATEGORIES = CLUB_CATEGORIES;

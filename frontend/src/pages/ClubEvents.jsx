@@ -3,8 +3,8 @@
 // this is the management view the faculty sidebar points at.
 // Gated in-page on any events permission, so a delegated student gets in too.
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router";
-import { clubsApi, eventsApi, ApiError } from "../services";
+import { Link, Navigate, useParams } from "react-router";
+import { clubsApi, eventsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
@@ -12,16 +12,14 @@ import EditEventModal from "../components/EditEventModal";
 import EventCard from "../components/EventCard";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
-import { eventState } from "../utils/events";
+import {
+   EVENT_SORTS,
+   isOver,
+   statusConfirm,
+} from "../utils/events";
 import useLatestRequest from "../hooks/useLatestRequest";
 import FilterSelect from "../components/FilterSelect";
 
-const EVENT_SORTS = [
-   { id: "soonest", label: "Date · soonest" },
-   { id: "latest", label: "Date · latest" },
-   { id: "popular", label: "Most registered" },
-   { id: "new", label: "Recently created" },
-];
 
 const FILTERS = [
    { id: "all", label: "All" },
@@ -43,7 +41,24 @@ export default function ClubEvents() {
    const [loadedKey, setLoadedKey] = useState(null);
    const [busyId, setBusyId] = useState(null);
    const [editing, setEditing] = useState(null);
+   const [openingEditor, setOpeningEditor] = useState(null);
    const startRequest = useLatestRequest();
+
+   // List rows are the compact shape — description, tags and the registration deadline
+   // only come with the detail call, so the editor opens on that.
+   async function openEditor(row) {
+      setOpeningEditor(row.id);
+      try {
+         const d = await eventsApi.getEvent(row.id);
+         setEditing(d?.event || null);
+      } catch (err) {
+         toast.error(
+            errMessage(err, "Couldn't open that event"),
+         );
+      } finally {
+         setOpeningEditor(null);
+      }
+   }
 
    const key = `${filter}|${sort}`;
    const loading = loadedKey !== key;
@@ -56,7 +71,7 @@ export default function ClubEvents() {
             ? { status: "draft", sort, limit: 50 }
             : { when: filter, sort, limit: 50 };
       return Promise.all([
-         clubsApi.getClub(slug).catch(() => null),
+         clubsApi.getClub(slug, { view: "summary" }).catch(() => null),
          eventsApi.listClubEvents(slug, params).catch(() => null),
       ])
          .then(([c, ev]) => {
@@ -73,16 +88,9 @@ export default function ClubEvents() {
    }, [load]);
 
    async function setStatus(event, status) {
-      if (status === "cancelled") {
-         const ok = await confirm({
-            title: `Cancel “${event.title}”?`,
-            message:
-               "Everyone who registered keeps their place on the record, but the event will show as cancelled.",
-            confirmLabel: "Cancel event",
-            danger: true,
-         });
-         if (!ok) return;
-      }
+      // Publishing skipped this before — an irreversible change on a single click.
+      const ok = await confirm(statusConfirm(status, event.title));
+      if (!ok) return;
       setBusyId(event.id);
       try {
          await eventsApi.setEventStatus(slug, event.id, status);
@@ -90,7 +98,7 @@ export default function ClubEvents() {
          await load();
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update the event",
+            errMessage(err, "Couldn't update the event"),
          );
       } finally {
          setBusyId(null);
@@ -111,7 +119,7 @@ export default function ClubEvents() {
          toast.success("Draft deleted");
          await load();
       } catch (err) {
-         toast.error(err instanceof ApiError ? err.message : "Couldn't delete");
+         toast.error(errMessage(err, "Couldn't delete"));
       } finally {
          setBusyId(null);
       }
@@ -137,20 +145,9 @@ export default function ClubEvents() {
       );
    }
 
-   if (!canManage) {
-      return (
-         <AppShell title="Events" subtitle={club?.name}>
-            <div className="main club-events">
-               <div className="profile-empty">
-                  You don't have permission to manage this club's events.{" "}
-                  <Link to={`/clubs/${slug}?tab=events`}>
-                     See the club's events instead →
-                  </Link>
-               </div>
-            </div>
-         </AppShell>
-      );
-   }
+   // A student with no role in this club has nothing to manage here — send them to the
+   // club's own page rather than rendering the chrome around a refusal.
+   if (!canManage) return <Navigate to={`/clubs/${slug}`} replace />;
 
    const items = data?.items || [];
 
@@ -214,11 +211,10 @@ export default function ClubEvents() {
             ) : (
                <div className="event-grid">
                   {items.map((e) => {
-                     const state = eventState(e);
                      const busy = busyId === e.id;
                      // A finished event is a record: the server refuses edits, publishes
                      // and cancellations alike.
-                     const over = state.cls === "past";
+                     const over = isOver(e);
                      return (
                         <EventCard
                            key={e.id}
@@ -234,10 +230,12 @@ export default function ClubEvents() {
                                           <button
                                              type="button"
                                              className="btn-mini"
-                                             disabled={busy}
-                                             onClick={() => setEditing(e)}
+                                             disabled={busy || openingEditor === e.id}
+                                             onClick={() => openEditor(e)}
                                           >
-                                             Edit
+                                             {openingEditor === e.id
+                                                ? "Opening…"
+                                                : "Edit"}
                                           </button>
                                        )}
                                     {viewer?.canPublish && e.status === "draft" && (

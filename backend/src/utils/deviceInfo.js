@@ -14,14 +14,12 @@ function buildDeviceInfo(req) {
       browser: ua.browser?.name,
       browserVersion: ua.browser?.version,
       os: ua.os?.name,
-      osVersion: ua.os?.version,
       deviceType: ua.device?.type || "desktop", // ua-parser leaves desktop blank
       deviceVendor: ua.device?.vendor,
       deviceModel: ua.device?.model,
       city: geo?.city || undefined,
       region: geo?.region || undefined,
       country: geo?.country || undefined,
-      timezone: geo?.timezone || undefined,
    };
 }
 

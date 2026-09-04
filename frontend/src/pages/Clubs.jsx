@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router";
-import { clubsApi, ApiError } from "../services";
+import { clubsApi, errMessage } from "../services";
 import AppShell from "../components/layout/AppShell";
 import Icon from "../components/Icon";
 import { LoadingBlock } from "../components/Spinner";
 import Pagination from "../components/Pagination";
+import { PAGE_SIZE_OPTIONS } from "../utils/pagination";
 import { useToast } from "../contexts/ToastContext";
 import { useConfirm } from "../contexts/ConfirmContext";
 import useDebounced from "../hooks/useDebounced";
 import useLatestRequest from "../hooks/useLatestRequest";
 import FilterSelect from "../components/FilterSelect";
+import { initials } from "../utils/text";
 
 // Category chips — order + emoji + cover gradient palette mirror .design/Clubs.html.
 const CATEGORIES = [
@@ -73,12 +75,7 @@ const POLICY_LABEL = {
    "invite-only": "Invite-only",
 };
 
-const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
-function clubInitials(name = "") {
-   const parts = name.trim().split(/\s+/);
-   return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
 
 function categoryMeta(id) {
    return CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
@@ -180,7 +177,7 @@ function ClubCard({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
                className="club-logo-lg"
                style={{ background: coverGradient(club) }}
             >
-               {clubInitials(club.name)}
+               {initials(club.name)}
             </div>
          </div>
          <div className="club-body">
@@ -247,76 +244,11 @@ function ClubCard({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
    );
 }
 
-function ClubRow({ club, onJoin, onLeave, onFollow, busy, followBusy }) {
-   const btn = joinButtonState(club);
-   const cat = categoryMeta(club.category);
-   const handleClick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (busy || btn.cls === "disabled") return;
-      if (club.membershipStatus === "approved") onLeave(club);
-      else if (club.membershipStatus !== "pending") onJoin(club);
-   };
-   return (
-      <Link to={`/clubs/${club.slug}`} className="club-row">
-         <div
-            className="club-row-logo"
-            style={{ background: coverGradient(club) }}
-         >
-            {clubInitials(club.name)}
-         </div>
-         <div className="cr-info">
-            <div className="cr-name-row">
-               <div className="cr-name">{club.name}</div>
-               <div className="cr-domain">{cat.label}</div>
-               {club.verified && (
-                  <span className="verified-tick" title="Verified">
-                     <Icon size={9} strokeWidth={4}>
-                        <polyline points="20 6 9 17 4 12" />
-                     </Icon>
-                  </span>
-               )}
-               {club.isPrivate && (
-                  <span className="cr-private" title="Private club">
-                     <Icon size={9} strokeWidth={2.5}>
-                        <rect x="3" y="11" width="18" height="11" rx="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                     </Icon>
-                     Private
-                  </span>
-               )}
-            </div>
-            <div className="cr-tagline">{club.tagline || club.description}</div>
-         </div>
-         <div className="cr-stat">
-            Members<b>{club.memberCount}</b>
-         </div>
-         <div className="cr-stat">
-            Events<b>{club.eventCount}</b>
-         </div>
-         <FollowButton club={club} onFollow={onFollow} busy={followBusy} />
-         <button
-            type="button"
-            className={`join-btn ${btn.cls}`}
-            onClick={handleClick}
-            disabled={
-               busy ||
-               btn.cls === "disabled" ||
-               club.membershipStatus === "pending"
-            }
-         >
-            {busy ? "…" : btn.label}
-         </button>
-      </Link>
-   );
-}
-
 export default function Clubs() {
    const [search, setSearch] = useState("");
    const debounced = useDebounced(search.trim());
    const [category, setCategory] = useState("all");
    const [sort, setSort] = useState("popular");
-   const [view, setView] = useState("grid"); // grid | list
    const [page, setPage] = useState(1);
    const [perPage, setPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
    const [data, setData] = useState(null);
@@ -369,7 +301,7 @@ export default function Clubs() {
          .catch((err) => {
             if (!isCurrent()) return;
             toast.error(
-               err instanceof ApiError ? err.message : "Couldn't load clubs",
+               errMessage(err, "Couldn't load clubs"),
             );
             setData({
                items: [],
@@ -417,13 +349,11 @@ export default function Clubs() {
          const res = club.isFollowing
             ? await clubsApi.unfollowClub(club.slug)
             : await clubsApi.followClub(club.slug);
-         patchClub(club.slug, {
-            isFollowing: res.following,
-            followerCount: res.followerCount,
-         });
+         // No card shows a follower count — only the toggle state changes here.
+         patchClub(club.slug, { isFollowing: res.following });
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't update follow",
+            errMessage(err, "Couldn't update follow"),
          );
       } finally {
          setFollowBusyId(null);
@@ -457,7 +387,7 @@ export default function Clubs() {
          }
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't join club",
+            errMessage(err, "Couldn't join club"),
          );
       } finally {
          setBusyId(null);
@@ -482,7 +412,7 @@ export default function Clubs() {
          toast.success(`You left ${club.name}`);
       } catch (err) {
          toast.error(
-            err instanceof ApiError ? err.message : "Couldn't leave club",
+            errMessage(err, "Couldn't leave club"),
          );
       } finally {
          setBusyId(null);
@@ -563,36 +493,6 @@ export default function Clubs() {
                      options={SORTS}
                      withIcon
                   />
-                  <div className="view-toggle">
-                     <button
-                        type="button"
-                        className={`vt-btn${view === "grid" ? " active" : ""}`}
-                        onClick={() => setView("grid")}
-                        title="Grid"
-                     >
-                        <Icon size={13}>
-                           <rect x="3" y="3" width="7" height="7" />
-                           <rect x="14" y="3" width="7" height="7" />
-                           <rect x="14" y="14" width="7" height="7" />
-                           <rect x="3" y="14" width="7" height="7" />
-                        </Icon>
-                     </button>
-                     <button
-                        type="button"
-                        className={`vt-btn${view === "list" ? " active" : ""}`}
-                        onClick={() => setView("list")}
-                        title="List"
-                     >
-                        <Icon size={13}>
-                           <line x1="8" y1="6" x2="21" y2="6" />
-                           <line x1="8" y1="12" x2="21" y2="12" />
-                           <line x1="8" y1="18" x2="21" y2="18" />
-                           <circle cx="4" cy="6" r="1" />
-                           <circle cx="4" cy="12" r="1" />
-                           <circle cx="4" cy="18" r="1" />
-                        </Icon>
-                     </button>
-                  </div>
                </div>
             </div>
 
@@ -612,24 +512,10 @@ export default function Clubs() {
                <div className="profile-empty">
                   No clubs match your search. Try a different name or category.
                </div>
-            ) : view === "grid" ? (
+            ) : (
                <div className={`clubs-grid${loading ? " is-refetching" : ""}`}>
                   {items.map((c) => (
                      <ClubCard
-                        key={c.id}
-                        club={c}
-                        onJoin={handleJoin}
-                        onLeave={handleLeave}
-                        onFollow={handleFollow}
-                        busy={busyId === c.id}
-                        followBusy={followBusyId === c.id}
-                     />
-                  ))}
-               </div>
-            ) : (
-               <div className={`clubs-list${loading ? " is-refetching" : ""}`}>
-                  {items.map((c) => (
-                     <ClubRow
                         key={c.id}
                         club={c}
                         onJoin={handleJoin}

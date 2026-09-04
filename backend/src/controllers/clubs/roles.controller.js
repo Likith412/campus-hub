@@ -8,6 +8,7 @@ const {
 const { ClubMembership, ClubRole } = require("../../models");
 const { CLUB_PERMISSIONS } = require("../../constants/clubPermissions");
 const {
+   assertCanGrant,
    findClubBySlugFor,
    ensureSystemRoles,
    slugify,
@@ -16,21 +17,6 @@ const {
    contextCan,
 } = require("./helpers");
 
-// A role editor can't outrank themselves or hand out access they don't hold — otherwise
-// roles:manage alone would be a route to every other permission in the club.
-function assertCanGrant(ctx, { roleWeight, permissions }) {
-   if (ctx.isSuperAdmin || ctx.roleSlug === "coordinator") return;
-   if (roleWeight !== undefined && roleWeight >= ctx.weight) {
-      throw new ForbiddenError("You can only manage roles ranked below your own");
-   }
-   const missing = (permissions || []).filter((p) => !contextCan(ctx, p));
-   if (missing.length) {
-      throw new ForbiddenError(
-         `You can't grant a permission you don't hold: ${missing.join(", ")}`,
-      );
-   }
-}
-
 // GET /api/permissions/catalog — static list of grantable permissions for the picker.
 async function getPermissionCatalog(req, res) {
    return successResponse(res, 200, "Permission catalog", {
@@ -38,15 +24,17 @@ async function getPermissionCatalog(req, res) {
    });
 }
 
-function publicRole(r) {
-   return {
+// `full` adds the permission matrix, which only a roles:manage holder needs — the
+// badges and filters everywhere else read name/slug/color/roleWeight/isSystem.
+function publicRole(r, full = false) {
+   const row = {
       name: r.name,
       slug: r.slug,
       color: r.color,
-      permissions: r.permissions || [],
       isSystem: !!r.isSystem,
       roleWeight: r.roleWeight,
    };
+   return full ? { ...row, permissions: r.permissions || [] } : row;
 }
 
 // De-duplicate a role slug within one club (slug-2, slug-3, …).
@@ -62,15 +50,23 @@ async function uniqueRoleSlug(clubId, base) {
 // what the viewer may do.
 async function listRoles(req, res) {
    const club = await findClubBySlugFor(req.user, req.params.slug);
-   await ensureSystemRoles(club._id);
 
-   const [roles, counts] = await Promise.all([
-      ClubRole.find({ clubId: club._id }).sort({ roleWeight: -1, name: 1 }).lean(),
+   const readRoles = () =>
+      ClubRole.find({ clubId: club._id }).sort({ roleWeight: -1, name: 1 }).lean();
+   let [roles, counts] = await Promise.all([
+      readRoles(),
       ClubMembership.aggregate([
          { $match: { clubId: club._id, status: "approved" } },
          { $group: { _id: "$roleId", n: { $sum: 1 } } },
       ]),
    ]);
+   // Read first, repair only if a legacy club is missing its system rows — this ran two
+   // upserts on every read otherwise.
+   const slugs = new Set(roles.map((r) => r.slug));
+   if (!slugs.has("coordinator") || !slugs.has("member")) {
+      await ensureSystemRoles(club._id);
+      roles = await readRoles();
+   }
    const countByRoleId = new Map(counts.map((c) => [String(c._id), c.n]));
 
    const ctx = await resolveClubContext(req.user, club._id);
@@ -85,7 +81,7 @@ async function listRoles(req, res) {
 
    return successResponse(res, 200, "Roles", {
       items: roles.map((r) => ({
-         ...publicRole(r),
+         ...publicRole(r, viewer.canManageRoles),
          memberCount: countByRoleId.get(String(r._id)) || 0,
       })),
       viewer,

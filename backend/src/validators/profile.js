@@ -3,7 +3,7 @@
 const { z } = require("zod");
 const { YEAR_OPTIONS } = require("../models/User");
 const { passwordRule } = require("./auth");
-const { urlOrEmptyKeep } = require("./common");
+const { limitRule, pageRule, searchRule, urlOrEmptyKeep } = require("./common");
 
 const updateProfileSchema = z
    .object({
@@ -39,28 +39,46 @@ const updateProfileSchema = z
    })
    .strict();
 
-const updateSkillsSchema = z.object({
-   skills: z
-      .array(
-         z.object({
-            name: z.string().min(1).max(60),
-            level: z.number().int().min(0).max(100).default(0),
-            category: z.string().max(40).optional(),
-         }),
-      )
-      .max(50),
-});
+const updateSkillsSchema = z
+   .object({
+      skills: z
+         .array(
+            z
+               .object({
+                  name: z.string().trim().min(1).max(60),
+                  level: z.number().int().min(0).max(100).default(0),
+                  category: z.string().max(40).optional(),
+               })
+               .strict(),
+         )
+         .max(50)
+         // The profile keys its rows by name, so two "React" entries would collide.
+         .refine(
+            (rows) =>
+               new Set(rows.map((r) => r.name.toLowerCase())).size === rows.length,
+            { message: "Each skill can only be listed once" },
+         ),
+   })
+   .strict();
 
+// `limit` is opt-in: without it the whole list comes back, which is what the club
+// switcher needs. My Clubs passes one and gets a page.
 const listMyClubsQuerySchema = z
    .object({
       relation: z.enum(["member", "following", "all"]).default("member"),
+      q: searchRule,
+      category: z.string().trim().max(40).optional(),
+      sort: z.enum(["recent", "name", "members"]).default("recent"),
+      page: pageRule,
+      limit: limitRule(),
    })
    .strict();
 
 // GET /profile/:handle/events — the profile page's event panel pages on its own.
 const listProfileEventsQuerySchema = z
    .object({
-      page: z.coerce.number().int().min(1).default(1),
+      page: pageRule,
+      limit: limitRule(5),
    })
    .strict();
 
