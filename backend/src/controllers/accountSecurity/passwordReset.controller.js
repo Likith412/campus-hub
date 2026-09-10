@@ -9,6 +9,7 @@ const { User, PasswordReset } = require("../../models");
 const { revokeSessions } = require("./helpers");
 const { sendPasswordResetEmail } = require("../../services/emailService");
 const { FRONTEND_URL } = require("../../config/env");
+const logger = require("../../utils/logger");
 
 const RESET_TTL_MS = 30 * 60 * 1000; // Reset link valid for 30min (tighter — sensitive op).
 
@@ -38,9 +39,7 @@ async function forgotPassword(req, res) {
    if (user) {
       const token = await issuePasswordResetToken(user._id);
       const link = `${FRONTEND_URL}/reset-password?token=${token}`;
-      if (process.env.NODE_ENV !== "production") {
-         console.log(`[dev] password reset link for ${email}: ${link}`);
-      }
+      logger.debug("Development password reset link", { email, link });
       await sendPasswordResetEmail(email, link);
    }
 

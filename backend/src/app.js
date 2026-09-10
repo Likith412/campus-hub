@@ -1,7 +1,5 @@
 // Express app setup: middleware pipeline, route mounting, and central error handler.
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const morgan = require("morgan");
@@ -9,6 +7,7 @@ const morgan = require("morgan");
 const routes = require("./routes");
 const errorHandler = require("./middlewares/errorHandler");
 const { NotFoundError } = require("./utils/errors");
+const logger = require("./utils/logger");
 const { FRONTEND_URL } = require("./config/env");
 
 const app = express();
@@ -22,17 +21,12 @@ if (trustProxy) {
    app.set("trust proxy", 1); // sensible default: one hop (the immediate reverse proxy)
 }
 
-// Request logging. In production it goes to stdout, which is what a hosting platform
-// collects; locally it goes to access.log so the terminal stays readable.
-if (process.env.NODE_ENV === "production") {
-   app.use(morgan("combined"));
-} else {
-   const writeStream = fs.createWriteStream(
-      path.join(__dirname, "..", "access.log"),
-      { flags: "a" },
-   );
-   app.use(morgan("dev", { stream: writeStream }));
-}
+// Route HTTP access logs through the same application logger.
+app.use(
+   morgan(process.env.NODE_ENV === "production" ? "combined" : "dev", {
+      stream: logger.stream,
+   }),
+);
 
 // Allow the frontend origin and send/receive cookies (needed for refresh-token cookie).
 app.use(

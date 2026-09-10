@@ -1,4 +1,5 @@
 const Queue = require("bull");
+const logger = require("../utils/logger");
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 const QUEUE_CONCURRENCY = Number(process.env.QUEUE_CONCURRENCY) || 5;
@@ -30,22 +31,22 @@ function startQueueProcessor() {
    });
 
    redisQueue.on("error", (err) => {
-      console.error("[queue] error:", err);
+      logger.error("Queue error", err);
    });
 
    redisQueue.on("failed", (job, err) => {
-      console.error(
-         `[queue] job ${job.id} (${job.data?.action}) failed on attempt ${job.attemptsMade}/${job.opts.attempts}:`,
-         err.message,
+      logger.error(
+         `Queue job ${job.id} (${job.data?.action}) failed on attempt ${job.attemptsMade}/${job.opts.attempts}`,
+         err,
       );
    });
 
    redisQueue.on("stalled", (job) => {
-      console.warn(`[queue] job ${job.id} (${job.data?.action}) stalled`);
+      logger.warn(`Queue job ${job.id} (${job.data?.action}) stalled`);
    });
 
    redisQueue.on("completed", (job) => {
-      console.log(`[queue] job ${job.id} (${job.data?.action}) completed`);
+      logger.info(`Queue job ${job.id} (${job.data?.action}) completed`);
    });
 }
 

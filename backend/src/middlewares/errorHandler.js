@@ -1,5 +1,6 @@
 // Central error handler. Mounted last in app.js — converts any thrown error into a uniform JSON shape.
 const { AppError } = require("../utils/errors");
+const logger = require("../utils/logger");
 
 // A malformed ObjectId in a route param ("/events/abc") reaches Mongoose as a
 // CastError. That's a client asking for something that can't exist, not a server
@@ -46,7 +47,7 @@ function errorHandler(err, req, res, next) {
    // Only log genuinely unexpected errors — operational errors and the client mistakes
    // above are normal traffic.
    if (!isOperational && !known) {
-      console.error("Unexpected error:", err);
+      logger.error("Unexpected error", err);
    }
 
    res.status(status).json({

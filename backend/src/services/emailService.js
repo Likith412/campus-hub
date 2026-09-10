@@ -5,6 +5,7 @@
 // Neither configured → the message is printed, so signup and reset stay usable.
 const nodemailer = require("nodemailer");
 const { addToQueue, addBulkToQueue } = require("../config/queue");
+const logger = require("../utils/logger");
 
 // The sender is kept as two values because Brevo wants them apart, and the SMTP
 // header is trivially composed from them.
@@ -66,9 +67,7 @@ async function sendEmail(to, subject, html, text) {
 
    const t = getTransporter();
    if (!t) {
-      console.log(
-         `\n[email:dev] to=${to}\n  subject="${subject}"\n  ${text}\n`,
-      );
+      logger.debug("Development email", { to, subject, text });
       return;
    }
 

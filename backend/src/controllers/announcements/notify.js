@@ -16,6 +16,7 @@ const {
 } = require("../../models");
 const { sendAnnouncementEmails } = require("../../services/emailService");
 const { FRONTEND_URL } = require("../../config/env");
+const logger = require("../../utils/logger");
 // Live registrations only — someone who cancelled shouldn't keep getting the club's mail.
 const { LIVE_REGISTRATION_STATUSES } = require("../events/helpers");
 
@@ -80,7 +81,7 @@ async function notifyAnnouncement(announcement, { club, event } = {}) {
       });
       return { queued };
    } catch (err) {
-      console.error("[announcements] notification enqueue failed:", err.message);
+      logger.error("Announcement notification enqueue failed", err);
       return { queued: 0 };
    }
 }

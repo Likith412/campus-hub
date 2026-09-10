@@ -17,6 +17,7 @@ const {
 } = require("../../models");
 const { escapeRegex } = require("../../utils/escapeRegex");
 const { ROLES } = require("../../constants/roles");
+const logger = require("../../utils/logger");
 const {
    sendRegistrationRevokedEmail,
    sendEventCancelledEmails,
@@ -507,7 +508,7 @@ async function evictOutsiders(event, club, outsiders) {
          ),
       );
    } catch (err) {
-      console.error("[events] revocation notice failed:", err.message);
+      logger.error("Event revocation notice failed", err);
    }
 
    return { evicted: live, promoted };
@@ -685,7 +686,7 @@ async function setEventStatus(req, res) {
             });
          }
       } catch (err) {
-         console.error("[events] cancellation notice failed:", err.message);
+         logger.error("Event cancellation notice failed", err);
       }
    }
 

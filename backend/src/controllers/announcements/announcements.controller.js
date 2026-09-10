@@ -14,6 +14,7 @@ const {
 const { escapeRegex } = require("../../utils/escapeRegex");
 const { ROLES } = require("../../constants/roles");
 const { notifyAnnouncement } = require("./notify");
+const logger = require("../../utils/logger");
 const {
    findClubBySlugFor,
    resolveClubContext,
@@ -138,7 +139,7 @@ async function createAnnouncement(req, res) {
    try {
       notified = await notifyAnnouncement(created.toObject(), { club, event });
    } catch (err) {
-      console.error("[announcements] notify failed:", err.message);
+      logger.error("Announcement notification failed", err);
    }
 
    return successResponse(res, 201, "Announcement posted", {

@@ -3,6 +3,7 @@ const { randomToken, sha256 } = require("../../utils/tokens");
 const { EmailVerification } = require("../../models");
 const { FRONTEND_URL } = require("../../config/env");
 const { sendVerificationEmail } = require("../../services/emailService");
+const logger = require("../../utils/logger");
 
 const VERIFY_TTL_MS = 24 * 60 * 60 * 1000; // Email verification link valid for 24h.
 
@@ -43,9 +44,7 @@ async function issueVerificationToken(userId) {
 async function sendVerificationLink(userId, email) {
    const token = await issueVerificationToken(userId);
    const link = `${FRONTEND_URL}/verify-email?token=${token}`;
-   if (process.env.NODE_ENV !== "production") {
-      console.log(`[dev] verification link for ${email}: ${link}`);
-   }
+   logger.debug("Development verification link", { email, link });
    await sendVerificationEmail(email, link);
 }
 
